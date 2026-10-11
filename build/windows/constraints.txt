@@ -1,0 +1,2 @@
+# Versions validated for the Windows bundle (see build.sh)
+gradio==6.30.0

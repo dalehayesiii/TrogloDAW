@@ -1,0 +1,7 @@
+# musicmaker - all packages ship prebuilt wheels for Windows (x64), macOS and Linux, Python 3.10-3.14 (verified win_amd64 wheels for 3.10, 3.12, 3.13, 3.14)
+numpy>=1.26
+scipy>=1.11
+soundfile>=0.12        # bundles libsndfile on Windows/macOS
+pedalboard>=0.9.8      # Spotify's audio FX (pitch shift, time stretch, reverb, ...)
+imageio-ffmpeg>=0.5    # bundled ffmpeg binary: no separate ffmpeg install needed
+gradio>=5.0,<7
