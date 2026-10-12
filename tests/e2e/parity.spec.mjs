@@ -245,7 +245,9 @@ test('native folder choices prompt for existing library data and preserve playba
 }) => {
   const fixture = await seed(request);
   let selected = null;
+  let libraryGate = Promise.resolve();
   await page.route('**/api/library', async (route) => {
+    await libraryGate;
     const response = await route.fetch();
     const value = await response.json();
     value.storage.native_folder_picker = true;
@@ -285,7 +287,11 @@ test('native folder choices prompt for existing library data and preserve playba
   expect(moved.items.some((item) => item.id === fixture.song.id)).toBe(true);
   expect((await request.get(token)).status()).toBe(200);
   await page.getByRole('button', { name: 'Done', exact: true }).click();
+  let releaseLibrary;
+  libraryGate = new Promise((resolve) => (releaseLibrary = resolve));
   await page.reload();
+  await expect(page.getByRole('button', { name: 'Settings', exact: true })).toBeDisabled();
+  releaseLibrary();
   await expect(page.getByRole('dialog')).not.toBeVisible();
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
   await page.getByText('Library storage', { exact: true }).click();

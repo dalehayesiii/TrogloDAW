@@ -82,7 +82,12 @@
     </div>
     <div class="actions header-actions">
       <span class="local-stamp"><span aria-hidden="true"></span> Your local sound cave</span>
-      <button type="button" (click)="openDialog('storage')">Settings</button
+      <button
+        type="button"
+        [disabled]="!library.storage.library_dir"
+        (click)="openDialog('storage')"
+      >
+        Settings</button
       ><button type="button" (click)="toggleTheme()">
         {{theme === 'light' ? 'Dark mode' : 'Light mode'}}
       </button>
@@ -805,7 +810,8 @@
             Move existing {{choice.kind==='model' ? 'models' : 'library data'}}?
           </h3>
           <p>
-            Existing data was found at <span class="storage-destination">{{choice.from}}</span>.
+            Existing data was found at
+            <span class="storage-destination">{{choice.from}}</span>.
           </p>
           <p>New folder: <span class="storage-destination">{{choice.path}}</span></p>
           <p class="muted">

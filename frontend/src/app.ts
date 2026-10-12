@@ -159,7 +159,11 @@ export class AppComponent {
   modelPath = '';
   modelChoice = 'acestep-v15-base';
   choosingFolder = false;
-  folderChoice: { kind: 'library' | 'model'; path: string; from: string } | null = null;
+  folderChoice: {
+    kind: 'library' | 'model';
+    path: string;
+    from: string;
+  } | null = null;
   presetClip?: Clip;
   reference: any = null;
   referenceFields: Record<string, boolean> = {};
@@ -265,7 +269,7 @@ export class AppComponent {
   }
   async refresh() {
     this.library = await this.api('/api/library');
-    if (!['storage', 'setup'].includes(this.dialogKind)) {
+    if (!['storage', 'setup'].includes(this.dialogKind) || !this.libraryPath || !this.modelPath) {
       this.libraryPath = this.library.storage.library_dir;
       this.modelPath = this.library.storage.model_dir;
       this.modelChoice = this.library.models.selected;
@@ -396,6 +400,7 @@ export class AppComponent {
     }
   }
   openDialog(kind: string) {
+    if (['storage', 'setup'].includes(kind) && !this.library.storage.library_dir) return;
     this.dialogKind = kind;
     if (['storage', 'setup'].includes(kind)) {
       this.libraryPath = this.library.storage.library_dir;
@@ -904,7 +909,10 @@ export class AppComponent {
     }
     await fetch('/api/updates/capture', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-TrogloDAW-Request': '1' },
+      headers: {
+        'Content-Type': 'application/json',
+        'X-TrogloDAW-Request': '1',
+      },
       body: JSON.stringify({ client_id: this.captureClient, active }),
       keepalive: !active,
     }).then(async (response) => {
