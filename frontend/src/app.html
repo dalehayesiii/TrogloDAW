@@ -1,321 +1,590 @@
-<main class="flex min-h-screen flex-col">
-  <header>
-    <h1>🎛️ musicmaker</h1>
-    <p>
-      Import voices &amp; tracks · tweak vocals · generate beats · mix any voice over any track ·
-      remix saved recipes.
-    </p>
+<main class="flex min-h-screen flex-col" (input)="saveDraft()">
+  <header class="app-header">
+    <div>
+      <h1>🎛️ musicmaker</h1>
+      <p>Create a song · organize your library · shape each voice</p>
+    </div>
+    <div class="actions">
+      <button type="button" (click)="openDialog('storage')">Settings</button
+      ><button type="button" (click)="toggleTheme()">
+        {{theme === 'light' ? 'Dark mode' : 'Light mode'}}
+      </button>
+    </div>
   </header>
-  <nav role="tablist" aria-label="Music Maker tabs">
-    @for(label of tabs;track $index){<button
+  <nav role="tablist" aria-label="Music workflows">
+    @for (label of tabs; track $index) {<button
       type="button"
       role="tab"
       [id]="'tab-'+$index"
       [attr.aria-selected]="tab===$index"
       [attr.aria-controls]="'panel-'+$index"
+      [attr.tabindex]="tab===$index ? 0 : -1"
       [class.active]="tab===$index"
-      (click)="tab=$index"
+      (click)="changeTab($index)"
+      (keydown)="tabKey($event,$index)"
     >
       {{label}}</button
     >}
   </nav>
-  @if(error){
-  <div class="error-banner" role="alert">{{error}}</div>
+  @if (error && !dialogKind) {
+  <p class="error-banner" role="alert">{{error}}</p>
+  } @if (status) {
+  <p class="status-line" role="status">{{status}}</p>
   }
   <div class="content flex-1">
     <section role="tabpanel" id="panel-0" aria-labelledby="tab-0" [hidden]="tab!==0">
-      <h3>One vocal in, finished song out</h3>
-      <p class="producer-description">
-        Pick a recorded voice (or drop a file), hit <strong>Produce</strong>. The producer analyzes
-        tempo, key and phrasing, writes an original beat with intro, verses and outro, cleans up and
-        places your vocal on the beat, ducks the music under you and masters the song to about -14
-        LUFS. Everything is offline and saved to your library as a remixable recipe.
-      </p>
       <div class="columns grid gap-4 md:grid-cols-2">
         <div class="stack">
-          <ng-container *ngTemplateOutlet="controls;context:{layout:[[['apVoice']]]}" />
-          <mm-upload
-            id="producer-upload"
-            label="...or drop a new recording (any format)"
-            accept="audio/*,video/*"
-            [(files)]="producerFiles"
-          />
-          <div class="accordion">
-            <button type="button" [attr.aria-expanded]="overrides" (click)="overrides=!overrides">
-              Optional overrides <span>{{overrides?'⌄':'◂'}}</span></button
-            >@if(overrides){<ng-container
-              *ngTemplateOutlet="controls;context:{layout:layouts['producer']}"
-            />}
-          </div>
-          <button
-            type="button"
-            class="primary"
-            [disabled]="busy['produce']"
-            (click)="run('produce')"
-          >
-            🎛️ &nbsp;PRODUCE MY SONG
-          </button>
-        </div>
-        <div class="stack">
-          <mm-audio label="Your song" [media]="outputs['produce']?.audio || null" /><mm-download
-            label="Download MP3"
-            [media]="outputs['produce']?.download || null"
-          />
-          @if(busy['produce']){<ng-container
-            *ngTemplateOutlet="progressView;context:{slot:'produce'}"
-          />} @if(outputs['produce']?.production){
-          <div class="production-info">
-            <p>
-              <strong>{{outputs['produce'].song.name}}</strong>:
-              {{outputs['produce'].song.duration.toFixed(0)}} s ·
-              {{outputs['produce'].song.loudness_lufs}} LUFS · true peak
-              {{outputs['produce'].song.true_peak_db}} dBTP
-            </p>
-            <table>
-              @for(row of productionRows();track $index){
-              <tr>
-                <td>{{row[0]}}</td>
-                <td>{{row[1]}}</td>
-              </tr>
-              }
-            </table>
-            <p>
-              Saved to <code>{{outputs['produce'].song.mp3}}</code>. To tweak levels or ducking,
-              load it in the <strong>Mixer / Remix</strong> tab.
-            </p>
-          </div>
-          }@else if(outputs['produce']?.message){
-          <p role="status">{{outputs['produce'].message}}</p>
-          }
-        </div>
-      </div>
-      <div class="library-table">
-        <div class="table-tools">
-          <button type="button" aria-label="Copy catalog table" (click)="copyTable()">▢</button
-          ><button type="button" aria-label="Expand catalog table" (click)="tableFull=!tableFull">
-            ⛶
-          </button>
-        </div>
-        <div class="table-scroll" [class.expanded]="tableFull">
-          <table>
-            <thead>
-              <tr>
-                @for(column of ['id','type','name','dur(s)','tags','created','source'];track
-                column){
-                <th>{{column}}</th>
+          <div class="group">
+            <div class="heading-row">
+              <h3>Input Audio</h3>
+              <div class="input-help">
+                <button
+                  type="button"
+                  aria-label="Audio input guidance"
+                  aria-describedby="audio-guidance"
+                  [attr.aria-expanded]="inputHelp"
+                  (mouseenter)="inputHelp=true"
+                  (mouseleave)="inputHelp=false"
+                  (focus)="inputHelp=true"
+                  (blur)="inputHelp=false"
+                  (click)="inputHelp=true"
+                  (keydown.escape)="inputHelp=false"
+                >
+                  ⓘ
+                </button>
+                @if(inputHelp){
+                <p id="audio-guidance" role="tooltip">
+                  Audio inputs are intended to be vocal recordings. Previously generated songs can
+                  also be used and may benefit from prior-song presets.
+                </p>
                 }
-              </tr>
-            </thead>
-            <tbody>
-              @for(item of library.items;track item.id){
-              <tr>
-                <td>{{item.id}}</td>
-                <td>{{item.type}}</td>
-                <td>{{item.name}}</td>
-                <td>{{item.duration.toFixed(2)}}</td>
-                <td>{{item.tags.join(',')}}</td>
-                <td>{{item.created}}</td>
-                <td>{{item.source}}</td>
-              </tr>
-              }
-            </tbody>
-          </table>
+              </div>
+            </div>
+            <p class="muted">
+              Turn recordings into samples for a new song. Audio is optional when you provide lyrics
+              or styles.
+            </p>
+            <label for="audio-files">Add audio files</label
+            ><input
+              id="audio-files"
+              type="file"
+              accept="audio/*,video/webm"
+              multiple
+              (change)="addFiles($event)"
+            />
+            <div class="actions">
+              <button type="button" (click)="beginRecording()" [disabled]="busy">
+                Record a clip</button
+              ><button type="button" (click)="openDialog('audio-picker')">
+                Choose from Library
+              </button>
+            </div>
+            @for (clip of draft.clips; track clip.key; let index=$index) {
+            <article class="clip-card">
+              <label [for]="'clip-label-'+index">Clip label</label
+              ><input [id]="'clip-label-'+index" [(ngModel)]="clip.label" />
+              <p class="muted">
+                {{clip.source_type === 'prior-song' ? 'Prior song — resample its finished audio' :
+                clip.source_type === 'microphone' ? 'Accepted microphone take' : 'Audio recording'}}
+              </p>
+              <mm-audio [label]="clip.label" [media]="clip.audio || null" />
+              <div class="actions">
+                @if (clip.source_type==='microphone') {<button
+                  type="button"
+                  (click)="beginRecording(index)"
+                  [disabled]="busy"
+                >
+                  Retake</button
+                >}<button type="button" (click)="removeClip(index)">Remove clip</button>
+              </div>
+              <details>
+                <summary>Sample transformation</summary>
+                <div class="stack">
+                  <label [for]="'replace-clip-'+index">Replace this clip with a file</label>
+                  <input
+                    [id]="'replace-clip-'+index"
+                    type="file"
+                    accept="audio/*,.webm,.m4a"
+                    (change)="replaceFile($event,index)"
+                    [disabled]="busy"
+                  />
+                  <label [for]="'clip-pitch-'+index">Sample pitch (semitones)</label
+                  ><input
+                    [id]="'clip-pitch-'+index"
+                    type="number"
+                    min="-12"
+                    max="12"
+                    step=".5"
+                    [(ngModel)]="clip.settings['pitch']"
+                    placeholder="0"
+                  /><label [for]="'clip-stretch-'+index">Sample stretch</label
+                  ><input
+                    [id]="'clip-stretch-'+index"
+                    type="number"
+                    min=".5"
+                    max="2"
+                    step=".05"
+                    [(ngModel)]="clip.settings['stretch']"
+                    placeholder="1"
+                  /><label [for]="'clip-gain-'+index">Sample gain (dB)</label
+                  ><input
+                    [id]="'clip-gain-'+index"
+                    type="number"
+                    min="-30"
+                    max="12"
+                    [(ngModel)]="clip.settings['gain']"
+                    placeholder="-6"
+                  />
+                </div>
+              </details>
+              @if(clip.source_type==='prior-song' && !clip.preset){<button
+                type="button"
+                (click)="presetClip=clip;openDialog('preset')"
+              >
+                Choose prior-song defaults</button
+              >}
+            </article>
+            }
+          </div>
+          <div class="group">
+            <label for="lyrics">Input Lyrics</label
+            ><textarea
+              id="lyrics"
+              rows="5"
+              maxlength="4096"
+              [(ngModel)]="draft.lyrics"
+              placeholder="Your words stay your words. Leave blank for instrumental music."
+            ></textarea
+            ><label for="styles">Input Styles</label
+            ><textarea
+              id="styles"
+              rows="2"
+              maxlength="400"
+              [(ngModel)]="draft.styles"
+              placeholder="Genre, mood, instruments or vocal character"
+            ></textarea>
+          </div>
         </div>
-      </div>
-      <div class="columns grid gap-4 md:grid-cols-2">
         <div class="stack">
-          <mm-upload
-            id="library-upload"
-            label="Upload audio (any format)"
-            [multiple]="true"
-            [(files)]="files"
-          />
-          <ng-container *ngTemplateOutlet="controls;context:{layout:[[['upType'],['upTags']]]}" />
-          <div class="button-row">
+          <div class="group">
+            <h3>Make this song</h3>
+            <button type="button" (click)="openDialog('reference-picker')">
+              Prior Song Reference
+            </button>
+            <p class="muted">
+              Reuse selected creation ingredients. This is different from resampling a finished song
+              as Input Audio.
+            </p>
+            <label for="song-title">Song Title (optional)</label
+            ><input
+              id="song-title"
+              [(ngModel)]="draft.title"
+              placeholder="Create a title for me"
+            /><label for="generation-count">Number of Generations</label
+            ><input
+              id="generation-count"
+              type="number"
+              min="1"
+              max="32"
+              step="1"
+              [(ngModel)]="draft.count"
+            />
+            <details>
+              <summary>More Options</summary>
+              <div class="stack options">
+                @for (control of generationFields; track control.key) {<mm-field
+                  [field]="control"
+                  [value]="draft.options[control.key]"
+                  [options]="control.key==='gender' ? [{label:'Default',value:''},{label:'Male',value:'Male'},{label:'Female',value:'Female'}] : []"
+                  (valueChange)="draft.options[control.key]=$event;saveDraft()"
+                />}
+                <p class="muted">
+                  Auto length follows your lyrics and inputs. Vocal character is a preference for
+                  newly generated voices. Variety changes styles, never lyrics.
+                </p>
+              </div>
+            </details>
+            @if (draft.arrangement) {
+            <p>Saved sample transformations and placements selected.</p>
+            <button type="button" (click)="draft.arrangement=undefined;saveDraft()">
+              Use a fresh arrangement</button
+            >}
             <button
               type="button"
               class="primary"
-              [disabled]="busy['library']"
-              (click)="run('import')"
+              [disabled]="busy || recording"
+              (click)="generate()"
             >
-              Import uploads</button
-            ><button type="button" [disabled]="busy['library']" (click)="run('inbox')">
-              Import everything in inbox/
+              Generate song{{draft.count>1 ? 's' : ''}}
             </button>
+            @if (!library.models.ready) {
+            <p class="muted">
+              Local model setup is required before generation.
+              <button type="button" (click)="openDialog('storage')">Set up model</button>
+            </p>
+            }
           </div>
-          <div class="group status">
-            <label for="library-status">Status</label
-            ><textarea id="library-status" rows="3" readonly [value]="libraryStatus"></textarea>
-          </div>
-          @if(busy['library']){<ng-container
-            *ngTemplateOutlet="progressView;context:{slot:'library'}"
-          />}
-        </div>
-        <div class="stack">
-          <ng-container *ngTemplateOutlet="controls;context:{layout:[[['libPick']]]}" /><mm-audio
-            label="Playback"
-            [media]="playback"
-          />
-          <ng-container *ngTemplateOutlet="controls;context:{layout:[[['libTags','libName']]]}" />
-          <div class="button-row">
-            <button type="button" [disabled]="busy['library']" (click)="run('tags')">
-              Save name/tags</button
-            ><button
-              type="button"
-              class="stop"
-              [disabled]="busy['library']"
-              (click)="run('delete')"
-            >
-              Delete item
-            </button>
-          </div>
-          <div class="code-panel">
-            <span class="corner-label">‹/› &nbsp;Catalog entry / recipe</span>@if(catalog){
-            <pre>{{catalog}}</pre>
-            }@else{<span aria-hidden="true">‹/›</span>}
-          </div>
+          @for (result of results; track result.index) {
+          <article class="group">
+            @if(result.status==='complete'){
+            <h3>{{result.song.name}}</h3>
+            <p>Styles: {{result.effective_styles}}</p>
+            <mm-audio [label]="result.song.name" [media]="result.audio" /><mm-download
+              label="MP3"
+              [media]="result.download"
+            />
+            <div class="actions">
+              <button type="button" (click)="selectSong(result.song);changeTab(1)">
+                Open in Library</button
+              ><button type="button" (click)="editFx(result.song)">Edit Vocal FX</button
+              ><button type="button" (click)="referenceSong(result.song)">
+                Creation ingredients
+              </button>
+            </div>
+            }@else{
+            <p role="status">Output {{result.index}}: {{result.status}} {{result.message || ''}}</p>
+            }
+          </article>
+          }
         </div>
       </div>
-      <div class="button-row library-actions">
-        <button type="button" (click)="refresh()">🔄 Refresh library</button
-        ><button type="button" class="stop" (click)="quit()">⏻ Quit Music Maker</button>
-      </div>
-      <p class="library-folder">
-        Library folder: <code>{{library.library}}</code> &nbsp;·&nbsp; drop recordings into
-        <code>{{library.inbox}}</code> and click <em>Import everything in inbox/</em>
-      </p>
     </section>
     <section role="tabpanel" id="panel-1" aria-labelledby="tab-1" [hidden]="tab!==1">
       <div class="columns grid gap-4 md:grid-cols-2">
         <div class="stack">
-          <ng-container *ngTemplateOutlet="controls;context:{layout:[[['fxVoice']]]}" /><mm-audio
-            label="Original"
-            [media]="original"
-          /><ng-container *ngTemplateOutlet="controls;context:{layout:layouts['fxLeft']}" />
+          <div class="group">
+            <h3>Your songs</h3>
+            <label for="song-search">Search songs</label
+            ><input id="song-search" [(ngModel)]="search" /><label for="folder-filter">Folder</label
+            ><select id="folder-filter" [(ngModel)]="folderFilter">
+              <option value="*">All songs</option>
+              <option value="">Unfiled</option>
+              @for(folder of library.folders;track folder){
+              <option [value]="folder">{{folder}}</option>
+              }
+            </select>
+            <details>
+              <summary>Create a folder</summary>
+              <label for="new-folder">New folder name</label
+              ><input id="new-folder" [(ngModel)]="newFolder" /><button
+                type="button"
+                (click)="createFolder()"
+                [disabled]="busy"
+              >
+                Create folder
+              </button>
+            </details>
+          </div>
+          @if(!filteredSongs.length){
+          <p class="empty-state">
+            No songs here yet. Create one in Generation, or choose another folder.
+          </p>
+          }
+          <ul class="song-list">
+            @for(song of filteredSongs;track song.id){
+            <li>
+              <button
+                type="button"
+                class="song-row"
+                [class.selected]="selectedSong===song.id"
+                (click)="selectSong(song)"
+              >
+                <strong>{{song.name}}</strong
+                ><span>{{song.duration.toFixed(1)}} s · {{song.folder || 'Unfiled'}}</span>
+              </button>
+            </li>
+            }
+          </ul>
         </div>
         <div class="stack">
-          <ng-container *ngTemplateOutlet="controls;context:{layout:layouts['fxRight']}" />
-          <div class="button-row">
-            <button type="button" [disabled]="busy['fx']" (click)="run('fx',{save:false})">
-              Preview</button
-            ><button
+          @if(selected;as song){
+          <div class="group">
+            <h3>{{song.name}}</h3>
+            <mm-audio [label]="song.name" [media]="libraryAudio" /><button
               type="button"
               class="primary"
-              [disabled]="busy['fx']"
-              (click)="run('fx',{save:true})"
+              (click)="addAudio(song)"
             >
-              Apply &amp; save as new voice
-            </button>
+              Use as Input Audio</button
+            ><button type="button" (click)="referenceSong(song)">Reuse Creation Ingredients</button
+            ><button type="button" (click)="editFx(song)">Edit Vocal FX</button>
+            <details>
+              <summary>Organize song</summary>
+              <div class="stack">
+                <label for="rename-song">Song name</label
+                ><input id="rename-song" [(ngModel)]="songName" /><label for="move-song"
+                  >Move to folder</label
+                ><select id="move-song" [(ngModel)]="songFolder">
+                  <option value="">Unfiled</option>
+                  @for(folder of library.folders;track folder){
+                  <option [value]="folder">{{folder}}</option>
+                  }</select
+                ><button type="button" (click)="organize()" [disabled]="busy">
+                  Save organization</button
+                ><button type="button" (click)="deleteSong()" [disabled]="busy">Delete song</button>
+              </div>
+            </details>
+            <details class="code-panel">
+              <summary>Inspect saved recipe and audio assets</summary>
+              <pre>{{selectedRecipe}}</pre>
+              @for(asset of libraryAssets;track asset.label){ @if(asset.media){<mm-audio
+                [label]="asset.label"
+                [media]="asset.media"
+              />}@else{
+              <p>{{asset.label}} — asset unavailable</p>
+              }}
+            </details>
           </div>
-          <mm-audio label="Result" [media]="outputs['fx']?.audio || null" />
-          <div class="group status">
-            <label for="fx-status">Status</label
-            ><textarea
-              id="fx-status"
-              rows="1"
-              readonly
-              [value]="outputs['fx']?.message || ''"
-            ></textarea>
-          </div>
-          @if(busy['fx']){<ng-container *ngTemplateOutlet="progressView;context:{slot:'fx'}" />}
+          }@else{
+          <p class="empty-state">
+            Select a song to play it, organize it, reuse its ingredients or edit its voices.
+          </p>
+          }<button type="button" (click)="openDialog('storage')">Library and model storage</button>
         </div>
       </div>
     </section>
     <section role="tabpanel" id="panel-2" aria-labelledby="tab-2" [hidden]="tab!==2">
+      @if(!fx){
+      <div class="group">
+        <h3>Choose a song to shape its voices</h3>
+        <p>
+          Select a generated song or FX version. Its vocal stems and candidate voice groups will be
+          prepared locally.
+        </p>
+        <button type="button" (click)="changeTab(1)">Choose a Library song</button>
+      </div>
+      } @if(fx){
       <div class="columns grid gap-4 md:grid-cols-2">
         <div class="stack">
-          <ng-container *ngTemplateOutlet="controls;context:{layout:layouts['generator']}" /><button
-            type="button"
-            class="primary"
-            [disabled]="busy['generate']"
-            (click)="run('generate')"
-          >
-            Generate
-          </button>
+          <div class="group">
+            <h3>{{fx.song.name}}</h3>
+            <p class="muted">
+              {{fx.cache_hit ? 'Source stems and analysis reused.' : 'Source stems and analysis
+              prepared.'}}
+            </p>
+            <p class="notice">{{fx.warning}}</p>
+            <label for="voice-group">Voice group</label
+            ><select id="voice-group" [(ngModel)]="fxGroup">
+              @for(group of fx.groups;track group.id){
+              <option [value]="group.id">{{group.name}}</option>
+              }</select
+            ><mm-audio label="Solo selected voice group" [media]="currentGroup?.audio || null" />
+          </div>
+          <details class="group">
+            <summary>Correct voice groups</summary>
+            <p>
+              These are candidates. Assign timeline segments to the same group to combine them, or
+              create a corrected group.
+            </p>
+            @for(segment of fx.segments;track $index;let index=$index){
+            <div class="segment">
+              <label [for]="'segment-'+index"
+                >{{(segment.start/44100).toFixed(1)}}–{{(segment.end/44100).toFixed(1)}} s</label
+              ><select [id]="'segment-'+index" [(ngModel)]="segment.group">
+                @for(group of fx.groups;track group.id){
+                <option [value]="group.id">{{group.name}}</option>
+                }</select
+              ><button type="button" (click)="addVoiceGroup(index)">New group</button>
+            </div>
+            }<button type="button" (click)="applyGrouping()" [disabled]="busy">
+              Apply grouping
+            </button>
+          </details>
         </div>
         <div class="stack">
-          <mm-audio label="Generated" [media]="outputs['generate']?.audio || null" />
-          <div class="group status">
-            <label for="generator-status">Status</label
-            ><textarea
-              id="generator-status"
-              rows="1"
-              readonly
-              [value]="outputs['generate']?.message || ''"
-            ></textarea>
+          <div class="group">
+            <h3>Effects for {{currentGroup?.name}}</h3>
+            <p class="muted">
+              Only the selected group changes. Stretch and trim keep fixed timeline slots; tails end
+              at their slot boundary.
+            </p>
+            @for(control of fxFields.slice(0,3);track control.key){<mm-field
+              [field]="control"
+              [value]="fxValue(control)"
+              (valueChange)="setFx(control.key,$event)"
+            />}
+            <details>
+              <summary>Detailed effects</summary>
+              <div class="stack options">
+                @for(control of fxFields.slice(3);track control.key){<mm-field
+                  [field]="control"
+                  [value]="fxValue(control)"
+                  (valueChange)="setFx(control.key,$event)"
+                />}
+              </div>
+            </details>
+            <label for="fx-version-name">FX version name</label
+            ><input id="fx-version-name" [(ngModel)]="fxName" />
+            <div class="actions">
+              <button type="button" (click)="renderFx(false,'new')" [disabled]="busy">
+                Preview remix</button
+              ><button type="button" class="primary" (click)="fxSave()" [disabled]="busy">
+                Save FX version
+              </button>
+            </div>
           </div>
-          @if(busy['generate']){<ng-container
-            *ngTemplateOutlet="progressView;context:{slot:'generate'}"
-          />}
+          <mm-audio label="FX remix" [media]="fxPreview || fx.audio" />
         </div>
       </div>
-    </section>
-    <section role="tabpanel" id="panel-3" aria-labelledby="tab-3" [hidden]="tab!==3">
-      <div class="columns grid gap-4 md:grid-cols-2">
-        <div class="stack">
-          <ng-container *ngTemplateOutlet="controls;context:{layout:layouts['mixer']}" /><button
-            type="button"
-            class="primary"
-            [disabled]="busy['mix']"
-            (click)="run('mix')"
-          >
-            Render mix
-          </button>
-        </div>
-        <div class="stack">
-          <mm-audio label="Mix (wav)" [media]="outputs['mix']?.audio || null" /><mm-download
-            label="MP3 download"
-            [media]="outputs['mix']?.download || null"
-          />
-          <div class="group status">
-            <label for="mix-status">Status</label
-            ><textarea
-              id="mix-status"
-              rows="3"
-              readonly
-              [value]="outputs['mix']?.message || ''"
-            ></textarea>
-          </div>
-          @if(busy['mix']){<ng-container *ngTemplateOutlet="progressView;context:{slot:'mix'}" />}
-        </div>
-      </div>
+      }
     </section>
   </div>
-  <footer>
-    <a href="/docs" target="_blank" rel="noopener">Use via API 🚀</a> &nbsp;·&nbsp; Built with
-    Angular &nbsp;·&nbsp; <button type="button" (click)="settings=!settings">Settings ⚙</button>
-  </footer>
-  @if(settings){
-  <div class="settings-dialog" role="dialog" aria-label="Settings">
-    <label for="theme">Theme</label
-    ><select id="theme" [(ngModel)]="theme" (ngModelChange)="setTheme()">
-      <option value="light">Light</option>
-      <option value="dark">Dark</option>
-      <option value="system">System</option></select
-    ><button type="button" (click)="settings=false">Close</button>
-  </div>
-  }
-</main>
-<ng-template #controls let-layout="layout"
-  >@for(group of layout;track $index){
-  <div class="group">
-    @for(row of group;track $index){
-    <div class="field-row">
-      @for(key of row;track key){<mm-field
-        [field]="fields[key]"
-        [value]="values[key]"
-        [options]="options(key)"
-        (valueChange)="change(key,$event)"
-      />}
+  @if(jobs.length){
+  <aside class="job-panel" aria-label="Processing jobs">
+    @for(job of jobs;track job.id){@if(active(job) || job.status==='failed' ||
+    job.status==='canceled'){
+    <div class="job">
+      <p role="status">{{job.message}} · {{job.status}}</p>
+      @if(active(job)){<label [for]="'progress-'+job.id">Current stage progress</label
+      ><progress [id]="'progress-'+job.id" [value]="job.progress" max="1"></progress
+      ><button type="button" (click)="cancel(job)">Cancel</button>}@if(job.items_total){
+      <p>{{job.items_complete || 0}} of {{job.items_total}} songs complete</p>
+      }
     </div>
+    }}
+  </aside>
+  }
+  <footer>
+    <button type="button" (click)="refresh()">Refresh library</button
+    ><button type="button" class="stop" (click)="quit()" [disabled]="busy">Quit</button>
+  </footer>
+  <dialog #dialog (cancel)="closeDialog()" aria-labelledby="dialog-heading">
+    <div class="dialog-heading">
+      <h2 id="dialog-heading">
+        {{dialogKind==='storage' ? (library.models.ready ? 'Settings and storage' : 'Set up local
+        music') : dialogKind==='microphone' ? 'Record a vocal clip' : dialogKind==='preset' ?
+        'Prior-song sampling defaults' : dialogKind==='fx-save' ? 'Save this FX edit' :
+        dialogKind==='reference' ? 'Choose creation ingredients' : 'Choose a Library item'}}
+      </h2>
+      <button type="button" aria-label="Close dialog" (click)="closeDialog()">×</button>
+    </div>
+    @if(error){
+    <p class="error-banner" role="alert">{{error}}</p>
     }
-  </div>
-  }</ng-template
->
-<ng-template #progressView let-slot="slot"
-  ><div class="job-progress" role="status">
-    <span>{{progress[slot].message}}</span
-    ><progress max="1" [value]="progress[slot].fraction"></progress
-    ><span>{{(progress[slot].fraction*100).toFixed(0)}}%</span>
-  </div></ng-template
->
+    <div class="stack">
+      @switch(dialogKind){ @case('storage'){
+      <p>
+        {{library.models.ready ? 'The selected model is ready for local generation.' : 'Install a
+        local model once. Generation then works offline. You can use the app and return to setup
+        later.'}}
+      </p>
+      <div class="group">
+        <h3>Model setup</h3>
+        <label for="model-choice">Music model</label
+        ><select id="model-choice" [(ngModel)]="modelChoice">
+          @for(choice of library.models.choices;track choice.id){
+          <option [value]="choice.id">
+            {{choice.name}}{{choice.id==='acestep-v15-base' ? ' — recommended' : ''}}
+          </option>
+          }
+        </select>
+        <p class="muted">
+          {{selectedModel?.hardware}} · approximately {{((selectedModel?.bytes ||
+          0)/1000000000).toFixed(1)}} GB of music weights, plus about 12 GB for inference tools and
+          voice analysis.
+        </p>
+        <label for="model-location">Model storage folder</label
+        ><input id="model-location" [(ngModel)]="modelPath" />
+        <p class="muted">
+          All models and supporting caches use this location. Choose an absolute local folder with
+          enough free space.
+        </p>
+        <div class="actions">
+          <button type="button" class="primary" (click)="installModel()" [disabled]="busy">
+            Install / verify selected model</button
+          ><button type="button" (click)="changeStorage('model','open')" [disabled]="busy">
+            Use this model folder</button
+          ><button type="button" (click)="changeStorage('model','relocate')" [disabled]="busy">
+            Relocate models here
+          </button>
+        </div>
+        <p>Download destination: {{modelPath}}</p>
+      </div>
+      <details class="group">
+        <summary>Library storage</summary>
+        <p>
+          The complete library stays together. Relocation copies and verifies it, retaining the
+          original as a recovery copy.
+        </p>
+        <label for="library-location">Library folder</label
+        ><input id="library-location" [(ngModel)]="libraryPath" />
+        <div class="actions">
+          <button type="button" (click)="changeStorage('library','open')" [disabled]="busy">
+            Open this library</button
+          ><button type="button" (click)="changeStorage('library','relocate')" [disabled]="busy">
+            Relocate current library here
+          </button>
+        </div>
+      </details>
+      @for(job of jobs;track job.id){@if(active(job) && (job.action==='model_install' ||
+      job.action==='storage')){
+      <p role="status">{{job.message}}</p>
+      <progress [value]="job.progress" max="1" aria-label="Setup progress"></progress
+      ><button type="button" (click)="cancel(job)">Cancel setup</button>}}
+      <button type="button" (click)="closeDialog()">
+        {{library.models.ready ? 'Done' : 'Set up later'}}
+      </button>
+      } @case('preset'){
+      <p>
+        {{presetClip?.label}} is a finished song. Recommended defaults use eight short one-second
+        samples, +2 semitones, 1.1× stretch and −12 dB gain for this clip. Your lyrics, styles and
+        other draft fields stay as they are.
+      </p>
+      <button type="button" class="primary" (click)="choosePreset('apply')">
+        Apply recommended prior-song defaults</button
+      ><button type="button" (click)="choosePreset('keep')">Keep current settings</button>}
+      @case('reference'){
+      <p>Only selected fields replace your current draft.</p>
+      @for(key of referenceKeys;track key){<label
+        ><input type="checkbox" [(ngModel)]="referenceFields[key]" />{{referenceLabel(key)}}</label
+      >
+      <details>
+        <summary>Inspect {{referenceLabel(key)}}</summary>
+        <pre>{{referenceValue(key)}}</pre>
+      </details>
+      }@for(key of reference?.unavailable || [];track key){
+      <p class="muted">{{referenceLabel(key)}} — unavailable in this saved recipe</p>
+      }<button type="button" class="primary" (click)="applyReference()">
+        Reuse selected ingredients</button
+      >} @case('fx-save'){
+      <p>Your original song remains separate.</p>
+      <button type="button" class="primary" (click)="renderFx(true,'update')">
+        Update this FX version</button
+      ><button type="button" (click)="renderFx(true,'new')">Save a new FX version</button>}
+      @case('microphone'){
+      <p>
+        Audio inputs are intended to be vocal recordings. Previously generated songs can also be
+        used and may benefit from prior-song presets.
+      </p>
+      @if(recording){
+      <p class="recording" role="status">● Recording</p>
+      <button type="button" class="stop" (click)="stopCapture()">Stop recording</button>
+      } @else if (take) {
+      <audio controls [src]="takeUrl" aria-label="Preview recorded take"></audio>
+      <div class="actions">
+        <button type="button" class="primary" (click)="keepTake()" [disabled]="busy">
+          Keep this take</button
+        ><button type="button" (click)="beginRecording(retakeIndex)">Record another take</button
+        ><button type="button" (click)="closeDialog()">Discard take</button>
+      </div>
+      }@else{
+      <p>
+        Recording will request microphone access. Existing accepted takes stay unchanged until you
+        keep a replacement.
+      </p>
+      <button type="button" (click)="beginRecording(retakeIndex)">Start recording</button>}}
+      @default{@for(item of dialogKind==='audio-picker' ? library.items : songs;track
+      item.id){<button
+        type="button"
+        class="song-row"
+        (click)="dialogKind==='audio-picker' ? addAudio(item) : referenceSong(item)"
+      >
+        <strong>{{item.name}}</strong
+        ><span>{{item.duration.toFixed(1)}} s · {{item.type}}</span></button
+      >}@if(!library.items.length){
+      <p>There are no saved items yet. Upload or record audio, or create a song.</p>
+      }} }
+    </div>
+  </dialog>
+</main>

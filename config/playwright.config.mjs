@@ -1,8 +1,15 @@
 import { defineConfig } from '@playwright/test';
-import { mkdtempSync } from 'node:fs';
+import { mkdtempSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
+
+const testConfig = mkdtempSync(join(tmpdir(), 'musicmaker-config-'));
+const testLibrary = mkdtempSync(join(tmpdir(), 'musicmaker-e2e-'));
+writeFileSync(
+  join(testConfig, 'config.local.json'),
+  JSON.stringify({ library_dir: testLibrary, model_dir: join(testConfig, 'models') }),
+);
 
 export default defineConfig({
   testDir: '../tests/e2e',
@@ -24,6 +31,6 @@ export default defineConfig({
     cwd: fileURLToPath(new URL('..', import.meta.url)),
     url: 'http://127.0.0.1:7863/api/health',
     reuseExistingServer: false,
-    env: { MM_LIBRARY: mkdtempSync(join(tmpdir(), 'musicmaker-e2e-')), MM_HOST: '127.0.0.1' },
+    env: { MM_CONFIG_DIR: testConfig, MM_LIBRARY: '', MM_HOST: '127.0.0.1' },
   },
 });

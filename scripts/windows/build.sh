@@ -45,7 +45,12 @@ rm -rf "$SP/bin"; find "$SP/numpy" "$SP/scipy" -type d -name tests -prune -exec 
 cp "$SP"/numpy.libs/msvcp140-*.dll "$S/python/msvcp140.dll"
 
 mkdir -p "$S/app/backend"
-cp "$REPO/backend"/{mmcore.py,cli.py,app.py} "$S/app/backend/"
+cp "$REPO/backend"/{mmcore.py,cli.py,app.py,storage.py,models.py,songs.py,inference_runner.py} "$S/app/backend/"
+mkdir -p "$S/app/config"
+cp "$REPO/config/model-manifest.json" "$S/app/config/"
+cp "$REPO"/{pyproject.toml,uv.lock} "$S/app/"
+# Extract the locked Windows executable even when packaging from a Linux development host.
+"$PY" "$HERE/setup_tool.py" "$REPO" "$CACHE" "$S"
 cp "$REPO/README.md" "$S/app/"
 [[ -f "$REPO/frontend/dist/browser/index.html" ]] || { echo "Build the Angular frontend with npm run build first"; exit 1; }
 mkdir -p "$S/app/frontend/dist"

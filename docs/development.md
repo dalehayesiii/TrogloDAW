@@ -2,9 +2,10 @@
 
 The monorepo has an Angular/Tailwind frontend and a local FastAPI backend.
 `backend/mmcore.py` remains the shared DSP/catalog engine; the CLI and HTTP service
-both call it. Audio processing is offline and has no model service or API key.
-The initial Gradio appearance, four tabs, labels, defaults and workflows are retained.
-The library stays inside AI Producer. See [paired screenshots](ui-parity/README.md).
+both call it. Audio processing is offline after explicit local model setup and has no remote
+model service or API key. The three task-focused workflows are Generation, Library
+and Vocal FX. See [workflows](song-workflows.md), [model setup](local-models.md) and
+[screenshot evidence](ui-parity/README.md). The legacy CLI/DSP operations remain.
 
 ## Layout
 | Location | Contents |
@@ -31,7 +32,7 @@ uv sync --locked
 npm ci --ignore-scripts
 uv lock --check
 uv run --locked ruff check .
-uv run --locked ruff format --check backend/app.py scripts backend/tests
+uv run --locked ruff format --check backend/app.py backend/models.py backend/storage.py backend/songs.py backend/inference_runner.py scripts backend/tests
 uv run --locked ty check
 uv run --locked pytest
 npm run format:check
@@ -156,11 +157,13 @@ payload without NSIS. Stable versions come from semantic-release in CI.
 NSIS bundles Python 3.12.10, locked runtime wheels, ffmpeg and Angular static files.
 The installed app needs neither Python, Node nor uv installed separately. Windows
 metadata/Apps & Features use the injected version; library/config locations and
-shortcuts retain the original behavior. Static validation fails on invalid wheels,
+shortcuts retain compatibility. Initial setup installs verified model assets into
+a separate chosen folder; uninstall offers default-checked ownership-aware model
+removal, with opt-out, and preserves libraries. The installed uv binary is a setup
+tool; generation itself needs no network. Static validation fails on invalid wheels,
 non-Windows binaries, missing dependencies/DLLs or missing ffmpeg. Windows tests
 prove the compiled UI/service and actual audio operations work in the installed runtime.
 
 Potential follow-ups: code signing (installer remains unsigned), stricter typed API
 request schemas, bounded/expiring job/media caches, broader Python compatibility,
-dependency security maintenance and UX redesign. Song-production/model architecture
-is deliberately unchanged.
+dependency security maintenance and wider hardware/model validation.

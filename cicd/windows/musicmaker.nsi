@@ -41,6 +41,10 @@ VIAddVersionKey "LegalCopyright" "Personal use"
 !include "WordFunc.nsh"
 !include "x64.nsh"
 !include "WinVer.nsh"
+!include "nsDialogs.nsh"
+!include "FileFunc.nsh"
+Var RemoveModels
+Var ModelsCheckbox
 
 !define MUI_ICON "${STAGE}\musicmaker.ico"
 !define MUI_UNICON "${STAGE}\musicmaker.ico"
@@ -56,6 +60,7 @@ VIAddVersionKey "LegalCopyright" "Personal use"
 !insertmacro MUI_PAGE_INSTFILES
 !insertmacro MUI_PAGE_FINISH
 !insertmacro MUI_UNPAGE_CONFIRM
+UninstPage custom un.ModelRemovalPage un.ModelRemovalLeave
 !insertmacro MUI_UNPAGE_INSTFILES
 !insertmacro MUI_LANGUAGE "English"
 
@@ -80,6 +85,36 @@ FunctionEnd
 Function LaunchApp
   SetOutPath "$INSTDIR"
   Exec '"$INSTDIR\python\pythonw.exe" "$INSTDIR\app\backend\app.py"'
+FunctionEnd
+
+Function un.onInit
+  StrCpy $RemoveModels ${BST_CHECKED}
+  ${GetParameters} $0
+  ClearErrors
+  ${GetOptions} $0 "/KEEP_MODELS" $1
+  ${IfNot} ${Errors}
+    StrCpy $RemoveModels ${BST_UNCHECKED}
+  ${EndIf}
+FunctionEnd
+
+Function un.ModelRemovalPage
+  nsDialogs::Create 1018
+  Pop $0
+  ${If} $0 == error
+    Abort
+  ${EndIf}
+  ${NSD_CreateLabel} 0 0 100% 40u "Your song libraries are preserved. Choose whether to remove model assets installed by this application. Shared, reused, changed and unrelated files are preserved."
+  Pop $0
+  ${NSD_CreateCheckbox} 0 50u 100% 20u "Remove installed model assets"
+  Pop $ModelsCheckbox
+  ${If} $RemoveModels == ${BST_CHECKED}
+    ${NSD_Check} $ModelsCheckbox
+  ${EndIf}
+  nsDialogs::Show
+FunctionEnd
+
+Function un.ModelRemovalLeave
+  ${NSD_GetState} $ModelsCheckbox $RemoveModels
 FunctionEnd
 
 Section "Install"
@@ -139,6 +174,14 @@ SectionEnd
 
 Section "Uninstall"
   !insertmacro StopRunning
+  ${If} $RemoveModels == ${BST_CHECKED}
+    nsExec::ExecToLog '"$INSTDIR\python\python.exe" "$INSTDIR\app\backend\storage.py" "$INSTDIR\app\config.local.json"'
+    Pop $0
+    ${If} $0 != 0
+      MessageBox MB_ICONSTOP "Model cleanup could not safely complete. Your app and libraries are still present. Retry uninstall with model removal unchecked to retain the model files."
+      Abort
+    ${EndIf}
+  ${EndIf}
   Delete "$DESKTOP\${APPNAME}.lnk"
   RMDir /r "$SMPROGRAMS\${APPNAME}"
   RMDir /r "$INSTDIR\python"

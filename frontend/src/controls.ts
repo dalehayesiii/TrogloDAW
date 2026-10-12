@@ -115,7 +115,9 @@ export class IconComponent {
         @case ('select') {
           <div class="select-wrap">
             <select [id]="field.key" [ngModel]="value" (ngModelChange)="valueChange.emit($event)">
-              <option value=""></option>
+              @if (!hasEmptyOption()) {
+                <option value=""></option>
+              }
               @for (option of options; track option.value) {
                 <option [value]="option.value">{{ option.label }}</option>
               }</select
@@ -155,6 +157,9 @@ export class FieldComponent {
   @Input() value: Value = '';
   @Input() options: Option[] = [];
   @Output() valueChange = new EventEmitter<Value>();
+  hasEmptyOption() {
+    return this.options.some((option) => option.value === '');
+  }
   fill() {
     return (
       ((Number(this.value) - (this.field.min || 0)) /
@@ -335,6 +340,7 @@ export class AudioComponent implements OnChanges, AfterViewInit {
         const audio = await context.decodeAudioData(buffer);
         if (this.media?.url === url) {
           this.samples = audio.getChannelData(0);
+          this.duration = audio.duration;
           this.draw();
         }
       } finally {

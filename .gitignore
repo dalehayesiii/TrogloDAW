@@ -8,6 +8,11 @@ config.json
 
 # ---- user data: library, recordings, catalog (never commit voices) ----
 library/
+models/
+*.safetensors
+*.pt
+*.pth
+*.ckpt
 inbox/
 catalog.json
 catalog.json.lock
