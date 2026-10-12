@@ -13,6 +13,10 @@ Installed releases SHALL check published stable releases asynchronously on start
 - **WHEN** a newer stable release is available
 - **THEN** the interface identifies its version and offers explicit download/update actions without installing automatically
 
+#### Scenario: Inspect current version
+- **WHEN** the installed app is running before or after an upgrade
+- **THEN** its footer and Settings report the packaged current version, with source/development builds clearly labeled
+
 #### Scenario: Offline or limited access
 - **WHEN** release access fails or the app is offline/rate limited
 - **THEN** local workflows remain usable and Settings exposes a quiet check status with retry/access guidance

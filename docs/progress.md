@@ -52,6 +52,10 @@ Hash verification is a separate byte-counted stage and does not reset downloaded
 bytes. Code extraction, dependency/runtime installation and the offline readiness
 probe must also finish. Dependency-download totals are not reliably available;
 these stages remain indeterminate unless compatible whole-setup history exists.
+Runtime status identifies recognized package downloads/completions and package counts,
+shows elapsed time for the current stage, and reports when the tool is still running
+without new package output. Large wheel downloads can be quiet. Recording runtime/cache
+files for safe uninstall is a separate stage with measured file counts, not a blank install bar.
 The transfer ETA is explicitly not a promise that the entire setup finishes then.
 Interrupted owned downloads resume safely; unrelated partial files remain untouched.
 

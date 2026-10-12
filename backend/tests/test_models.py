@@ -1,10 +1,33 @@
 import hashlib
 import io
+import os
+import sys
 
 import pytest
 
 import models
 from models import Canceled, cache_environment, download
+
+
+def test_runtime_installation_reports_safe_package_activity_without_guessing_totals():
+    events = []
+    command = [
+        sys.executable,
+        "-c",
+        "print('Downloading torch (2.5 GiB)'); print('https://example.invalid/private-secret'); print('Downloaded torch'); print('Installed 3 packages in 1s')",
+    ]
+    models.run_setup(
+        command,
+        dict(os.environ),
+        lambda message, fraction=0, **details: events.append({"message": message, **details}),
+        lambda: False,
+    )
+    assert any("Downloading torch (2.5 GiB)" in event["message"] for event in events)
+    assert any("Installed 3 packages" in event["message"] for event in events)
+    assert all("private-secret" not in event["message"] for event in events)
+    assert any(event.get("runtime_running") for event in events)
+    assert events[-1]["runtime_running"] is False
+    assert all("units_total" not in event for event in events)
 
 
 def asset(data):
@@ -253,8 +276,8 @@ def test_fresh_install_reuses_retained_assets_and_reports_real_installation_chec
         for event in events
         if "installation_steps_complete" in event
     ]
-    assert checkpoints == sorted(checkpoints) and checkpoints[-1] == 7
-    assert events[-1]["installation_steps_total"] == 7
+    assert checkpoints == sorted(checkpoints) and checkpoints[-1] == 8
+    assert events[-1]["installation_steps_total"] == 8
     assert events[-1]["setup_phase"] == "installation"
     assert any(event.get("stage") == "verifying" and event.get("units_total") for event in events)
     # Reinstallation has a new identity, requiring explicit verification rather than trusting the old ready marker.

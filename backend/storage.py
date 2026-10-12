@@ -7,6 +7,7 @@ import json
 import os
 import shutil
 import threading
+import time
 import uuid
 import folders
 import copy
@@ -470,13 +471,19 @@ class Storage:
                 directory = directory.parent
         return retained
 
-    def owned(self, root: Path, files: list[Path]):
+    def owned(self, root: Path, files: list[Path], progress=None):
         path = root / ".troglodaw" / (self.preferences["installation_id"] + ".json")
         existing = json.loads(path.read_text()) if path.exists() else {"files": {}}
-        for file in files:
+        reported = time.monotonic()
+        if progress:
+            progress(0, len(files))
+        for index, file in enumerate(files):
             relative = file.relative_to(root).as_posix()
             safe_file(root, relative)
             existing["files"][relative] = digest(file)
+            if progress and (time.monotonic() - reported >= 0.2 or index + 1 == len(files)):
+                progress(index + 1, len(files))
+                reported = time.monotonic()
         atomic_json(path, existing)
         roots = self.preferences.setdefault("model_roots", [])
         if str(root) not in roots:

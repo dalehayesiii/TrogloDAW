@@ -19,6 +19,9 @@ export interface ProcessingJob {
   installation_steps_total?: number;
   stage_progress?: number | null;
   elapsed_seconds?: number;
+  stage_elapsed_seconds?: number;
+  runtime_running?: boolean;
+  runtime_activity_at?: number;
   queue_wait_seconds?: number;
   queue_remaining?: RemainingRange | null;
   stage_remaining?: RemainingRange | null;
@@ -76,6 +79,17 @@ export interface ProcessingJob {
           <label [for]="progressId">Current stage {{ setupPhase(j) }}</label>
           <progress [id]="progressId" [attr.value]="j.stage_progress ?? null" max="1"></progress>
           <p class="muted">{{ range(j.stage_remaining) }}</p>
+          <p class="muted">Current stage elapsed {{ time(j.stage_elapsed_seconds) }}</p>
+          @if (j.runtime_running) {
+            <p class="muted">
+              Runtime tool is running. New package status may pause during large wheel downloads or
+              import checks.
+              @if (j.runtime_activity_at) {
+                Last package status
+                {{ time((DateNow() - j.runtime_activity_at * 1000) / 1000) }} ago.
+              }
+            </p>
+          }
           @if (setupPhase(j) === 'installation' && j.installation_steps_total) {
             <p class="muted">
               {{ j.installation_steps_complete || 0 }} of
@@ -177,6 +191,9 @@ export interface ProcessingJob {
   }`,
 })
 export class JobStatusComponent {
+  DateNow() {
+    return Date.now();
+  }
   readonly progressId = 'job-progress-' + nextProgressId++;
   readonly job = input.required<ProcessingJob>();
   readonly cancelRequested = output<void>();
@@ -240,6 +257,8 @@ export class JobStatusComponent {
           sampling: 'samples',
           rendering: 'segments',
           copying: 'files',
+          registering_cache: 'files',
+          registering_runtime: 'files',
         } as Record<string, string>
       )[stage || ''] || 'work units'
     );

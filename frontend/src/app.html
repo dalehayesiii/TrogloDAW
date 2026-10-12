@@ -664,6 +664,10 @@
   </div>
   <footer>
     <span class="footer-mark"><span aria-hidden="true">◈</span> Made here. Kept here.</span>
+    <span class="app-version"
+      >{{update.version==='0.0.0' ? 'TrogloDAW · Development/source build' : 'TrogloDAW
+      v'+update.version}}</span
+    >
     <button type="button" (click)="refresh()">Refresh library</button
     ><button type="button" class="stop" (click)="quit()" [disabled]="storageBusy || quitting">
       {{quitting ? 'Stopping…' : 'Quit'}}

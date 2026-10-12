@@ -121,3 +121,7 @@ Model setup SHALL show local start time and combined download/installation remai
 #### Scenario: Transfer finishes before runtime setup
 - **WHEN** all required model files are present but runtime setup or verification remains
 - **THEN** both bars switch to Installation with completed checkpoints and actual stage work, retaining the combined top estimate or estimating state until activation
+
+#### Scenario: Quiet runtime installation
+- **WHEN** the runtime tool downloads or installs large packages without reliable aggregate bytes
+- **THEN** setup reports safe recognized package activity, current-stage elapsed time and liveness without inventing totals, then shows measured file-registration progress for safe cleanup

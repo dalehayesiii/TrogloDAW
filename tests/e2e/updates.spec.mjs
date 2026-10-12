@@ -75,6 +75,7 @@ test('first-run background setup and verified update recovery use the real servi
     ).toBeVisible();
     await page.getByRole('button', { name: 'Continue in background', exact: true }).click();
     await expect(dialog).not.toBeVisible();
+    await expect(page.locator('footer .app-version')).toHaveText('TrogloDAW v1.0.0');
     await expect(page.getByLabel('Model installation in background')).toContainText('record');
     await expect(page.getByRole('button', { name: 'Generate song', exact: true })).toBeDisabled();
     const samples = Buffer.alloc(44 + 4410 * 2);
@@ -180,6 +181,7 @@ test('first-run background setup and verified update recovery use the real servi
     await expect(page.getByLabel('Input Lyrics', { exact: true })).toHaveValue(
       'Keep my draft through upgrade',
     );
+    await expect(page.locator('footer .app-version')).toHaveText('TrogloDAW v2.0.0');
     await page.getByRole('button', { name: 'Settings', exact: true }).click();
     await dialog.getByText('App updates', { exact: true }).click();
     await expect(dialog).toContainText('Installed version: 2.0.0');
