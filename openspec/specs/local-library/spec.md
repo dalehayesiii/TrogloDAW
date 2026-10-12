@@ -7,14 +7,11 @@ Describe TrogloDAW's local configuration, portable catalog, song organization an
 ## Requirements
 
 ### Requirement: Local configuration precedence
-The app SHALL resolve runtime settings from environment variables, then
-config.local.json, then config.json, then defaults. MM_CONFIG_DIR SHALL select the
-config folder. It SHALL accept UTF-16 installer configs and default to localhost
-and a library next to the source app.
+The app SHALL resolve runtime settings from environment variables, then config.local.json, then config.json, then defaults. TROGLODAW_CONFIG_DIR SHALL select the config folder. It SHALL accept UTF-16 installer configs and default to localhost and a library next to the source app. Current CLI/environment identifiers SHALL use the TrogloDAW namespace without old-name aliases.
 
 #### Scenario: Machine override
-- **WHEN** port is configured in both files and MM_PORT is set
-- **THEN** MM_PORT wins, with the local file taking precedence if the variable is absent
+- **WHEN** port is configured in both files and TROGLODAW_PORT is set
+- **THEN** TROGLODAW_PORT wins, with the local file taking precedence if the variable is absent
 
 ### Requirement: Import and catalog persistence
 The app SHALL decode supported input audio using bundled/configured ffmpeg,

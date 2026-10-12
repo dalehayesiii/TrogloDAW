@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# TrogloDAW CLI (macOS/Linux; compatible mm command)
+# TrogloDAW CLI (macOS/Linux)
 DIR="$(cd "$(dirname "$(readlink -f "$0" 2>/dev/null || echo "$0")")" && pwd)"
 cd "$DIR/../.."
 exec uv run --locked python backend/cli.py "$@"

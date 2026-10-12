@@ -22,7 +22,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-import mmcore as mm
+import troglocore as troglodaw
 from models import Canceled, Models
 from songs import Songs, song_item
 from storage import Storage
@@ -41,8 +41,8 @@ class MusicService:
 
     def __init__(self, core):
         self.core = core
-        self.scratch = tempfile.TemporaryDirectory(prefix="musicmaker-")
-        self.pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="musicmaker-dsp")
+        self.scratch = tempfile.TemporaryDirectory(prefix="troglodaw-")
+        self.pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="troglodaw-dsp")
         self.jobs = {}
         self.media = {}
         self.uploads = {}
@@ -321,7 +321,7 @@ class MusicService:
         raise ValueError("Unknown operation")
 
 
-def create_app(core=mm, frontend=FRONTEND, quit_callback=None):
+def create_app(core=troglodaw, frontend=FRONTEND, quit_callback=None):
     service = MusicService(core)
 
     @asynccontextmanager
@@ -329,7 +329,7 @@ def create_app(core=mm, frontend=FRONTEND, quit_callback=None):
         yield
         service.close()
 
-    api = FastAPI(title="musicmaker", lifespan=lifespan)
+    api = FastAPI(title="troglodaw", lifespan=lifespan)
     api.state.service = service
 
     @api.middleware("http")
@@ -337,7 +337,7 @@ def create_app(core=mm, frontend=FRONTEND, quit_callback=None):
         # Custom headers cannot be sent by cross-origin forms; no CORS is enabled.
         if (
             request.method in {"POST", "PATCH", "DELETE"}
-            and request.headers.get("x-musicmaker-request") != "1"
+            and request.headers.get("x-troglodaw-request") != "1"
         ):
             from fastapi.responses import JSONResponse
 
@@ -470,7 +470,7 @@ def create_app(core=mm, frontend=FRONTEND, quit_callback=None):
     @api.get("/api/health")
     def health():
         return {
-            "application": "musicmaker",
+            "application": "troglodaw",
             "product": "TrogloDAW",
             "frontend": (Path(frontend) / "index.html").is_file(),
         }
@@ -487,13 +487,13 @@ def _port_in_use(host, port):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="musicmaker web UI")
-    parser.add_argument("--host", default=str(mm.setting("host")))
-    parser.add_argument("--port", type=int, default=int(mm.setting("port") or 0) or None)
+    parser = argparse.ArgumentParser(description="troglodaw web UI")
+    parser.add_argument("--host", default=str(troglodaw.setting("host")))
+    parser.add_argument("--port", type=int, default=int(troglodaw.setting("port") or 0) or None)
     parser.add_argument("--no-browser", action="store_true")
     args = parser.parse_args()
     if sys.stdout is None or sys.stderr is None:
-        log = open(mm.LIB / "musicmaker.log", "a", encoding="utf-8", buffering=1)
+        log = open(troglodaw.LIB / "troglodaw.log", "a", encoding="utf-8", buffering=1)
         sys.stdout = sys.stdout or log
         sys.stderr = sys.stderr or log
     if not FRONTEND.joinpath("index.html").is_file():
@@ -505,7 +505,7 @@ def main():
 
         try:
             data = json.load(urllib.request.urlopen("http://127.0.0.1:7860/api/health", timeout=3))
-            if data.get("application") == "musicmaker":
+            if data.get("application") == "troglodaw":
                 if not args.no_browser:
                     webbrowser.open("http://127.0.0.1:7860/")
                 return
@@ -525,7 +525,7 @@ def main():
                 time.sleep(0.1)
 
         threading.Thread(target=open_when_ready, daemon=True).start()
-    print(f"musicmaker {time.strftime('%Y-%m-%d %H:%M:%S')} library: {mm.LIB}")
+    print(f"troglodaw {time.strftime('%Y-%m-%d %H:%M:%S')} library: {troglodaw.LIB}")
     uvicorn.run(create_app(), host=args.host, port=port, log_config=None)
 
 

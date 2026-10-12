@@ -1,4 +1,4 @@
-; TrogloDAW - per-user Windows installer (legacy install keys/roots retained)
+; TrogloDAW - per-user Windows installer
 Unicode true
 SetCompressor /SOLID lzma
 SetCompressorDictSize 64
@@ -6,22 +6,22 @@ ManifestDPIAware true
 RequestExecutionLevel user
 
 !define APPNAME "TrogloDAW"
-!define APPKEY "MusicMaker"
+!define APPKEY "TrogloDAW"
 !ifndef VERSION
   !define VERSION "0.0.0"
 !endif
 ; Paths can be passed by build.sh:  makensis -DSTAGE=... -DOUTFILE=... -DINSTALL_DIR=... -DLIBRARY_DIR=...
 !ifndef STAGE
-  !define STAGE "work\stage\MusicMaker"
+  !define STAGE "work\stage\TrogloDAW"
 !endif
 !ifndef OUTFILE
   !define OUTFILE "TrogloDAW-Setup.exe"
 !endif
 !ifndef INSTALL_DIR
-  !define INSTALL_DIR "$LOCALAPPDATA\MusicMaker"
+  !define INSTALL_DIR "$LOCALAPPDATA\TrogloDAW"
 !endif
 !ifndef LIBRARY_DIR
-  !define LIBRARY_DIR "$DOCUMENTS\MusicMaker\library"
+  !define LIBRARY_DIR "$DOCUMENTS\TrogloDAW\library"
 !endif
 !define UNINSTKEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APPKEY}"
 
@@ -46,8 +46,8 @@ VIAddVersionKey "LegalCopyright" "Personal use"
 Var RemoveModels
 Var ModelsCheckbox
 
-!define MUI_ICON "${STAGE}\musicmaker.ico"
-!define MUI_UNICON "${STAGE}\musicmaker.ico"
+!define MUI_ICON "${STAGE}\troglodaw.ico"
+!define MUI_UNICON "${STAGE}\troglodaw.ico"
 !define MUI_ABORTWARNING
 !define MUI_WELCOMEPAGE_TEXT "This will install ${APPNAME} on your computer.$\r$\n$\r$\nIt includes its own Python runtime. No administrator rights are needed. Initial app setup installs a local model into a folder you choose.$\r$\n$\r$\nInitial library folder: ${LIBRARY_DIR}$\r$\nYou can choose another library in Settings.$\r$\n$\r$\nClick Next to continue."
 !define MUI_FINISHPAGE_RUN
@@ -65,7 +65,7 @@ UninstPage custom un.ModelRemovalPage un.ModelRemovalLeave
 !insertmacro MUI_LANGUAGE "English"
 
 !macro StopRunning
-  ; stop any app instance started from this compatible install folder (files would be locked)
+  ; stop any app instance started from this install folder (files would be locked)
   nsExec::Exec 'powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "Get-Process python,pythonw,ffmpeg-win-x86_64-v7.1 -ErrorAction SilentlyContinue | Where-Object { $$_.Path -like \"$INSTDIR\*\" } | Stop-Process -Force"'
   Pop $0
   Sleep 500
@@ -123,10 +123,10 @@ Section "Install"
   RMDir /r "$INSTDIR\python"
 
   SetOutPath "$INSTDIR"
-  File "${STAGE}\musicmaker.ico"
-  File "${STAGE}\MusicMaker.vbs"
-  File "${STAGE}\mm.bat"
-  File "${STAGE}\Music Maker (console).bat"
+  File "${STAGE}\troglodaw.ico"
+  File "${STAGE}\TrogloDAW.vbs"
+  File "${STAGE}\troglodaw.bat"
+  File "${STAGE}\TrogloDAW (console).bat"
   SetOutPath "$INSTDIR\app"
   File /r "${STAGE}\app\*.*"
   SetOutPath "$INSTDIR\python"
@@ -149,18 +149,11 @@ Section "Install"
   DetailPrint "compileall exit code: $0"
 
   ; shortcuts (pythonw = no console window)
-  ; Replace only known old shortcuts, retaining unrelated custom Start Menu entries.
-  Delete "$DESKTOP\Music Maker.lnk"
-  Delete "$SMPROGRAMS\Music Maker\Music Maker.lnk"
-  Delete "$SMPROGRAMS\Music Maker\Music Maker (console, troubleshooting).lnk"
-  Delete "$SMPROGRAMS\Music Maker\Music Maker Library folder.lnk"
-  Delete "$SMPROGRAMS\Music Maker\Uninstall Music Maker.lnk"
-  RMDir "$SMPROGRAMS\Music Maker"
   SetOutPath "$INSTDIR"
-  CreateShortCut "$DESKTOP\${APPNAME}.lnk" "$INSTDIR\python\pythonw.exe" '"$INSTDIR\app\backend\app.py"' "$INSTDIR\musicmaker.ico" 0 SW_SHOWNORMAL "" "Make music: voices, beats, mixes"
+  CreateShortCut "$DESKTOP\${APPNAME}.lnk" "$INSTDIR\python\pythonw.exe" '"$INSTDIR\app\backend\app.py"' "$INSTDIR\troglodaw.ico" 0 SW_SHOWNORMAL "" "Make music: voices, beats, mixes"
   CreateDirectory "$SMPROGRAMS\${APPNAME}"
-  CreateShortCut "$SMPROGRAMS\${APPNAME}\${APPNAME}.lnk" "$INSTDIR\python\pythonw.exe" '"$INSTDIR\app\backend\app.py"' "$INSTDIR\musicmaker.ico" 0 SW_SHOWNORMAL "" "Make music: voices, beats, mixes"
-  CreateShortCut "$SMPROGRAMS\${APPNAME}\${APPNAME} (console, troubleshooting).lnk" "$INSTDIR\Music Maker (console).bat" "" "$INSTDIR\musicmaker.ico" 0
+  CreateShortCut "$SMPROGRAMS\${APPNAME}\${APPNAME}.lnk" "$INSTDIR\python\pythonw.exe" '"$INSTDIR\app\backend\app.py"' "$INSTDIR\troglodaw.ico" 0 SW_SHOWNORMAL "" "Make music: voices, beats, mixes"
+  CreateShortCut "$SMPROGRAMS\${APPNAME}\${APPNAME} (console, troubleshooting).lnk" "$INSTDIR\TrogloDAW (console).bat" "" "$INSTDIR\troglodaw.ico" 0
   CreateShortCut "$SMPROGRAMS\${APPNAME}\${APPNAME} Library folder.lnk" "${LIBRARY_DIR}"
   CreateShortCut "$SMPROGRAMS\${APPNAME}\Uninstall ${APPNAME}.lnk" "$INSTDIR\Uninstall.exe"
 
@@ -170,7 +163,7 @@ Section "Install"
   WriteRegStr HKCU "${UNINSTKEY}" "DisplayName" "${APPNAME}"
   WriteRegStr HKCU "${UNINSTKEY}" "DisplayVersion" "${VERSION}"
   WriteRegStr HKCU "${UNINSTKEY}" "Publisher" "TrogloDAW"
-  WriteRegStr HKCU "${UNINSTKEY}" "DisplayIcon" "$INSTDIR\musicmaker.ico"
+  WriteRegStr HKCU "${UNINSTKEY}" "DisplayIcon" "$INSTDIR\troglodaw.ico"
   WriteRegStr HKCU "${UNINSTKEY}" "InstallLocation" "$INSTDIR"
   WriteRegStr HKCU "${UNINSTKEY}" "UninstallString" '"$INSTDIR\Uninstall.exe"'
   WriteRegStr HKCU "${UNINSTKEY}" "QuietUninstallString" '"$INSTDIR\Uninstall.exe" /S'
@@ -197,10 +190,10 @@ Section "Uninstall"
   RMDir "$SMPROGRAMS\${APPNAME}"
   RMDir /r "$INSTDIR\python"
   RMDir /r "$INSTDIR\app"
-  Delete "$INSTDIR\musicmaker.ico"
-  Delete "$INSTDIR\MusicMaker.vbs"
-  Delete "$INSTDIR\mm.bat"
-  Delete "$INSTDIR\Music Maker (console).bat"
+  Delete "$INSTDIR\troglodaw.ico"
+  Delete "$INSTDIR\TrogloDAW.vbs"
+  Delete "$INSTDIR\troglodaw.bat"
+  Delete "$INSTDIR\TrogloDAW (console).bat"
   Delete "$INSTDIR\Uninstall.exe"
   RMDir "$INSTDIR"
   DeleteRegKey HKCU "${UNINSTKEY}"

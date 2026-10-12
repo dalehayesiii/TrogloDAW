@@ -10,11 +10,12 @@ export function assertBuild(manifest, version, sha, checksum) {
   }
 }
 
-export function assertAliases(checksum, legacyChecksum, sums) {
-  if (legacyChecksum !== checksum)
-    throw new Error('Legacy installer alias differs from TrogloDAW installer.');
-  if (sums.trim() !== `${checksum}  TrogloDAW-Setup.exe\n${checksum}  MusicMaker-Setup.exe`) {
-    throw new Error('Published checksum file differs from the installer aliases.');
+export function assertDistribution(manifest, checksum, sums) {
+  if (manifest.installer !== 'TrogloDAW-Setup.exe') {
+    throw new Error('Release manifest does not identify the canonical installer.');
+  }
+  if (sums.trim() !== `${checksum}  TrogloDAW-Setup.exe`) {
+    throw new Error('Published checksum file differs from the canonical installer.');
   }
 }
 
@@ -34,8 +35,5 @@ export async function prepare(_config, { nextRelease }) {
     .digest('hex');
   const manifest = JSON.parse(readFileSync('dist/release.json', 'utf8'));
   assertBuild(manifest, nextRelease.version, sha, checksum);
-  const legacyChecksum = createHash('sha256')
-    .update(readFileSync('dist/MusicMaker-Setup.exe'))
-    .digest('hex');
-  assertAliases(checksum, legacyChecksum, readFileSync('dist/SHA256SUMS', 'utf8'));
+  assertDistribution(manifest, checksum, readFileSync('dist/SHA256SUMS', 'utf8'));
 }

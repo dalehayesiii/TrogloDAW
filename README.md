@@ -1,34 +1,52 @@
+![TrogloDAW — Make a song. Keep the good bits.](docs/assets/troglodaw-banner.svg)
+
 # TrogloDAW
 
-Developer workflow, CI, OpenSpec and automated Windows releases:
-[Development guide](docs/development.md). Repository owners should complete
-[merge enforcement setup](docs/repository-settings.md).
+A local music studio for turning your recordings, lyrics and ideas into songs.
+Generate on your own hardware, keep a portable song library and shape voices
+without sending your audio to a remote service.
 
-A local music maker: arrange uploaded/recorded samples with generated music and
-lyrics, organize songs, and edit candidate voice groups. Portable recipes retain
-original/generated/sample assets and arrangements. See [song workflows](docs/song-workflows.md)
-and [model setup, hardware measurements and limits](docs/local-models.md).
+[Get the Windows installer](https://github.com/dalehayesiii/music-maker/releases/latest) ·
+[Song workflows](docs/song-workflows.md) · [Model setup and hardware](docs/local-models.md) ·
+[Development](docs/development.md)
+
+| Workflow | Your next step |
+| --- | --- |
+| <img src="docs/assets/generation.svg" width="32" alt="Cave generation glyph"> **Generation** | Add recordings, lyrics and styles. We derive smaller samples, transform each one and arrange a full-song audio guide for the model. |
+| <img src="docs/assets/library.svg" width="32" alt="Stone library glyph"> **Library** | Play, organize and reuse songs. Original audio, generated music and recipes stay together. |
+| <img src="docs/assets/vocal-fx.svg" width="32" alt="Carved waveform glyph"> **Vocal FX** | Extract vocals, review uncertain voice groups and apply effects while keeping the song's timing. |
+
+## Inside the sound cave
+
+The actual app in dark mode, using demonstration audio. Light mode and system
+appearance are available too.
+
+![Generation: original input clips, lyrics, styles and song output](docs/assets/generation-dark.png)
+
+![Library: saved songs, playback and cross-workflow reuse](docs/assets/library-dark.png)
+
+![Vocal FX: voice groups, effects and a fixed song timeline](docs/assets/vocal-fx-dark.png)
 
 Input audio is sampled from audible, varied regions, transformed individually and
 arranged across the song before the Base model generates around it. Expand **Audio
 arrangement settings** inside Input Audio to set **Audio adherence**, or enable
 **Mix samples after generation** for independent music generation followed by a
-sample overlay. The model can reinterpret samples; original inputs and the complete
+sample overlay. The model can reinterpret samples; originals and the complete
 arrangement remain available for inspection and portable replay.
 
 ## Easiest: Windows installer
 
 Run **`TrogloDAW-Setup.exe`**. Python is included and no admin rights are needed. It installs to
-`%LOCALAPPDATA%\MusicMaker`, adds **TrogloDAW** to the Desktop and Start Menu, and keeps your files in
-`Documents\MusicMaker\library` (set in `%LOCALAPPDATA%\MusicMaker\app\config.json`). The app opens in your browser
+`%LOCALAPPDATA%\TrogloDAW`, adds **TrogloDAW** to the Desktop and Start Menu, and keeps your files in
+`Documents\TrogloDAW\library` (set in `%LOCALAPPDATA%\TrogloDAW\app\config.json`). The app opens in your browser
 and has no console window. Use the **Quit** button to stop it. Initial setup installs the recommended
 model into a folder you choose; weights are not bundled. Uninstall offers removal
 of installed model assets checked by default, with an option to retain them. Uninstall from
-Settings > Apps or the Start Menu. Your library is kept. Command line: `%LOCALAPPDATA%\MusicMaker\mm.bat <command>`.
+Settings > Apps or the Start Menu. Your library is kept. Command line: `%LOCALAPPDATA%\TrogloDAW\troglodaw.bat <command>`.
 Windows SmartScreen may warn because the installer isn't code-signed. Click *More info > Run anyway*.
 
 Open **Settings** before model setup to choose separate library and model folders,
-including a different drive. The default model folder is `Documents\MusicMaker\models`.
+including a different drive. The default model folder is `Documents\TrogloDAW\models`.
 Generation uses the verified ACE-Step 1.5 Base model and currently requires a supported
 NVIDIA GPU with 5.5 GiB free VRAM and 12 GiB available RAM. Allow about 19 GB for
 model assets, inference wheels and caches; see the model guide for measured limits.
@@ -55,7 +73,7 @@ You don't need to install ffmpeg separately. A copy comes with the `imageio-ffmp
 ## Where your files live
 
 Source defaults to `library` next to the app; the installer defaults to
-`Documents\MusicMaker\library`. Settings can open an existing library or copy and
+`Documents\TrogloDAW\library`. Settings can open an existing library or copy and
 verify the current library at a new location, retaining the original recovery copy.
 Keep the complete library together so saved recipes and audio remain portable:
 
@@ -66,7 +84,7 @@ library/
   generated/   legacy procedural beats (wav)
   mixes/       mixes and remixes (wav + mp3)
   assets/      original inputs, samples, generated music and cached/edited vocals
-  inbox/       recordings for the CLI command `mm import --inbox`
+  inbox/       recordings for the CLI command `troglodaw import --inbox`
   catalog.json id, name, type, duration, source, created, tags, recipe (paths relative to library/)
 ```
 
@@ -76,15 +94,15 @@ Settings are looked up in this order: **environment variables > `config.local.js
 
 | Setting | Env var | Default |
 |---|---|---|
-| `library_dir` | `MM_LIBRARY` | `library` (next to the app) |
-| `host` | `MM_HOST` | `127.0.0.1` |
-| `port` | `MM_PORT` | 7860, or the next free port |
-| `ffmpeg` | `MM_FFMPEG` | bundled `imageio-ffmpeg`, else `ffmpeg` on PATH |
+| `library_dir` | `TROGLODAW_LIBRARY` | `library` (next to the app) |
+| `host` | `TROGLODAW_HOST` | `127.0.0.1` |
+| `port` | `TROGLODAW_PORT` | 7860, or the next free port |
+| `ffmpeg` | `TROGLODAW_FFMPEG` | bundled `imageio-ffmpeg`, else `ffmpeg` on PATH |
 
 `config.local.json` is for machine-specific values (library location, port, build paths) and is gitignored.
-Copy `config/config.local.example.json` to root `config.local.json`. `MM_CONFIG_DIR` changes where both config files are read from.
+Copy `config/config.local.example.json` to root `config.local.json`. `TROGLODAW_CONFIG_DIR` changes where both config files are read from.
 The browser Settings dialog manages library/model paths and verified model selection
-without manual config edits. An explicit `MM_LIBRARY` override takes precedence and
+without manual config edits. An explicit `TROGLODAW_LIBRARY` override takes precedence and
 must be removed before changing the library through Settings. Appearance follows
 the system by default; light/dark overrides persist and **Use system theme** resets them.
 When you update the app, keep your library folder (or point `library_dir` at it).
@@ -94,10 +112,10 @@ When you update the app, keep your library folder (or point `library_dir` at it)
 The retained procedural producer is available on the command line:
 
 ```
-mm produce user_vocal_1                      # everything automatic
-mm produce my_take.m4a --mood chill          # import a file and produce it in one step
-mm produce user_vocal_1 --style trap --bpm 92 --key "C minor" --seed 42 --tune off
-mm analyze user_vocal_1                      # see what the producer hears
+troglodaw produce user_vocal_1                      # everything automatic
+troglodaw produce my_take.m4a --mood chill          # import a file and produce it in one step
+troglodaw produce user_vocal_1 --style trap --bpm 92 --key "C minor" --seed 42 --tune off
+troglodaw analyze user_vocal_1                      # see what the producer hears
 ```
 
 What it does, all offline with no API key (numpy/scipy/pedalboard):
@@ -115,8 +133,8 @@ What it does, all offline with no API key (numpy/scipy/pedalboard):
 5. **Mastering**: bus compression and limiting to -14 LUFS integrated, with a true-peak ceiling of -1 dBTP (4x oversampled check). Output is wav + mp3 in `library/mixes`.
 
 Each song is saved as a normal mix recipe (processed vocal + generated beat + settings + mastering) plus the full analysis,
-choices and seed. `mm remix <song> --music-vol -8` changes the balance and keeps the mastering.
-`mm rerender <song>` re-runs the whole producer with the same seed and gives the same song.
+choices and seed. `troglodaw remix <song> --music-vol -8` changes the balance and keeps the mastering.
+`troglodaw rerender <song>` re-runs the whole producer with the same seed and gives the same song.
 
 ## The web UI
 
@@ -137,28 +155,28 @@ producer/generator/mixer remain available through the CLI for legacy recipes.
 ## Command line
 
 Source: `uv run --locked python backend/cli.py <command>` or the wrappers in
-`scripts/launchers/`. Installed Windows: `%LOCALAPPDATA%\MusicMaker\mm.bat <command>`.
+`scripts/launchers/`. Installed Windows: `%LOCALAPPDATA%\TrogloDAW\troglodaw.bat <command>`.
 You can refer to items by id, a unique id prefix, or exact name.
 
 ```
-mm where                                   # show library + ffmpeg location
-mm demo                                    # end-to-end self test
-mm import rec1.m4a rec2.mp3 --type voice --tags take1
-mm import mybeat.mp3 --type music --name "my beat"
-mm import --inbox                          # import everything in library/inbox
-mm list [--type voice|music|generated|mix] [--tag X] [--json]
-mm show <id>                               # full catalog entry incl. recipe
-mm voice-fx <voice> --pitch -2 --reverb 0.3 --low-cut 100 --compress --name myvoice_fx
+troglodaw where                                   # show library + ffmpeg location
+troglodaw demo                                    # end-to-end self test
+troglodaw import rec1.m4a rec2.mp3 --type voice --tags take1
+troglodaw import mybeat.mp3 --type music --name "my beat"
+troglodaw import --inbox                          # import everything in library/inbox
+troglodaw list [--type voice|music|generated|mix] [--tag X] [--json]
+troglodaw show <id>                               # full catalog entry incl. recipe
+troglodaw voice-fx <voice> --pitch -2 --reverb 0.3 --low-cut 100 --compress --name myvoice_fx
     # also: --stretch 0.9 --gain 3 --high-cut 8000 --chorus 0.4 --robot 0.6 --robot-hz 110
     #       --delay 0.3 --delay-time 0.35 --delay-feedback 0.4 --room-size 0.7 --trim --no-normalize
-mm generate --bpm 90 --key "A minor" --bars 8 --style boombap [--progression i-VI-III-VII] [--seed 42] [--swing 0.2]
-mm mix <voice> <music> --voice-vol 0 --music-vol -3 --offset 4 --duck --duck-db 8 \
+troglodaw generate --bpm 90 --key "A minor" --bars 8 --style boombap [--progression i-VI-III-VII] [--seed 42] [--swing 0.2]
+troglodaw mix <voice> <music> --voice-vol 0 --music-vol -3 --offset 4 --duck --duck-db 8 \
        --fade-in 1 --fade-out 2 --loop [--voice-fx '{"pitch":-2,"reverb":0.3}'] --name mymix
-mm remix <mix> --music-vol -1 --offset 1.5 --duck-db 14 --voice-fx '{"robot":0.5}' [--voice <id>] [--music <id>]
-mm rerender <id>                           # rebuild any generated/fx/mix item from its recipe
-mm export <id> [--out DIR] [--formats mp3,wav] [--bitrate 256k]
-mm tag <id> a,b   |  mm rename <id> "new name"  |  mm delete <id>
-mm tts "some words"                        # test voice (espeak-ng if installed, otherwise a synthesized sung phrase)
+troglodaw remix <mix> --music-vol -1 --offset 1.5 --duck-db 14 --voice-fx '{"robot":0.5}' [--voice <id>] [--music <id>]
+troglodaw rerender <id>                           # rebuild any generated/fx/mix item from its recipe
+troglodaw export <id> [--out DIR] [--formats mp3,wav] [--bitrate 256k]
+troglodaw tag <id> a,b   |  troglodaw rename <id> "new name"  |  troglodaw delete <id>
+troglodaw tts "some words"                        # test voice (espeak-ng if installed, otherwise a synthesized sung phrase)
 ```
 
 Any setting can also be passed as `--set key=value` (for example `--set duck_threshold=-40`).
@@ -183,7 +201,7 @@ Python, locked Windows wheels, bundled ffmpeg and the compiled Angular UI. It ne
 NSIS (`apt install nsis` on Linux or `choco install nsis --version=3.11.0` on Windows),
 Python and `curl`; Windows uses Git Bash. Linux cross-builds remain supported.
 CI builds and tests the installed EXE together on Windows before any release.
-Paths come from the `build` section of `config.local.json` (or `MM_BUILD_*` env vars):
+Paths come from the `build` section of `config.local.json` (or `TROGLODAW_BUILD_*` env vars):
 `venv`, `work_dir`, `cache_dir`, `output`, `parts_dir` (optional 15 MB split), `python_embed_version`.
 Installer target paths are in the `windows` section (`install_dir`, `library_dir`, as NSIS variables).
 `scripts/windows/wine_test.sh` provides the original optional Wine smoke test.
@@ -211,7 +229,6 @@ See [CI workflow and tool rationale](docs/ci.md).
   Pitch correction is a gentle per-note nudge, not hard autotune. Style choice is a heuristic on energy and tempo.
 - Pitch shift and time stretch quality is good for moderate amounts (about ±5 semitones, 0.75-1.3x).
 
-The canonical download is `TrogloDAW-Setup.exe`; `MusicMaker-Setup.exe` remains a
-byte-identical compatibility alias. Existing `%LOCALAPPDATA%\MusicMaker`,
-`Documents\MusicMaker`, `mm` and `MM_*` contracts are retained for upgrades.
-See the [branding and compatibility audit](docs/branding.md).
+The download is `TrogloDAW-Setup.exe`. Default app/library roots use TrogloDAW;
+the command is `troglodaw` and environment settings use `TROGLODAW_*`.
+See the [product identity audit](docs/branding.md).

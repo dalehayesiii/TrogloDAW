@@ -1,7 +1,7 @@
 # TrogloDAW Development and delivery
 
 The monorepo has an Angular/Tailwind frontend and a local FastAPI backend.
-`backend/mmcore.py` remains the shared DSP/catalog engine; the CLI and HTTP service
+`backend/troglocore.py` remains the shared DSP/catalog engine; the CLI and HTTP service
 both call it. Audio processing is offline after explicit local model setup and has no remote
 model service or API key. The three task-focused workflows are Generation, Library
 and Vocal FX. See [workflows](song-workflows.md), [model setup](local-models.md) and
@@ -22,7 +22,7 @@ and Vocal FX. See [workflows](song-workflows.md), [model setup](local-models.md)
 
 Angular's `angular.json` and `.postcssrc.json` stay in `frontend/` because the CLI
 and PostCSS discover them there. Runtime user `config.json`/`config.local.json`
-remain at the project/installed app root (or MM_CONFIG_DIR), preserving compatibility;
+remain at the project/installed app root (or TROGLODAW_CONFIG_DIR), preserving compatibility;
 examples and development config live under `config/`.
 
 ## Setup and checks
@@ -50,7 +50,7 @@ Angular CLI, strict TypeScript/templates, and Playwright with real audio operati
 E2E tests synthesize a WAV in memory and use a temporary library. Backend tests
 cover waveform/recipe equivalence, HTTP uploads/media, producer behavior and shutdown.
 
-For CLI integration tests set MM_LIBRARY to a temporary directory, then run
+For CLI integration tests set TROGLODAW_LIBRARY to a temporary directory, then run
 `uv run --locked python backend/cli.py demo` and
 `uv run --locked python scripts/smoke_producer.py`. Never use personal recordings.
 
@@ -73,7 +73,7 @@ Endpoints cover library, item previews/recipes, multipart uploads, queued operat
 job status, media and shutdown. A single ThreadPoolExecutor runs DSP jobs so HTTP
 and progress polling stay responsive. Producer stage messages retain their original
 meaning. Media uses opaque tokens and only server-registered files; the API exposes
-no arbitrary path download. Mutation requests require X-MusicMaker-Request: 1 and
+no arbitrary path download. Mutation requests require X-TrogloDAW-Request: 1 and
 no CORS is enabled, preventing cross-origin browser forms from modifying the library.
 `/docs` offers local API documentation. Host/port/config precedence and browser
 launch remain; `--no-browser` suppresses automatic launch. This is a local personal
@@ -152,12 +152,12 @@ are required: [repository settings](repository-settings.md).
 ## Installer
 On Linux install NSIS and curl; on Windows install NSIS and use Git Bash with Python
 on PATH. Run setup/build commands above followed by
-`MM_VERSION=0.0.0 bash scripts/windows/build.sh`. `--stage-only` checks the embedded
+`TROGLODAW_VERSION=0.0.0 bash scripts/windows/build.sh`. `--stage-only` checks the embedded
 payload without NSIS. Stable versions come from semantic-release in CI.
 NSIS bundles Python 3.12.10, locked runtime wheels, ffmpeg and Angular static files.
 The installed app needs neither Python, Node nor uv installed separately. Windows
-metadata/Apps & Features use the injected version; library/config locations and
-shortcuts retain compatibility. Initial setup installs verified model assets into
+metadata/Apps & Features use the injected version; current TrogloDAW upgrades
+preserve configured library/model locations and preferences. Initial setup installs verified model assets into
 a separate chosen folder; uninstall offers default-checked ownership-aware model
 removal, with opt-out, and preserves libraries. The installed uv binary is a setup
 tool; generation itself needs no network. Static validation fails on invalid wheels,

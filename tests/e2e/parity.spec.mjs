@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { execFileSync } from 'node:child_process';
 
-const headers = { 'X-MusicMaker-Request': '1' };
+const headers = { 'X-TrogloDAW-Request': '1' };
 async function open(page) {
   await page.goto('/');
   const later = page.getByRole('button', { name: 'Set up later', exact: true });
@@ -31,13 +31,13 @@ function wave() {
 }
 async function seed(request) {
   const library = await (await request.get('/api/library')).json();
-  const command = process.env.MM_TEST_PYTHON || 'uv';
-  const args = process.env.MM_TEST_PYTHON
+  const command = process.env.TROGLODAW_TEST_PYTHON || 'uv';
+  const args = process.env.TROGLODAW_TEST_PYTHON
     ? ['scripts/seed_browser_fixture.py']
     : ['run', '--locked', 'python', 'scripts/seed_browser_fixture.py'];
   return JSON.parse(
     execFileSync(command, args, {
-      env: { ...process.env, MM_LIBRARY: library.library },
+      env: { ...process.env, TROGLODAW_LIBRARY: library.library },
       encoding: 'utf8',
     }),
   );
@@ -167,6 +167,7 @@ test('multiple real uploads, folders, prior-song choices and cached FX saves', a
   await page.getByLabel('Move to folder').selectOption('Browser tests');
   await page.getByRole('button', { name: 'Save organization' }).click();
   await expect(page.getByRole('heading', { name: 'Browser organized song' })).toBeVisible();
+  await expect(page.locator('#panel-1 troglodaw-audio canvas').first()).toBeVisible();
   await page.getByRole('button', { name: 'Use as Input Audio', exact: true }).click();
   await expect(page.getByRole('dialog')).toContainText('eight short one-second samples');
   await page.getByRole('button', { name: 'Keep current settings', exact: true }).click();

@@ -36,8 +36,12 @@ Themes SHALL provide legible text, visible keyboard focus, comfortable touch tar
 - **THEN** labels/actions remain readable, focus/selection is clear and all requested controls remain reachable without extra primary tabs
 
 ### Requirement: Consistent product identity
-The app/header/browser title, applicable Windows installer/shortcut/uninstall metadata, current release-facing descriptions and maintained documentation SHALL identify the product as TrogloDAW. Compatibility/historical identifiers SHALL be explained rather than blindly renamed. Existing remote repository URLs SHALL remain valid.
+The app/header/browser title, Windows installer/assets/shortcut/uninstall metadata, runtime/default-root/tooling identifiers, current release-facing descriptions and maintained documentation SHALL identify TrogloDAW without compatibility aliases using the previous product name. Existing remote repository URLs SHALL remain valid and historical evidence SHALL remain truthful.
 
 #### Scenario: Upgrade an existing installation
-- **WHEN** TrogloDAW replaces a Music Maker installation
-- **THEN** displayed branding changes while existing install roots, configuration, libraries, recipes and model preferences remain usable
+- **WHEN** a current TrogloDAW installation is upgraded
+- **THEN** installer/launch/icon/payload/default paths retain the complete TrogloDAW identity while configured user asset locations and preferences remain usable
+
+#### Scenario: Fresh complete identity
+- **WHEN** TrogloDAW is installed and its current repository assets are inspected
+- **THEN** installer/launch/icon/payload/default paths and current product names consistently use TrogloDAW without previous-name aliases

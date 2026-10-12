@@ -146,7 +146,7 @@ jobs:
     outputs:
       docs_only: ${{ needs.title.outputs.docs_only }}
     env:
-      MM_LIBRARY: ${{ github.workspace }}/.tools/musicmaker-integration-library
+      TROGLODAW_LIBRARY: ${{ github.workspace }}/.tools/troglodaw-integration-library
     steps:
       - uses: actions/checkout@v7.0.1
         with:
@@ -192,8 +192,8 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 25
     env:
-      MM_VERSION: '0.0.0'
-      MM_LIBRARY: ${{ github.workspace }}/.tools/musicmaker-installed-library
+      TROGLODAW_VERSION: '0.0.0'
+      TROGLODAW_LIBRARY: ${{ github.workspace }}/.tools/troglodaw-installed-library
       PLAYWRIGHT_CHANNEL: msedge
     steps:
       - uses: actions/checkout@v7.0.1
@@ -222,14 +222,14 @@ jobs:
         run: |
           $nsis = Join-Path ${env:ProgramFiles(x86)} 'NSIS/makensis.exe'
           if (-not (Test-Path -LiteralPath $nsis)) { throw 'Native NSIS compiler missing' }
-          "MM_MAKENSIS=$($nsis.Replace('\', '/'))" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "TROGLODAW_MAKENSIS=$($nsis.Replace('\', '/'))" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
       - name: Stage locked runtime and build EXE
         shell: bash
         run: bash scripts/windows/build.sh
       - name: Install and test EXE
         run: ./scripts/windows/test_installer.ps1
       - name: Archive checked payload for release preparation
-        run: tar -czf dist/payload.tar.gz -C scripts/windows/work/stage/MusicMaker .
+        run: tar -czf dist/payload.tar.gz -C scripts/windows/work/stage/TrogloDAW .
       - uses: actions/upload-artifact@v7.0.2
         with:
           name: windows-build
@@ -246,7 +246,7 @@ jobs:
     permissions:
       contents: write
     env:
-      MM_LIBRARY: ${{ github.workspace }}/.tools/musicmaker-release-library
+      TROGLODAW_LIBRARY: ${{ github.workspace }}/.tools/troglodaw-release-library
       PLAYWRIGHT_CHANNEL: msedge
     steps:
       - uses: actions/checkout@v7.0.1
@@ -267,8 +267,8 @@ jobs:
           path: dist/
       - name: Restore checked payload
         run: |
-          New-Item -ItemType Directory -Force scripts/windows/work/stage/MusicMaker | Out-Null
-          tar -xzf dist/payload.tar.gz -C scripts/windows/work/stage/MusicMaker
+          New-Item -ItemType Directory -Force scripts/windows/work/stage/TrogloDAW | Out-Null
+          tar -xzf dist/payload.tar.gz -C scripts/windows/work/stage/TrogloDAW
           if ($LASTEXITCODE) { throw 'Payload extraction failed' }
       - name: Require published release history
         uses: actions/github-script@v9.0.0
@@ -285,7 +285,7 @@ jobs:
         run: |
           $nsis = Join-Path ${env:ProgramFiles(x86)} 'NSIS/makensis.exe'
           if (-not (Test-Path -LiteralPath $nsis)) { throw 'Native NSIS compiler missing' }
-          "MM_MAKENSIS=$($nsis.Replace('\', '/'))" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "TROGLODAW_MAKENSIS=$($nsis.Replace('\', '/'))" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
       - name: Version, test, tag and publish with semantic-release
         run: npm run release
         env:

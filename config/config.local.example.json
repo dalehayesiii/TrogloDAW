@@ -15,7 +15,7 @@
     "test_vocal": "/path/to/a/test-vocal.wav"
   },
   "windows": {
-    "install_dir": "$LOCALAPPDATA\\MusicMaker",
-    "library_dir": "$DOCUMENTS\\MusicMaker\\library"
+    "install_dir": "$LOCALAPPDATA\\TrogloDAW",
+    "library_dir": "$DOCUMENTS\\TrogloDAW\\library"
   }
 }

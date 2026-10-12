@@ -1,4 +1,4 @@
-' Launch TrogloDAW without a console window (compatible file name retained)
+' Launch TrogloDAW without a console window
 Set fso = CreateObject("Scripting.FileSystemObject")
 d = fso.GetParentFolderName(WScript.ScriptFullName)
 Set sh = CreateObject("WScript.Shell")

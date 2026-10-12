@@ -1,4 +1,4 @@
-# TrogloDAW branding and compatibility
+# TrogloDAW product identity
 
 TrogloDAW is the current product name in the app/header/browser title, Windows
 installer/product/uninstall metadata and shortcuts, startup/console messages,
@@ -13,34 +13,35 @@ choices persist in browser local storage, and Settings can return to system mode
 Browser preferences are scoped to the normal local origin; separate ports have
 independent storage. No external fonts/artwork or Node runtime are required.
 
-The canonical release artifact is **TrogloDAW-Setup.exe**. A byte-identical
-**MusicMaker-Setup.exe** alias supports existing download automation. SHA256SUMS
-lists both, release.json identifies the canonical name, and the publisher verifies
-the aliases against its tested version/source/checksum. Semantic-release owns all
-version/tag decisions and versions the already-checked frontend payload.
+The single release artifact is **TrogloDAW-Setup.exe**. SHA256SUMS contains
+one matching entry and release.json identifies that filename, version, source
+commit and SHA-256. Semantic-release owns version/tag decisions and versions the
+already-checked frontend payload.
 
-These names intentionally remain:
+Current install/Documents roots, HKCU application/uninstall keys, payload paths,
+launchers and project identifiers use TrogloDAW. The Python engine module is
+`troglocore`, the command is `troglodaw`, environment settings use `TROGLODAW_*`,
+and local API mutation requests use `X-TrogloDAW-Request: 1`. Old product-name
+aliases and migration paths are not provided. Portable catalogs and recipes keep
+their audio contracts; configured model/library locations remain user choices.
 
-| Identifier | Reason |
-| --- | --- |
-| dalehayesiii/music-maker and existing GitHub URLs | The owner will rename the remote later; this change preserves real links |
-| MusicMaker install/Documents roots and HKCU application/uninstall key | Existing installs, model/library preferences and upgrades keep resolving |
-| mm / MM_* / config filenames / mmcore | Existing CLI, environment, configuration and recipe automation contracts |
-| MusicMaker.vbs, Music Maker (console).bat and musicmaker.ico payload paths | Compatible internal launcher/icon names; displayed titles and shortcuts say TrogloDAW |
-| Python project musicmaker, npm tooling/Angular project identifiers, local request header and health application field | Internal build/API compatibility; health also exposes product=TrogloDAW |
-| Existing temporary-test prefixes | Isolated implementation details, not product UI |
-| Archived OpenSpec changes and Gradio/initial migration screenshots | Historical evidence is not rewritten |
+The existing **dalehayesiii/music-maker** GitHub remote and links remain real
+repository addresses; renaming that remote requires the owner. Archived OpenSpec
+changes and earlier screenshots retain truthful historical names. Generated
+workflow instructions remain upstream material rather than product branding.
 
-Upgrade migration removes only known old Music Maker shortcuts. Custom entries
-stay; new shortcuts identify TrogloDAW. Uninstall removes known app shortcuts and
-leaves unrelated custom entries. Model removal remains ownership-aware and checked
-by default with opt-out. Libraries and existing installed roots are preserved.
+Current TrogloDAW upgrades preserve configuration and models. Installation and
+uninstall manage only known app shortcuts and preserve unrelated custom Start
+Menu entries. Model removal is ownership-aware and checked by default with
+opt-out; libraries are preserved.
 
-Audit: search maintained frontend/backend, scripts, cicd, config, README, docs and
-canonical specs for musicmaker/Music Maker/MusicMaker/Degenerate Music Creator.
-The remaining matches above are deliberate compatibility/history references.
+Generation shows original input clips. Content-aware sampling derives smaller
+samples, transforms each individually and arranges one complete audio guide.
+Sample management is automatic. The result area has a fixed **Song generation
+output** heading with the actual song title below it.
+
 Theme checks use axe-core against the real backend, plus system/override/reload,
-canvas-repaint and narrow-layout tests. Paired review evidence is under
+canvas-repaint and narrow-layout tests. Paired theme evidence is under
 [themes](ui-parity/themes/README.md).
 
 Measured semantic contrast (actual hex tokens, WCAG luminance calculation):

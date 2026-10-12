@@ -24,7 +24,7 @@ def test_config_precedence_and_windows_encoding(core, tmp_path, monkeypatch):
     monkeypatch.setattr(core, "CONFIG", core._load_config())
     assert core.setting("port") == 9001
     assert core.setting("host") == "localhost"
-    monkeypatch.setenv("MM_PORT", "9002")
+    monkeypatch.setenv("TROGLODAW_PORT", "9002")
     assert core.setting("port") == "9002"
 
 

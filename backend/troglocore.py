@@ -1,4 +1,4 @@
-"""musicmaker core: library/catalog, import, voice FX, generator, mixer, remix, export.
+"""troglodaw core: library/catalog, import, voice FX, generator, mixer, remix, export.
 
 Internal audio format: float32 numpy array shaped (samples, 2), 44.1 kHz stereo.
 """
@@ -26,7 +26,7 @@ SR = 44100
 APP_DIR = Path(__file__).resolve().parents[1]
 
 
-CONFIG_DIR = Path(os.environ.get("MM_CONFIG_DIR") or APP_DIR)
+CONFIG_DIR = Path(os.environ.get("TROGLODAW_CONFIG_DIR") or APP_DIR)
 
 
 def _read_json(path: Path) -> dict:
@@ -57,7 +57,7 @@ def _load_config() -> dict:
 
 
 CONFIG = _load_config()
-ENV_VARS = {"library_dir": "MM_LIBRARY", "ffmpeg": "MM_FFMPEG", "host": "MM_HOST", "port": "MM_PORT"}
+ENV_VARS = {"library_dir": "TROGLODAW_LIBRARY", "ffmpeg": "TROGLODAW_FFMPEG", "host": "TROGLODAW_HOST", "port": "TROGLODAW_PORT"}
 DEFAULTS = {"library_dir": "library", "ffmpeg": None, "host": "127.0.0.1", "port": None}
 
 

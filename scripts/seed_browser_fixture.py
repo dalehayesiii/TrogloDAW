@@ -11,9 +11,9 @@ from pathlib import Path
 import numpy as np
 import soundfile as sf
 
-backend = Path(os.environ.get("MM_TEST_APP", "backend/app.py")).resolve().parent
+backend = Path(os.environ.get("TROGLODAW_TEST_APP", "backend/app.py")).resolve().parent
 sys.path.insert(0, str(backend))
-import mmcore as core  # noqa: E402
+import troglocore as core  # noqa: E402
 from models import ROOT, runtime_signature  # noqa: E402
 from storage import atomic_json, digest  # noqa: E402
 
