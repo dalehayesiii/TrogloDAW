@@ -1,0 +1,321 @@
+<main class="flex min-h-screen flex-col">
+  <header>
+    <h1>🎛️ musicmaker</h1>
+    <p>
+      Import voices &amp; tracks · tweak vocals · generate beats · mix any voice over any track ·
+      remix saved recipes.
+    </p>
+  </header>
+  <nav role="tablist" aria-label="Music Maker tabs">
+    @for(label of tabs;track $index){<button
+      type="button"
+      role="tab"
+      [id]="'tab-'+$index"
+      [attr.aria-selected]="tab===$index"
+      [attr.aria-controls]="'panel-'+$index"
+      [class.active]="tab===$index"
+      (click)="tab=$index"
+    >
+      {{label}}</button
+    >}
+  </nav>
+  @if(error){
+  <div class="error-banner" role="alert">{{error}}</div>
+  }
+  <div class="content flex-1">
+    <section role="tabpanel" id="panel-0" aria-labelledby="tab-0" [hidden]="tab!==0">
+      <h3>One vocal in, finished song out</h3>
+      <p class="producer-description">
+        Pick a recorded voice (or drop a file), hit <strong>Produce</strong>. The producer analyzes
+        tempo, key and phrasing, writes an original beat with intro, verses and outro, cleans up and
+        places your vocal on the beat, ducks the music under you and masters the song to about -14
+        LUFS. Everything is offline and saved to your library as a remixable recipe.
+      </p>
+      <div class="columns grid gap-4 md:grid-cols-2">
+        <div class="stack">
+          <ng-container *ngTemplateOutlet="controls;context:{layout:[[['apVoice']]]}" />
+          <mm-upload
+            id="producer-upload"
+            label="...or drop a new recording (any format)"
+            accept="audio/*,video/*"
+            [(files)]="producerFiles"
+          />
+          <div class="accordion">
+            <button type="button" [attr.aria-expanded]="overrides" (click)="overrides=!overrides">
+              Optional overrides <span>{{overrides?'⌄':'◂'}}</span></button
+            >@if(overrides){<ng-container
+              *ngTemplateOutlet="controls;context:{layout:layouts['producer']}"
+            />}
+          </div>
+          <button
+            type="button"
+            class="primary"
+            [disabled]="busy['produce']"
+            (click)="run('produce')"
+          >
+            🎛️ &nbsp;PRODUCE MY SONG
+          </button>
+        </div>
+        <div class="stack">
+          <mm-audio label="Your song" [media]="outputs['produce']?.audio || null" /><mm-download
+            label="Download MP3"
+            [media]="outputs['produce']?.download || null"
+          />
+          @if(busy['produce']){<ng-container
+            *ngTemplateOutlet="progressView;context:{slot:'produce'}"
+          />} @if(outputs['produce']?.production){
+          <div class="production-info">
+            <p>
+              <strong>{{outputs['produce'].song.name}}</strong>:
+              {{outputs['produce'].song.duration.toFixed(0)}} s ·
+              {{outputs['produce'].song.loudness_lufs}} LUFS · true peak
+              {{outputs['produce'].song.true_peak_db}} dBTP
+            </p>
+            <table>
+              @for(row of productionRows();track $index){
+              <tr>
+                <td>{{row[0]}}</td>
+                <td>{{row[1]}}</td>
+              </tr>
+              }
+            </table>
+            <p>
+              Saved to <code>{{outputs['produce'].song.mp3}}</code>. To tweak levels or ducking,
+              load it in the <strong>Mixer / Remix</strong> tab.
+            </p>
+          </div>
+          }@else if(outputs['produce']?.message){
+          <p role="status">{{outputs['produce'].message}}</p>
+          }
+        </div>
+      </div>
+      <div class="library-table">
+        <div class="table-tools">
+          <button type="button" aria-label="Copy catalog table" (click)="copyTable()">▢</button
+          ><button type="button" aria-label="Expand catalog table" (click)="tableFull=!tableFull">
+            ⛶
+          </button>
+        </div>
+        <div class="table-scroll" [class.expanded]="tableFull">
+          <table>
+            <thead>
+              <tr>
+                @for(column of ['id','type','name','dur(s)','tags','created','source'];track
+                column){
+                <th>{{column}}</th>
+                }
+              </tr>
+            </thead>
+            <tbody>
+              @for(item of library.items;track item.id){
+              <tr>
+                <td>{{item.id}}</td>
+                <td>{{item.type}}</td>
+                <td>{{item.name}}</td>
+                <td>{{item.duration.toFixed(2)}}</td>
+                <td>{{item.tags.join(',')}}</td>
+                <td>{{item.created}}</td>
+                <td>{{item.source}}</td>
+              </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="columns grid gap-4 md:grid-cols-2">
+        <div class="stack">
+          <mm-upload
+            id="library-upload"
+            label="Upload audio (any format)"
+            [multiple]="true"
+            [(files)]="files"
+          />
+          <ng-container *ngTemplateOutlet="controls;context:{layout:[[['upType'],['upTags']]]}" />
+          <div class="button-row">
+            <button
+              type="button"
+              class="primary"
+              [disabled]="busy['library']"
+              (click)="run('import')"
+            >
+              Import uploads</button
+            ><button type="button" [disabled]="busy['library']" (click)="run('inbox')">
+              Import everything in inbox/
+            </button>
+          </div>
+          <div class="group status">
+            <label for="library-status">Status</label
+            ><textarea id="library-status" rows="3" readonly [value]="libraryStatus"></textarea>
+          </div>
+          @if(busy['library']){<ng-container
+            *ngTemplateOutlet="progressView;context:{slot:'library'}"
+          />}
+        </div>
+        <div class="stack">
+          <ng-container *ngTemplateOutlet="controls;context:{layout:[[['libPick']]]}" /><mm-audio
+            label="Playback"
+            [media]="playback"
+          />
+          <ng-container *ngTemplateOutlet="controls;context:{layout:[[['libTags','libName']]]}" />
+          <div class="button-row">
+            <button type="button" [disabled]="busy['library']" (click)="run('tags')">
+              Save name/tags</button
+            ><button
+              type="button"
+              class="stop"
+              [disabled]="busy['library']"
+              (click)="run('delete')"
+            >
+              Delete item
+            </button>
+          </div>
+          <div class="code-panel">
+            <span class="corner-label">‹/› &nbsp;Catalog entry / recipe</span>@if(catalog){
+            <pre>{{catalog}}</pre>
+            }@else{<span aria-hidden="true">‹/›</span>}
+          </div>
+        </div>
+      </div>
+      <div class="button-row library-actions">
+        <button type="button" (click)="refresh()">🔄 Refresh library</button
+        ><button type="button" class="stop" (click)="quit()">⏻ Quit Music Maker</button>
+      </div>
+      <p class="library-folder">
+        Library folder: <code>{{library.library}}</code> &nbsp;·&nbsp; drop recordings into
+        <code>{{library.inbox}}</code> and click <em>Import everything in inbox/</em>
+      </p>
+    </section>
+    <section role="tabpanel" id="panel-1" aria-labelledby="tab-1" [hidden]="tab!==1">
+      <div class="columns grid gap-4 md:grid-cols-2">
+        <div class="stack">
+          <ng-container *ngTemplateOutlet="controls;context:{layout:[[['fxVoice']]]}" /><mm-audio
+            label="Original"
+            [media]="original"
+          /><ng-container *ngTemplateOutlet="controls;context:{layout:layouts['fxLeft']}" />
+        </div>
+        <div class="stack">
+          <ng-container *ngTemplateOutlet="controls;context:{layout:layouts['fxRight']}" />
+          <div class="button-row">
+            <button type="button" [disabled]="busy['fx']" (click)="run('fx',{save:false})">
+              Preview</button
+            ><button
+              type="button"
+              class="primary"
+              [disabled]="busy['fx']"
+              (click)="run('fx',{save:true})"
+            >
+              Apply &amp; save as new voice
+            </button>
+          </div>
+          <mm-audio label="Result" [media]="outputs['fx']?.audio || null" />
+          <div class="group status">
+            <label for="fx-status">Status</label
+            ><textarea
+              id="fx-status"
+              rows="1"
+              readonly
+              [value]="outputs['fx']?.message || ''"
+            ></textarea>
+          </div>
+          @if(busy['fx']){<ng-container *ngTemplateOutlet="progressView;context:{slot:'fx'}" />}
+        </div>
+      </div>
+    </section>
+    <section role="tabpanel" id="panel-2" aria-labelledby="tab-2" [hidden]="tab!==2">
+      <div class="columns grid gap-4 md:grid-cols-2">
+        <div class="stack">
+          <ng-container *ngTemplateOutlet="controls;context:{layout:layouts['generator']}" /><button
+            type="button"
+            class="primary"
+            [disabled]="busy['generate']"
+            (click)="run('generate')"
+          >
+            Generate
+          </button>
+        </div>
+        <div class="stack">
+          <mm-audio label="Generated" [media]="outputs['generate']?.audio || null" />
+          <div class="group status">
+            <label for="generator-status">Status</label
+            ><textarea
+              id="generator-status"
+              rows="1"
+              readonly
+              [value]="outputs['generate']?.message || ''"
+            ></textarea>
+          </div>
+          @if(busy['generate']){<ng-container
+            *ngTemplateOutlet="progressView;context:{slot:'generate'}"
+          />}
+        </div>
+      </div>
+    </section>
+    <section role="tabpanel" id="panel-3" aria-labelledby="tab-3" [hidden]="tab!==3">
+      <div class="columns grid gap-4 md:grid-cols-2">
+        <div class="stack">
+          <ng-container *ngTemplateOutlet="controls;context:{layout:layouts['mixer']}" /><button
+            type="button"
+            class="primary"
+            [disabled]="busy['mix']"
+            (click)="run('mix')"
+          >
+            Render mix
+          </button>
+        </div>
+        <div class="stack">
+          <mm-audio label="Mix (wav)" [media]="outputs['mix']?.audio || null" /><mm-download
+            label="MP3 download"
+            [media]="outputs['mix']?.download || null"
+          />
+          <div class="group status">
+            <label for="mix-status">Status</label
+            ><textarea
+              id="mix-status"
+              rows="3"
+              readonly
+              [value]="outputs['mix']?.message || ''"
+            ></textarea>
+          </div>
+          @if(busy['mix']){<ng-container *ngTemplateOutlet="progressView;context:{slot:'mix'}" />}
+        </div>
+      </div>
+    </section>
+  </div>
+  <footer>
+    <a href="/docs" target="_blank" rel="noopener">Use via API 🚀</a> &nbsp;·&nbsp; Built with
+    Angular &nbsp;·&nbsp; <button type="button" (click)="settings=!settings">Settings ⚙</button>
+  </footer>
+  @if(settings){
+  <div class="settings-dialog" role="dialog" aria-label="Settings">
+    <label for="theme">Theme</label
+    ><select id="theme" [(ngModel)]="theme" (ngModelChange)="setTheme()">
+      <option value="light">Light</option>
+      <option value="dark">Dark</option>
+      <option value="system">System</option></select
+    ><button type="button" (click)="settings=false">Close</button>
+  </div>
+  }
+</main>
+<ng-template #controls let-layout="layout"
+  >@for(group of layout;track $index){
+  <div class="group">
+    @for(row of group;track $index){
+    <div class="field-row">
+      @for(key of row;track key){<mm-field
+        [field]="fields[key]"
+        [value]="values[key]"
+        [options]="options(key)"
+        (valueChange)="change(key,$event)"
+      />}
+    </div>
+    }
+  </div>
+  }</ng-template
+>
+<ng-template #progressView let-slot="slot"
+  ><div class="job-progress" role="status">
+    <span>{{progress[slot].message}}</span
+    ><progress max="1" [value]="progress[slot].fraction"></progress
+    ><span>{{(progress[slot].fraction*100).toFixed(0)}}%</span>
+  </div></ng-template
+>

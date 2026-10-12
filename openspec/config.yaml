@@ -1,0 +1,54 @@
+schema: spec-driven
+context: |
+  Preserve portable catalogs and saved recipes; never use personal recordings in tests.
+  Runtime stays offline Python/FastAPI with local DSP and compiled Angular/Tailwind.
+  Preserve the initial Gradio UI; visual and song-model redesign are deferred.
+  Windows target is x64 embedded Python 3.12.10; Node builds static assets only.
+  Use uv/pyproject/uv.lock, Ruff/ty/pytest and ESLint/Vitest/Playwright.
+  Code: frontend/ and backend/; helpers: scripts/; dev config: config/;
+  installer assets: cicd/; non-OpenSpec documentation: docs/.
+  Main releases use semantic-release defaults except docs never release.
+  Normal delivery completes proposal, implementation, sync and archive in one PR.
+rules:
+  specs:
+    - Describe observable behavior and limitations with SHALL/MUST and scenarios.
+  tasks:
+    - Include validation, canonical spec sync and archival in the implementation PR.
+operations:
+  apply:
+    guidance:
+      - Use synthetic audio and temporary libraries on a PR branch.
+  archive:
+    guidance:
+      - Complete tasks and validate implementation before syncing and archiving.
+
+# Project context (optional)
+# Add only constraints that should guide OpenSpec artifacts and workflows.
+# Include constraints an agent cannot infer by reading the code.
+# Keep general project documentation and discoverable codebase facts out.
+# Example:
+#   context: |
+#     Designs and tasks must cover Windows, macOS, and Linux
+#     Write all artifacts in Spanish
+
+# Per-artifact rules (optional)
+# Add custom rules for specific artifacts.
+# Example:
+#   rules:
+#     proposal:
+#       - Keep proposals under 500 words
+#       - Always state what is out of scope
+#     tasks:
+#       - Break tasks into chunks of max 2 hours
+
+# Per-operation guidance (optional)
+# Add advisory guidance for how apply and archive work should be conducted.
+# This is separate from artifact rules above.
+# Example:
+#   operations:
+#     apply:
+#       guidance:
+#         - Keep test summaries concise
+#     archive:
+#       guidance:
+#         - Summarize the archive outcome before finishing

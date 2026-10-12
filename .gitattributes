@@ -1,8 +1,10 @@
 * text=auto
+*.sh text eol=lf
+*.command text eol=lf
+scripts/launchers/mm text eol=lf
 *.bat text eol=crlf
 *.cmd text eol=crlf
 *.vbs text eol=crlf
-*.sh text eol=lf
-*.command text eol=lf
-mm text eol=lf
 *.py text eol=lf
+*.png binary
+*.woff2 binary
