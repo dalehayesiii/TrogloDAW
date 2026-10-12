@@ -80,10 +80,10 @@ full-desktop control or physical microphone was needed. Pinned upstream code:
 `19671f406d603126926c1b7e2adc169acbcade22`.
 
 One output at a time, BF16 CUDA/SDPA, CPU and DiT offload, 32 inference steps,
-no planner/LM, compilation or quantization. Generation requires 5.5 GiB free CUDA
+music generation without concurrent planner/LM, compilation or quantization. Generation requires 5.5 GiB free CUDA
 memory and 12 GiB available system RAM before loading. CPU generation is not a
 validated fallback and fails clearly rather than substituting a procedural beat.
-Supported requested lengths are 10–120 seconds, with no silent truncation.
+Supported explicit lengths are 10–300 seconds, with no silent truncation. Optional local song writing tools select automatic length and draft editable lyrics; see [song planning](song-planning.md).
 
 | Output length | Whole subprocess | Model generation | Peak CUDA allocation |
 | --- | --- | --- | --- |

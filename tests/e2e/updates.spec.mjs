@@ -77,7 +77,7 @@ test('first-run background setup and verified update recovery use the real servi
     await expect(dialog).not.toBeVisible();
     await expect(page.locator('footer .app-version')).toHaveText('TrogloDAW v1.0.0');
     await expect(page.getByLabel('Model installation in background')).toContainText('record');
-    await expect(page.getByRole('button', { name: 'Generate song', exact: true })).toBeDisabled();
+    await expect(page.getByRole('button', { name: /^Generate songs?$/ })).toBeDisabled();
     const samples = Buffer.alloc(44 + 4410 * 2);
     samples.write('RIFF');
     samples.writeUInt32LE(samples.length - 8, 4);

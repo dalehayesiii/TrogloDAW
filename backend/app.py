@@ -92,7 +92,7 @@ class MusicService:
             "manifest": hashlib.sha256(
                 json.dumps(self.models.manifest, sort_keys=True).encode()
             ).hexdigest(),
-            "outputs": values.get("count", 1),
+            "outputs": values.get("count", 2) if action == "song_generate" else 1,
             "model_storage": self.storage.models.anchor,
             "library_storage": self.core.LIB.anchor,
         }
@@ -102,7 +102,12 @@ class MusicService:
                 sources = self.songs.collect_sources(values)
                 params = generation_parameters(values, sources, 0)
                 profile.update(
-                    duration=params["duration"],
+                    duration=None
+                    if params["requested"]["duration"] == "auto"
+                    else params["duration"],
+                    duration_mode="auto"
+                    if params["requested"]["duration"] == "auto"
+                    else "explicit",
                     steps=params["steps"],
                     sources=len(sources),
                     input_seconds=round(sum(s["duration"] for s in sources), 1),
@@ -134,11 +139,7 @@ class MusicService:
                 from models import runtime_signature
                 from storage import safe_file
 
-                assets = [
-                    self.models.manifest["runtime"],
-                    *self.models.manifest["models"][values["model"]]["assets"],
-                    *self.models.manifest.get("auxiliary_assets", []),
-                ]
+                assets = self.models.assets(values["model"], bool(values.get("planner")))
                 root = self.storage.models
                 present = sum(
                     asset["bytes"]
@@ -242,6 +243,7 @@ class MusicService:
             "produce",
             "accept_audio",
             "song_generate",
+            "lyrics_generate",
             "vocal_prepare",
             "vocal_render",
             "folder",
@@ -376,6 +378,8 @@ class MusicService:
             return self.result("Audio added", accepted=accepted)
         if action == "song_generate":
             return self.songs.generate(v, progress, canceled)
+        if action == "lyrics_generate":
+            return self.songs.lyrics(v, progress, canceled)
         if action == "vocal_prepare":
             return self.songs.prepare_fx(v["song_id"], progress, canceled, v.get("segments"))
         if action == "vocal_render":
@@ -385,6 +389,13 @@ class MusicService:
                 "Rerendered arrangement", self.songs.rerender(v["song_id"], progress, canceled)
             )
         if action == "model_install":
+            if not isinstance(v.get("planner", False), bool):
+                raise ValueError("Choose whether to install the optional song planner")
+            if v.get("planner"):
+                return self.result(
+                    "Song writing tools and music model setup complete",
+                    models=self.models.install(v["model"], progress, canceled, planner=True),
+                )
             return self.result(
                 "Model setup complete", models=self.models.install(v["model"], progress, canceled)
             )

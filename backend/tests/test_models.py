@@ -283,6 +283,24 @@ def test_fresh_install_reuses_retained_assets_and_reports_real_installation_chec
     assert events[-1]["installation_steps_total"] == 8
     assert events[-1]["setup_phase"] == "installation"
     assert any(event.get("stage") == "verifying" and event.get("units_total") for event in events)
+    planner_asset = {**asset(b"synthetic song planner"), "path": "checkpoints/planner/weights.bin"}
+    manager.manifest["models"]["fixture"]["planner"] = "fixture-planner"
+    manager.manifest["planners"] = {
+        "fixture-planner": {"name": "Synthetic planner", "assets": [planner_asset]}
+    }
+    assert manager.ready() and manager.planner_ready() is None
+    assert manager.describe()["ready"] and not manager.describe()["planner"]["ready"]
+    planner_path = storage.models / planner_asset["path"]
+    planner_path.parent.mkdir(parents=True)
+    planner_path.write_bytes(b"synthetic song planner")
+    planned = manager.install("fixture", lambda *args, **kwargs: None, lambda: False, planner=True)
+    assert planned["ready"] and planned["planner"]["ready"]
+    assert manager.planner_ready()
+    # Planner-only corruption cannot be hidden behind an unchanged size/ready flag.
+    planner_path.write_bytes(b"changed!! song planner")
+    assert manager.planner_ready() is None
+    assert manager.ready(), "Optional planner damage must not invalidate music generation"
+    planner_path.write_bytes(b"synthetic song planner")
     # Reinstallation has a new identity, requiring explicit verification rather than trusting the old ready marker.
     owner = storage.preferences["installation_id"]
     storage.config_path.unlink()
@@ -293,3 +311,4 @@ def test_fresh_install_reuses_retained_assets_and_reports_real_installation_chec
     reused.manifest = manager.manifest
     assert reused.ready() is None
     assert reused.install("fixture", lambda *args, **kwargs: None, lambda: False)["ready"]
+    assert not reused.describe()["planner"]["ready"]

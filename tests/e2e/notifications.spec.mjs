@@ -21,6 +21,7 @@ test('persistent failures group, dismiss, survive reload and clear only on relev
   page,
   request,
 }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
   const first = await failure(request, 'folder');
   const second = await failure(request, 'folder');
   const generation = await failure(request, 'song_generate', {
@@ -64,7 +65,8 @@ test('persistent failures group, dismiss, survive reload and clear only on relev
   const dialog = page.getByRole('dialog');
   await expect(dialog.getByRole('region', { name: 'Song generation notifications' })).toBeVisible();
   for (const theme of ['light', 'dark']) {
-    await page.emulateMedia({ colorScheme: theme });
+    await page.emulateMedia({ colorScheme: theme, reducedMotion: 'reduce' });
+    await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
     await page.setViewportSize({ width: 390, height: 844 });
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
       390,

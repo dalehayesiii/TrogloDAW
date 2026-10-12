@@ -3,18 +3,19 @@
 # TrogloDAW
 
 A local music studio for turning your recordings, lyrics and ideas into songs.
-Generate on your own hardware, keep a portable song library and shape voices
+Draft lyrics locally or enter your own, choose automatic length or up to five minutes,
+and generate two independent songs sequentially by default. Generate on your own hardware, keep a portable song library and shape voices
 without sending your audio to a remote service.
 
 The design intent is **fully unfiltered local song generation**, inspired by
 frustration with tightening song-creation restrictions in hosted tools such as
 Suno. TrogloDAW adds no content moderation or word blacklists: your lyrics and
-styles go to the local model without censorship or content-based rewriting.
+styles go to the local model without app-imposed censorship or content-based rewriting. Local models can still have learned biases and their own refusal behavior.
 Technical input limits and imperfect model delivery still apply.
 
 [Get the Windows installer](https://github.com/dalehayesiii/music-maker/releases/latest) ·
 [Song workflows](docs/song-workflows.md) · [Model setup and hardware](docs/local-models.md) ·
-[App updates](docs/updates.md) · [Installation and data recovery](docs/installation-recovery.md) ·
+[Lyrics and automatic length](docs/song-planning.md) · [App updates](docs/updates.md) · [Installation and data recovery](docs/installation-recovery.md) ·
 [Development](docs/development.md)
 
 | Workflow | Your next step |
@@ -237,7 +238,8 @@ If an older version made noisy audio with Weirdness above 50, see
 [generation recovery](docs/generation-recovery.md) for the sampler fix and how to
 regenerate an affected draft without changing existing songs.
 
-- Browser song generation supports 10–120 seconds with one local output running at
+- [Styling adherence](docs/style-adherence.md) documents supported controls and why captions are preserved.
+- Browser song generation supports explicit 10–300 seconds or optional model-planned length with one local output running at
   a time. Lyrics, style and vocal gender are model guidance; musical quality,
   exact sung words and vocalist character are not guaranteed. Model setup needs
   internet and disk space; CPU song generation is not a validated fallback.

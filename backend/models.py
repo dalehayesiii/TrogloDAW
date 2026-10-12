@@ -369,9 +369,15 @@ class Models:
                 *self.manifest.get("auxiliary_assets", []),
             ]
         }
-        if {entry["path"] for entry in state.get("verified", [])} != expected:
+        planner = self.planner()
+        optional = {a["path"] for a in planner.get("assets", [])} if planner else set()
+        present = {entry["path"] for entry in state.get("verified", [])}
+        if not expected <= present or not present <= expected | optional:
             return None
-        for entry in [*state.get("verified", []), *state.get("code_verified", [])]:
+        for entry in [
+            *(entry for entry in state.get("verified", []) if entry["path"] in expected),
+            *state.get("code_verified", []),
+        ]:
             asset = safe_file(self.storage.models, entry["path"])
             if not asset.is_file() or asset.stat().st_size != entry["bytes"]:
                 return None
@@ -387,11 +393,58 @@ class Models:
             return None
         return state
 
+    def planner(self, model=None):
+        name = self.manifest["models"][model or self.selected].get("planner")
+        return self.manifest.get("planners", {}).get(name)
+
+    def planner_ready(self):
+        try:
+            return self._planner_ready()
+        except (OSError, ValueError, KeyError, TypeError):
+            return None
+
+    def _planner_ready(self):
+        planner = self.planner()
+        state = self.ready()
+        if not planner or not state:
+            return None
+        verified = {entry["path"]: entry for entry in state.get("verified", [])}
+        for asset in planner["assets"]:
+            entry = verified.get(asset["path"], {})
+            path = safe_file(self.storage.models, asset["path"])
+            if (
+                entry.get("sha256") != asset["sha256"]
+                or not path.is_file()
+                or path.stat().st_size != asset["bytes"]
+            ):
+                return None
+            if path.stat().st_mtime_ns != entry["mtime"] and digest(path) != asset["sha256"]:
+                return None
+        return state
+
+    def assets(self, model, planner=False):
+        extra = self.planner(model)
+        if planner and not extra:
+            raise ValueError("This music model has no supported local song planner")
+        return [
+            self.manifest["runtime"],
+            *self.manifest["models"][model]["assets"],
+            *self.manifest.get("auxiliary_assets", []),
+            *(extra["assets"] if planner else []),
+        ]
+
     def describe(self):
         return {
             "selected": self.selected,
             "ready": bool(self.ready()),
             "destination": str(self.storage.models),
+            "planner": {
+                "ready": bool(self.planner_ready()),
+                "name": self.planner()["name"],
+                "bytes": sum(asset["bytes"] for asset in self.planner()["assets"]),
+            }
+            if self.planner()
+            else None,
             "choices": [
                 {
                     "id": key,
@@ -407,14 +460,16 @@ class Models:
             ],
         }
 
-    def install(self, model: str, progress, canceled):
+    def install(self, model: str, progress, canceled, *, planner=False):
+        # Preserve an already verified optional planner during ordinary model verification.
+        planner = planner or (model == self.selected and bool(self.planner_ready()))
         root = writable_root(str(self.storage.models))
         owner = self.storage.preferences["installation_id"]
         cache = root / "cache" / owner
         before = {p for p in cache.rglob("*") if p.is_file()} if cache.exists() else set()
         succeeded = False
         try:
-            result = self._install(model, progress, canceled)
+            result = self._install(model, progress, canceled, planner=planner)
             succeeded = True
             return result
         finally:
@@ -422,11 +477,7 @@ class Models:
             def record_cache(done, total):
                 details = {}
                 if succeeded:
-                    count = (
-                        1
-                        + len(self.manifest["models"][model]["assets"])
-                        + len(self.manifest.get("auxiliary_assets", []))
-                    )
+                    count = len(self.assets(model, planner))
                     details = {
                         "setup_phase": "installation",
                         "installation_steps_complete": count + (6 if done == total else 5),
@@ -449,14 +500,10 @@ class Models:
                 progress=record_cache,
             )
 
-    def _install(self, model: str, progress, canceled):
+    def _install(self, model: str, progress, canceled, *, planner=False):
         if model not in self.manifest["models"]:
             raise ValueError("Unsupported music model")
-        assets = [
-            self.manifest["runtime"],
-            *self.manifest["models"][model]["assets"],
-            *self.manifest.get("auxiliary_assets", []),
-        ]
+        assets = self.assets(model, planner)
         root = writable_root(str(self.storage.models))
         runtime_lock = runtime_signature()
         runtime_marker = safe_file(root, "runtime-packages/" + runtime_lock[:16] + "/.complete")

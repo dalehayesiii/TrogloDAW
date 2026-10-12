@@ -54,11 +54,11 @@ test('three workflows, progressive controls, drafts and accessible input help', 
   page.on('pageerror', (error) => errors.push(error.message));
   await open(page);
   await expect(page.getByRole('tab')).toHaveText(['Generation', 'Library', 'Vocal FX']);
-  await expect(page.getByLabel('Number of Generations')).toHaveValue('1');
+  await expect(page.getByLabel('Number of Generations')).toHaveValue('2');
   await expect(page.getByLabel('Vocal Gender')).not.toBeVisible();
   await page.getByText('More Options', { exact: true }).click();
   await expect(page.getByLabel('Vocal Gender')).toHaveValue('');
-  await expect(page.getByLabel('Duration (auto or 10–120 seconds)')).toHaveValue('auto');
+  await expect(page.getByLabel('Duration (auto or 10–300 seconds)')).toHaveValue('auto');
   await page.getByLabel('Input Lyrics', { exact: true }).fill('Keep every word');
   await page.getByLabel('Input Styles', { exact: true }).fill('folk guitar');
   await page.getByRole('tab', { name: 'Library', exact: true }).click();
@@ -138,7 +138,7 @@ test('multiple real uploads, folders, prior-song choices and cached FX saves', a
     { name: 'one.wav', mimeType: 'audio/wav', buffer: wave() },
     { name: 'two.wav', mimeType: 'audio/wav', buffer: wave() },
   ]);
-  await expect(page.getByRole('button', { name: 'Generate song', exact: true })).toBeDisabled();
+  await expect(page.getByRole('button', { name: /^Generate songs?$/ })).toBeDisabled();
   await expect(page.locator('.clip-card')).toHaveCount(2);
   const uploadedAdjustments = page.locator('.input-stone .clip-card .clip-adjustments');
   await expect(uploadedAdjustments).toHaveCount(2);
@@ -230,7 +230,7 @@ test('model storage and missing-model errors use real backend without downloads'
   expect((await (await request.get('/api/library')).json()).storage.model_dir).toBe(destination);
   await page.getByRole('button', { name: 'Done', exact: true }).click();
   await page.getByLabel('Input Styles', { exact: true }).fill('folk guitar');
-  await expect(page.getByRole('button', { name: 'Generate song', exact: true })).toBeDisabled();
+  await expect(page.getByRole('button', { name: /^Generate songs?$/ })).toBeDisabled();
   await expect(
     page.getByText('Local model setup is required before generation.', {
       exact: false,

@@ -31,6 +31,14 @@ def songs(core):
 
     def invoke(action, values, progress, canceled):
         calls.append(action)
+        if action == "plan_song":
+            return {"duration": values["parameters"]["duration"], "planner": "synthetic-fixture"}
+        if action == "write_lyrics":
+            return {
+                "lyrics": "[Verse]\nCave lights shine\nThese words are mine",
+                "duration": 30,
+                "planner": "synthetic-fixture",
+            }
         directory = Path(values["output"])
         directory.mkdir(exist_ok=True, parents=True)
         if action == "generate":
