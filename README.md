@@ -6,6 +6,12 @@ A local music studio for turning your recordings, lyrics and ideas into songs.
 Generate on your own hardware, keep a portable song library and shape voices
 without sending your audio to a remote service.
 
+The design intent is **fully unfiltered local song generation**, inspired by
+frustration with tightening song-creation restrictions in hosted tools such as
+Suno. TrogloDAW adds no content moderation or word blacklists: your lyrics and
+styles go to the local model without censorship or content-based rewriting.
+Technical input limits and imperfect model delivery still apply.
+
 [Get the Windows installer](https://github.com/dalehayesiii/music-maker/releases/latest) ·
 [Song workflows](docs/song-workflows.md) · [Model setup and hardware](docs/local-models.md) ·
 [Development](docs/development.md)
