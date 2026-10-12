@@ -87,7 +87,7 @@ imperfectly; this is documented rather than hidden by rewriting lyrics.
 | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Vocal Gender    | Unset/Male/Female caption guidance for newly generated voices; a preference, not guaranteed classification or an effect on source recordings                                                                 |
 | Duration        | Auto derives seconds from lyric words/2.2 plus 12 seconds of structure, or from the longest selected sample budget times 1.25, with minimum 10; explicit or auto results outside 10–120 seconds fail clearly |
-| Weirdness       | 0–100 maps to schedule shift 1–5; above 50 uses SDE, otherwise ODE; independent of style guidance                                                                                                            |
+| Weirdness       | 0–100 maps to schedule shift 1–5 with the supported ODE sampler throughout; independent of style guidance                                                                                                 |
 | Style Influence | 0–100 maps to Base-family classifier-free guidance 1–15                                                                                                                                                      |
 | Variety         | Zero retains styles exactly; higher values append one to three bounded structural/style phrases chosen per seed; lyrics stay unchanged                                                                       |
 

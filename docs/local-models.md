@@ -98,6 +98,8 @@ adapter maps the runtime parameter explicitly. With the same seed/caption, CFG 8
 versus 1 changed waveform RMS by 0.168, Weirdness 50 versus 90 by 0.347, and
 male versus female caption guidance by 0.169. This demonstrates active conditioning,
 not an objective claim about musical quality or guaranteed vocal classification.
+The later [sampler correction](generation-recovery.md) keeps ODE across the whole
+Weirdness range; the old above-50 SDE path had an incompatible timestep schedule.
 The real browser also completed N=2 with independently cataloged recipes containing
 original input, transformed sample assets and placements. The 120-second
 run used a parent-and-child RSS sampler and peaked at 11.03 GiB. Earlier RAM
