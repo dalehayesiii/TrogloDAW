@@ -23,6 +23,8 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 import troglocore as troglodaw
+import folders
+from typing import Literal
 from models import Canceled, Models
 from songs import Songs, song_item
 from storage import Storage
@@ -35,6 +37,10 @@ VOICE_T, MUSIC_T, ANY_T = "voice", "music,generated,mix", "voice,music,generated
 class Action(BaseModel):
     action: str
     values: dict = {}
+
+
+class FolderRequest(BaseModel):
+    kind: Literal["library", "model"]
 
 
 class MusicService:
@@ -50,6 +56,7 @@ class MusicService:
         self.lock = threading.RLock()
         self.storage = Storage(core)
         self.models = Models(self.storage)
+        self.storage.model_manifest = self.models.manifest
         self.songs = Songs(core, self.models, self.file)
         self.cancel_events = {}
         self.timing = {}
@@ -133,6 +140,10 @@ class MusicService:
                     runtime_cached=(
                         root / "runtime-packages" / runtime_signature()[:16] / ".complete"
                     ).is_file(),
+                )
+            elif action == "storage":
+                profile.update(
+                    storage_kind=values.get("kind"), storage_mode=values.get("mode", "open")
                 )
         except (KeyError, ValueError, OSError):
             # Invalid requests retain the normal worker failure/reporting path.
@@ -336,10 +347,23 @@ class MusicService:
                 "Model setup complete", models=self.models.install(v["model"], progress, canceled)
             )
         if action == "storage":
-            changed = self.storage.change(v["kind"], v["path"], v.get("mode", "open"), progress)
-            # Previously registered tokens remain valid against the retained original copy.
+
+            def committed(old, new, copied):
+                if v["kind"] == "library" and old != new:
+                    with self.lock:
+                        for token, path in self.media.items():
+                            if path.is_relative_to(old):
+                                relative = path.relative_to(old).as_posix()
+                                if relative in copied:
+                                    self.media[token] = new / relative
+
+            changed = self.storage.change(
+                v["kind"], v["path"], v.get("mode", "open"), progress, committed
+            )
             return self.result(
-                "Storage updated; the original remains as a recovery copy"
+                f"Storage updated; {changed['retained_files']} shared, changed or unavailable original files were retained"
+                if changed.get("retained_files")
+                else "Storage updated; the original remains as a recovery copy"
                 if changed.get("recovery_copy")
                 else "Storage updated",
                 storage=changed,
@@ -468,7 +492,7 @@ class MusicService:
         raise ValueError("Unknown operation")
 
 
-def create_app(core=troglodaw, frontend=FRONTEND, quit_callback=None):
+def create_app(core=troglodaw, frontend=FRONTEND, quit_callback=None, folder_picker=None):
     service = MusicService(core)
 
     @asynccontextmanager
@@ -478,6 +502,8 @@ def create_app(core=troglodaw, frontend=FRONTEND, quit_callback=None):
 
     api = FastAPI(title="troglodaw", lifespan=lifespan)
     api.state.service = service
+    picker_lock = threading.Lock()
+    pick_folder = folder_picker or folders.choose
 
     @api.middleware("http")
     async def local_mutations(request: Request, call_next):
@@ -550,6 +576,18 @@ def create_app(core=troglodaw, frontend=FRONTEND, quit_callback=None):
             }
         except (KeyError, ValueError) as exc:
             raise HTTPException(404, str(exc)) from exc
+
+    @api.post("/api/storage/pick")
+    def select_folder(selection: FolderRequest):
+        if not picker_lock.acquire(blocking=False):
+            raise HTTPException(409, "A folder picker is already open")
+        try:
+            initial = str(service.storage.models if selection.kind == "model" else core.LIB)
+            return {"path": pick_folder(initial, f"Choose {selection.kind} storage folder")}
+        except OSError as exc:
+            raise HTTPException(503, str(exc)) from exc
+        finally:
+            picker_lock.release()
 
     @api.post("/api/uploads")
     async def upload(file: UploadFile = File(...)):

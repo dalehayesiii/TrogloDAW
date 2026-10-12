@@ -211,14 +211,71 @@ test('model storage and missing-model errors use real backend without downloads'
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
   const library = await (await request.get('/api/library')).json();
   const destination = library.storage.model_dir + ' with spaces';
-  await page.getByLabel('Model storage folder').fill(destination);
-  await page.getByRole('button', { name: 'Use this model folder', exact: true }).click();
+  await expect(page.getByLabel('Model storage folder')).toHaveAttribute('readonly');
+  if (library.storage.native_folder_picker) {
+    await page.route('**/api/storage/pick', (route) =>
+      route.fulfill({ json: { path: destination } }),
+    );
+    await page.getByRole('button', { name: 'Choose model folder…', exact: true }).click();
+  } else {
+    await page.getByText('Set folder path on this platform', { exact: true }).first().click();
+    await page.getByLabel('Manual model folder path').fill(destination);
+    await page.getByRole('button', { name: 'Use model folder', exact: true }).click();
+  }
   await expect(page.getByRole('status').filter({ hasText: 'Storage updated' })).toBeVisible();
   expect((await (await request.get('/api/library')).json()).storage.model_dir).toBe(destination);
   await page.getByRole('button', { name: 'Set up later', exact: true }).click();
   await page.getByLabel('Input Styles', { exact: true }).fill('folk guitar');
   await page.getByRole('button', { name: 'Generate song', exact: true }).click();
   await expect(page.getByRole('alert').first()).toContainText('Install or verify a music model');
+});
+
+test('native folder choices prompt for existing library data and preserve playback after a real move', async ({
+  page,
+  request,
+}) => {
+  const fixture = await seed(request);
+  let selected = null;
+  await page.route('**/api/library', async (route) => {
+    const response = await route.fetch();
+    const value = await response.json();
+    value.storage.native_folder_picker = true;
+    await route.fulfill({ response, json: value });
+  });
+  // Only the OS dialog result is replaced; storage, copying, catalog and media are real.
+  await page.route('**/api/storage/pick', (route) => route.fulfill({ json: { path: selected } }));
+  await open(page);
+  const before = await (await request.get('/api/library')).json();
+  await page.getByRole('tab', { name: 'Library', exact: true }).click();
+  await page
+    .getByRole('button', { name: new RegExp(fixture.song.name) })
+    .first()
+    .click();
+  const player = page.locator('#panel-1 troglodaw-audio').first();
+  await expect(player.locator('canvas')).toBeVisible();
+  const token = await player.locator('audio').getAttribute('src');
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await page.getByText('Library storage', { exact: true }).click();
+  await page.getByRole('button', { name: 'Choose library folder…', exact: true }).click();
+  await expect(page.getByLabel('Library folder')).toHaveValue(before.storage.library_dir);
+  await expect(page.locator('#folder-choice-heading')).toHaveCount(0);
+  selected = before.storage.library_dir + ' moved with spaces';
+  await page.getByRole('button', { name: 'Choose library folder…', exact: true }).click();
+  await expect(page.locator('#folder-choice-heading')).toHaveText('Move existing library data?');
+  await expect(page.getByLabel('Library folder')).toHaveValue(before.storage.library_dir);
+  await page.getByRole('button', { name: 'Cancel folder change', exact: true }).click();
+  expect((await (await request.get('/api/library')).json()).storage.library_dir).toBe(
+    before.storage.library_dir,
+  );
+  await page.getByRole('button', { name: 'Choose library folder…', exact: true }).click();
+  await page.getByRole('button', { name: 'Move existing data', exact: true }).click();
+  await expect(page.getByLabel('Library folder')).toHaveValue(selected);
+  const moved = await (await request.get('/api/library')).json();
+  expect(moved.items.some((item) => item.id === fixture.song.id)).toBe(true);
+  expect((await request.get(token)).status()).toBe(200);
+  await page.getByRole('button', { name: 'Set up later', exact: true }).click();
+  await page.reload();
+  await expect(page.getByLabel('Library folder')).toHaveValue(selected);
 });
 
 test('microphone denial is recoverable and does not discard accepted clips', async ({ page }) => {

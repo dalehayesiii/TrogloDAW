@@ -104,9 +104,11 @@ generated-audio players; missing assets are explicit.
 Search, play and rename songs, create folders and move songs without changing IDs
 or asset references. Song actions open Generation/Input Audio, selective recipe
 reuse or Vocal FX directly. Existing catalogs and legacy CLI recipes stay usable.
-Opening an existing library and relocating the current one are separate Settings
-actions. Relocation uses a verified staging copy, preserves the original recovery
-copy and does not overwrite a populated destination.
+Settings opens a Windows folder browser. If the current folder contains data,
+choose to move it, use the selected folder without moving, or cancel. Moves use a
+verified staging copy before switching locations and remove only unchanged managed
+originals. Shared, changed and unrelated files remain; populated destinations are
+not overwritten. Existing song playback links follow a successful library move.
 
 Vocal FX looks up source-content/model/runtime-version caches and extracts missing
 vocals automatically in a background job. Candidate voices are uncertain, with

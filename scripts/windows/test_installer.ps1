@@ -53,6 +53,8 @@ try {
     if (-not (Test-Path (Join-Path $programFolder 'TrogloDAW.lnk')) -or -not (Test-Path $customShortcut) -or -not (Test-Path (Join-Path $desktopRoot 'TrogloDAW.lnk'))) { throw 'TrogloDAW shortcut installation failed' }
     if ((Get-ItemProperty $registryPaths[1]).DisplayName -ne 'TrogloDAW') { throw 'Uninstall display branding differs' }
     $python = Join-Path $installRoot 'python/python.exe'
+    & $python (Join-Path $installRoot 'app/backend/folders.py')
+    if ($LASTEXITCODE) { throw 'Embedded native folder picker initialization failed' }
     $env:TROGLODAW_LIBRARY = $libraryRoot
     $manifest = Get-Content dist/release.json -Raw | ConvertFrom-Json
     $version = (Get-ItemProperty $registryPaths[1]).DisplayVersion

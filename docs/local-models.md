@@ -3,7 +3,11 @@
 Generation uses ACE-Step 1.5 Base locally. The Windows installer contains the
 browser interface, Python, core DSP and the pinned uv setup tool; it does not
 contain model weights. On first launch, Settings offers explicit model setup.
-Choose the model folder before installing. By default it is `models` beside the
+Choose the model folder with **Choose model folder…** before installing. Windows
+opens a native folder browser; cancel keeps the current location. The same controls
+are available later in **Settings**, including **Choose library folder…** under
+Library storage. Source platforms without this picker expose a collapsed manual
+path fallback. By default the model folder is `models` beside the
 configured library (Windows: `Documents/TrogloDAW/models`). Library and model
 storage may use different drives. All provider/runtime caches follow the model
 folder. No cloud generation, audio upload or API key is involved.
@@ -28,10 +32,16 @@ Settings also offers the architecture-compatible SFT checkpoint. SFT is not
 separately benchmarked. Turbo is excluded because it overrides classifier-free
 guidance and would make Style Influence ineffective.
 
-Opening another model folder verifies/reuses its assets. Relocation copies and
-hash-verifies the complete folder before changing the preference, retaining the
-original recovery copy. Shared co-owner manifests stay associated with the old
-root. Do not delete the recovery copy until the new location works. The app
+When the current location contains models or library data, selecting another folder
+prompts **Move existing data**, **Use folder without moving**, or **Cancel folder
+change**. Moving copies only managed data, hash-verifies it, commits the new location
+and removes unchanged originals individually. Shared, changed and unrelated files
+remain at the old location; a populated destination is never overwritten. Failure
+before the location commit keeps the original active. Libraries keep portable recipes
+and existing playback links. Using a folder without moving leaves the original data
+there and verifies/reuses compatible assets during model setup. Installing/verifying
+the selected model is a separate action after choosing the destination. The legacy
+CLI/API relocation mode retains a recovery copy. The app
 cannot change a library location while an explicit `TROGLODAW_LIBRARY` override applies.
 Uninstall offers **Remove installed model assets**, checked by default. Cleanup
 removes only unchanged files recorded as owned by this installation, including
@@ -51,6 +61,8 @@ remain separate stages; the download estimate does not promise setup is ready.
 Unknown dependency-install work stays indeterminate. Compatible successful local
 runs progressively improve whole-setup estimates. See [progress and measured
 accuracy](progress.md).
+
+![Initial setup with folder browsing and separate model installation](assets/setup-dark.png)
 
 ## Validated configuration
 

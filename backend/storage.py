@@ -7,6 +7,8 @@ import json
 import os
 import shutil
 import uuid
+import folders
+import copy
 from pathlib import Path
 from contextlib import nullcontext
 
@@ -62,24 +64,32 @@ def writable_root(value: str, required_bytes=0) -> Path:
     return path
 
 
-def copy_verified(source: Path, destination: Path, progress, excluded=()):
+def copy_verified(source: Path, destination: Path, progress, excluded=(), included=None):
     """Copy to a sibling staging folder; retain source as a recovery copy."""
     source, destination = source.resolve(), destination.resolve()
     if not source.is_dir():
         raise ValueError("Original storage folder is unavailable")
     if source == destination:
-        return
+        return {}
     if destination.is_relative_to(source) or source.is_relative_to(destination):
         raise ValueError("Source and destination folders must not contain each other")
     if destination.exists() and any(destination.iterdir()):
         raise ValueError(
             "Destination is not empty. Open the existing folder or choose an empty one"
         )
+    candidates = (
+        source.rglob("*")
+        if included is None
+        else (safe_file(source, relative) for relative in sorted(included))
+    )
     files = [
         p
-        for p in source.rglob("*")
-        if p.is_file() and p.relative_to(source).as_posix() not in excluded
+        for p in candidates
+        if p.is_file()
+        and p.relative_to(source).as_posix() not in excluded
+        and (included is None or p.relative_to(source).as_posix() in included)
     ]
+    copied = {}
     size = sum(p.stat().st_size for p in files)
     writable_root(str(destination.parent), size + 64 * 1024 * 1024)
     stage = destination.parent / (".troglodaw-relocate-" + uuid.uuid4().hex)
@@ -94,6 +104,7 @@ def copy_verified(source: Path, destination: Path, progress, excluded=()):
             stage="copying",
             units_complete=0,
             units_total=len(files),
+            timing_profile={"storage_files": len(files), "storage_bytes": size},
         )
         for index, old in enumerate(files):
             relative = old.relative_to(source).as_posix()
@@ -101,8 +112,10 @@ def copy_verified(source: Path, destination: Path, progress, excluded=()):
             new = safe_file(stage, relative)
             new.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(old, new)
-            if digest(old) != digest(new):
+            checksum = digest(old)
+            if checksum != digest(new):
                 raise ValueError("Relocation verification failed; original folder is unchanged")
+            copied[relative] = checksum
             progress(
                 "Copying and verifying storage",
                 (index + 1) / max(1, len(files)),
@@ -114,6 +127,7 @@ def copy_verified(source: Path, destination: Path, progress, excluded=()):
         if destination.exists():
             destination.rmdir()
         stage.rename(destination)
+        return copied
     except Exception:
         # Staging is intentionally retained for diagnosis/recovery; source stays active.
         raise
@@ -124,6 +138,7 @@ class Storage:
         self.core = core
         self.config_path = core.CONFIG_DIR / "config.local.json"
         self.preferences = core._read_json(self.config_path)
+        self.model_manifest = {}
         changed = False
         if not self.preferences.get("installation_id"):
             self.preferences["installation_id"] = uuid.uuid4().hex
@@ -148,35 +163,166 @@ class Storage:
             "library_dir": str(self.core.LIB),
             "model_dir": str(self.models),
             "installation_id": self.preferences["installation_id"],
+            "native_folder_picker": folders.available(),
+            "library_has_data": bool(self.core.list_items())
+            or bool(self.core._read_json(self.core.CATALOG).get("folders"))
+            or any(self.core.INBOX.glob("*")),
+            "model_has_data": self.has_model_data(),
         }
 
-    def change(self, kind: str, value: str, mode: str, progress):
+    def has_model_data(self):
+        root = self.models
+        owner = self.preferences["installation_id"]
+        try:
+            paths = self.core._read_json(root / ".troglodaw" / (owner + ".json")).get("files", {})
+            if any(safe_file(root, relative).is_file() for relative in paths):
+                return True
+            assets = [
+                self.model_manifest.get("runtime", {}),
+                *self.model_manifest.get("auxiliary_assets", []),
+            ]
+            for model in self.model_manifest.get("models", {}).values():
+                assets.extend(model["assets"])
+            return any(safe_file(root, a["path"]).is_file() for a in assets if "path" in a) or any(
+                p.is_file() for p in (root / "cache" / owner).rglob("*")
+            )
+        except (OSError, ValueError, TypeError):
+            # A damaged manifest must not prevent choosing another folder.
+            return True
+
+    def model_files(self):
+        """Select this app's models/runtime/cache, never a whole arbitrary folder."""
+        root = self.models
+        owner = self.preferences["installation_id"]
+        manifest = root / ".troglodaw" / (owner + ".json")
+        owned = self.core._read_json(manifest).get("files", {})
+        paths = set(owned)
+        assets = [
+            self.model_manifest.get("runtime", {}),
+            *self.model_manifest.get("auxiliary_assets", []),
+        ]
+        for model in self.model_manifest.get("models", {}).values():
+            assets.extend(model["assets"])
+        paths.update(asset["path"] for asset in assets if "path" in asset)
+        ready = root / ".troglodaw" / ("ready-" + owner + ".json")
+        state = self.core._read_json(ready)
+        directories = [state.get("code"), state.get("packages"), f"cache/{owner}"]
+        if self.model_manifest.get("runtime_revision"):
+            from models import runtime_signature
+
+            directories.extend(
+                [
+                    f"inference-code/{self.model_manifest['runtime_revision']}",
+                    f"runtime-packages/{runtime_signature()[:16]}",
+                ]
+            )
+        for directory in directories:
+            if directory:
+                base = safe_file(root, directory)
+                paths.update(p.relative_to(root).as_posix() for p in base.rglob("*") if p.is_file())
+        for control in [manifest, ready]:
+            if control.is_file():
+                paths.add(control.relative_to(root).as_posix())
+        return {relative for relative in paths if safe_file(root, relative).is_file()}
+
+    def library_files(self, catalog=None):
+        root = self.core.LIB
+        paths = {"catalog.json"}
+        for directory in [*self.core.TYPE_DIRS.values(), "assets", "inbox"]:
+            base = safe_file(root, directory)
+            paths.update(p.relative_to(root).as_posix() for p in base.rglob("*") if p.is_file())
+        # Preserve cataloged files outside the normal managed directories, too.
+        for item in catalog["items"] if catalog is not None else self.core.list_items():
+            for key in ["file", "mp3_file"]:
+                if item.get(key) and not Path(item[key]).is_absolute():
+                    paths.add(item[key])
+        return {relative for relative in paths if safe_file(root, relative).is_file()}
+
+    def change(self, kind: str, value: str, mode: str, progress, committed=None):
+        current = self.core.LIB if kind == "library" else self.models
+        if (
+            kind in {"library", "model"}
+            and mode in {"open", "move", "relocate"}
+            and Path(value).is_absolute()
+            and Path(value).resolve() == current.resolve()
+        ):
+            return {**self.describe(), "recovery_copy": None, "retained_files": 0}
         guard = (
             self.core._locked_catalog()
-            if kind == "library" and mode == "relocate"
+            if kind == "library" and mode in {"relocate", "move"}
             else nullcontext()
         )
-        with guard:
-            return self._change(kind, value, mode, progress)
+        with guard as catalog:
+            return self._change(kind, value, mode, progress, committed, catalog)
 
-    def _change(self, kind: str, value: str, mode: str, progress):
-        if kind not in {"library", "model"} or mode not in {"open", "relocate"}:
-            raise ValueError("Choose library/model and open/relocate")
+    def _change(self, kind: str, value: str, mode: str, progress, committed=None, catalog=None):
+        if kind not in {"library", "model"} or mode not in {"open", "relocate", "move"}:
+            raise ValueError("Choose library/model and open/move")
         if kind == "library" and os.environ.get("TROGLODAW_LIBRARY"):
             raise ValueError(
                 "TROGLODAW_LIBRARY overrides storage. Restart without that override to change it"
             )
         old = self.core.LIB if kind == "library" else self.models
         new = writable_root(value, 64 * 1024 * 1024)
-        if mode == "relocate":
-            copy_verified(old, new, progress, {"catalog.json.lock"} if kind == "library" else ())
+        copied = {}
+        own_name = self.preferences["installation_id"] + ".json"
+        original_owner = (
+            self.core._read_json(old / ".troglodaw" / own_name).get("files", {})
+            if kind == "model"
+            else {}
+        )
+        expected = dict(original_owner)
+        if kind == "model":
+            # A previously installed app can own the default folder's runtime.
+            # Preserve its recorded checksum rather than claiming replacements.
+            for record in (old / ".troglodaw").glob("*.json"):
+                if record.name != own_name:
+                    value = self.core._read_json(record).get("files", {})
+                    if isinstance(value, dict):
+                        expected = {**value, **expected}
+            assets = [
+                self.model_manifest.get("runtime", {}),
+                *self.model_manifest.get("auxiliary_assets", []),
+            ]
+            for model in self.model_manifest.get("models", {}).values():
+                assets.extend(model["assets"])
+            expected = {**{a["path"]: a["sha256"] for a in assets if "path" in a}, **expected}
+        if mode in {"relocate", "move"}:
+            included = (
+                (self.library_files(catalog) if kind == "library" else self.model_files())
+                if mode == "move"
+                else None
+            )
+            copied = copy_verified(
+                old, new, progress, {"catalog.json.lock"} if kind == "library" else (), included
+            )
             if kind == "model":
+                unowned_runtime = {
+                    relative
+                    for relative in copied
+                    if relative.startswith(("inference-code/", "runtime-packages/"))
+                    and relative not in expected
+                }
+                expected.update(dict.fromkeys(unowned_runtime))
                 # Co-owners still use the original root. Their copied manifests must
                 # not claim references in this installation's independent copy.
-                own_name = self.preferences["installation_id"] + ".json"
                 for manifest in (new / ".troglodaw").glob("*.json"):
-                    if manifest.name != own_name:
+                    if manifest.name not in {own_name, "ready-" + own_name}:
                         manifest.unlink()
+                if mode == "move" and copied:
+                    # Keep a changed original's ownership checksum, never claim its replacement.
+                    atomic_json(
+                        new / ".troglodaw" / own_name,
+                        {
+                            "files": {
+                                relative: expected.get(relative, checksum)
+                                for relative, checksum in copied.items()
+                                if not relative.startswith(".troglodaw/")
+                                and relative not in unowned_runtime
+                            }
+                        },
+                    )
+        previous = copy.deepcopy(self.preferences)
         if kind == "library":
             if (new / "catalog.json").exists():
                 catalog = json.loads((new / "catalog.json").read_text(encoding="utf-8"))
@@ -184,20 +330,95 @@ class Storage:
                     raise ValueError("The destination contains an invalid library catalog")
             for directory in [*self.core.TYPE_DIRS.values(), "inbox"]:
                 (new / directory).mkdir(exist_ok=True)
+            progress("Updating selected folder", stage="committing_storage", cancel_safe=False)
             self.preferences["library_dir"] = str(new)
-            self.persist()
+            try:
+                self.persist()
+            except OSError:
+                self.preferences = previous
+                raise
             self.core.LIB, self.core.CATALOG, self.core.INBOX = (
                 new,
                 new / "catalog.json",
                 new / "inbox",
             )
         else:
+            progress("Updating selected folder", stage="committing_storage", cancel_safe=False)
             self.preferences["model_dir"] = str(new)
             roots = self.preferences.setdefault("model_roots", [])
             if str(new) not in roots:
                 roots.append(str(new))
-            self.persist()
-        return {**self.describe(), "recovery_copy": str(old) if mode == "relocate" else None}
+            try:
+                self.persist()
+            except OSError:
+                self.preferences = previous
+                raise
+        if committed:
+            committed(old, new, copied)
+        retained = (
+            self.cleanup_move(old, copied, original_owner, kind, expected)
+            if mode == "move" and old != new
+            else []
+        )
+        return {
+            **self.describe(),
+            "recovery_copy": str(old) if mode == "relocate" else None,
+            "retained_files": len(retained),
+        }
+
+    def cleanup_move(self, root, copied, original_owner, kind, expected):
+        """Only individually verified unchanged files, never recursive deletion."""
+        shared = set()
+        owner_path = root / ".troglodaw" / (self.preferences["installation_id"] + ".json")
+        if kind == "model":
+            for other in owner_path.parent.glob("*.json"):
+                if other != owner_path:
+                    try:
+                        value = json.loads(other.read_text(encoding="utf-8-sig"))
+                        if not isinstance(value, dict) or not isinstance(
+                            value.get("files", {}), dict
+                        ):
+                            raise ValueError("Invalid ownership metadata")
+                        shared.update(value.get("files", {}))
+                    except (OSError, ValueError):
+                        # Unknown co-owner references: keep originals, the verified new copy works.
+                        return sorted(copied)
+        retained = []
+        for relative, checksum in copied.items():
+            if kind == "model" and relative == owner_path.relative_to(root).as_posix():
+                continue
+            try:
+                path = safe_file(root, relative)
+                if (
+                    relative in shared
+                    or expected.get(relative, checksum) != checksum
+                    or digest(path) != checksum
+                ):
+                    retained.append(relative)
+                else:
+                    path.unlink()
+            except (OSError, ValueError):
+                retained.append(relative)
+        if kind == "model" and owner_path.is_file():
+            try:
+                atomic_json(
+                    owner_path,
+                    {"files": {k: v for k, v in original_owner.items() if k not in copied}},
+                )
+            except OSError:
+                retained.append(owner_path.relative_to(root).as_posix())
+        for directory in sorted(
+            {(root / relative).parent for relative in copied},
+            key=lambda p: len(p.parts),
+            reverse=True,
+        ):
+            while directory != root and directory.is_relative_to(root):
+                try:
+                    directory.rmdir()
+                except OSError:
+                    break
+                directory = directory.parent
+        return retained
 
     def owned(self, root: Path, files: list[Path]):
         path = root / ".troglodaw" / (self.preferences["installation_id"] + ".json")
