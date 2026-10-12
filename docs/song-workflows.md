@@ -1,5 +1,13 @@
 # TrogloDAW Song workflows
 
+Expensive jobs remain visible above the workflows, including after navigation or
+reload. The status distinguishes queue waiting from active elapsed time and,
+when evidence supports them, stage/current-song/whole-request remaining ranges.
+Diffusion steps, separation chunks, voice slots and sample/render work drive live
+progress. Completed local runs continually improve comparable estimates; unknown
+stages remain indeterminate. Cancel requests stay visible until acknowledged and
+earlier completed songs survive a canceled batch. See [progress](progress.md).
+
 TrogloDAW has three browser tabs: **Generation**, **Library** and **Vocal FX**. Settings
 contains the initial model setup and separate library/model locations. After setup,
 audio processing and storage work offline. See [model setup and measured limits](local-models.md).

@@ -199,6 +199,12 @@ class Songs:
         atomic_json(request_file, request)
         result = None
         messages = []
+        progress(
+            "Starting local inference runtime",
+            0,
+            stage="initializing_runtime",
+            timing_profile={"runtime_mode": "fresh_process"},
+        )
         try:
             with subprocess.Popen(
                 [sys.executable, str(ROOT / "backend" / "inference_runner.py"), str(request_file)],
@@ -337,15 +343,34 @@ class Songs:
             input_file.parent.mkdir(parents=True, exist_ok=True)
             sf.write(input_file, audio, self.core.SR, subtype="FLOAT")
             source["file"] = self.relative(input_file)
-            progress("Analyzing " + source["label"], 0, stage="analyzing")
+            progress(
+                "Analyzing input audio",
+                0,
+                stage="analyzing",
+                units_complete=0,
+                units_total=1,
+                timing_stage_profile={
+                    "source_index": source_index,
+                    "source_seconds": source["duration"],
+                },
+            )
             audio, channel_strategy = phase_safe_audio(audio)
             analysis = self.core.analyze_vocal(audio)
             regions, budget = select_regions(audio, self.core.SR, source["settings"], analysis)
+            progress("Analyzed input audio", 1, stage="analyzing", units_complete=1, units_total=1)
             analyses.append({"source_id": source["id"], "analysis": analysis, "selection": budget})
             analyses[-1]["channel_strategy"] = channel_strategy
             if analysis.get("tempo_confidence", 0) >= 0.25 and analysis.get("tempo_raw"):
                 tempos.append(float(analysis["tempo_raw"]))
             transformed_samples = []
+            progress(
+                "Transforming source samples",
+                0,
+                stage="sampling",
+                units_complete=0,
+                units_total=len(regions),
+                timing_stage_profile={"source_index": source_index, "sample_budget": len(regions)},
+            )
             for index, region in enumerate(regions):
                 if canceled():
                     raise Canceled("Sample transformation canceled")
@@ -379,6 +404,13 @@ class Songs:
                 )
             source_samples.append(transformed_samples)
         bpm = min(180, max(60, float(np.median(tempos)) if tempos else 90))
+        progress(
+            "Arranging transformed samples",
+            0,
+            stage="planning",
+            units_complete=0,
+            units_total=len(source_samples),
+        )
         for source_index, transformed_samples in enumerate(source_samples):
             for index, position, gain in positions(
                 len(transformed_samples), source_index, len(sources), len(layer), self.core.SR, bpm
@@ -396,6 +428,13 @@ class Songs:
                         "gain": gain,
                     }
                 )
+            progress(
+                "Arranging transformed samples",
+                (source_index + 1) / len(source_samples),
+                stage="planning",
+                units_complete=source_index + 1,
+                units_total=len(source_samples),
+            )
         peak = float(np.max(np.abs(layer), initial=0))
         if peak > 0.8:
             gain = 0.8 / peak
@@ -541,9 +580,14 @@ class Songs:
                     generated = np.pad(generated, ((0, expected - len(generated)), (0, 0)))
                 musical_file = directory / "musical-parts.wav"
                 sf.write(musical_file, generated, self.core.SR, subtype="FLOAT")
-                item_progress("Mixing and mastering", 0, stage="rendering")
+                item_progress(
+                    "Mixing and mastering", 0, stage="rendering", units_complete=0, units_total=1
+                )
                 mixed = self.core.master(
                     generated + layer if mode["effective_mode"] == "postmix" else generated
+                )
+                item_progress(
+                    "Mixing and mastering", 1, stage="rendering", units_complete=1, units_total=1
                 )
                 title = str(draft.get("title", "")).strip()
                 if not title:
@@ -584,7 +628,7 @@ class Songs:
                 }
                 # Keep recipe paths portable; runtime diagnostics must not embed absolute assets.
                 recipe["inference"] = {k: v for k, v in inferred.items() if k != "audio"}
-                item_progress("Saving song", 0, stage="saving")
+                item_progress("Saving song", 0, stage="saving", units_complete=0, units_total=1)
                 item = self.core._new_entry(
                     "generated",
                     title,
@@ -593,7 +637,31 @@ class Songs:
                     recipe=recipe,
                     extra={"is_song": True, "folder": ""},
                 )
+                item_progress(
+                    "Saving song",
+                    1,
+                    stage="saving",
+                    units_complete=1,
+                    units_total=1,
+                    cancel_safe=False,
+                )
+                item_progress(
+                    "Encoding song download",
+                    0,
+                    stage="exporting",
+                    units_complete=0,
+                    units_total=1,
+                    cancel_safe=False,
+                )
                 mp3 = self.core.to_mp3(item["path"])
+                item_progress(
+                    "Encoding song download",
+                    1,
+                    stage="exporting",
+                    units_complete=1,
+                    units_total=1,
+                    cancel_safe=False,
+                )
                 item = self.core.update_item(item["id"], mp3=mp3)
                 outcomes.append(
                     {
@@ -619,18 +687,40 @@ class Songs:
                 outcomes.append({"index": index + 1, "status": "failed", "message": str(exc)})
                 item_progress("Output failed: " + str(exc), 0, stage="failed_item")
             item_progress(
-                "Output finished", 1, stage="output_complete", outcomes=copy.deepcopy(outcomes)
+                "Output finished",
+                1,
+                stage="output_complete",
+                outcomes=copy.deepcopy(outcomes),
+                cancel_safe=False,
             )
         completed = sum(o["status"] == "complete" for o in outcomes)
         return {"message": f"Created {completed} of {count} songs", "outcomes": outcomes}
 
-    def rerender(self, item_id):
+    def rerender(self, item_id, progress=lambda *_args, **_kwargs: None, canceled=lambda: False):
+        progress("Loading saved arrangement audio", 0, stage="loading")
         item = self.core.get_item(item_id)
         recipe = item.get("recipe") or {}
         if recipe.get("op") == "vocal-fx-song":
             audio = self.core.load(self.asset(recipe["accompaniment_file"]))
-            for filename in recipe["edited_stems"].values():
+            progress(
+                "Mixing saved voice stems",
+                0,
+                stage="rendering",
+                units_complete=0,
+                units_total=len(recipe["edited_stems"]),
+            )
+            for index, filename in enumerate(recipe["edited_stems"].values()):
+                if canceled():
+                    raise Canceled("Saved arrangement rendering canceled")
                 audio += self.core.load(self.asset(filename))
+                progress(
+                    "Mixing saved voice stems",
+                    (index + 1) / len(recipe["edited_stems"]),
+                    stage="rendering",
+                    units_complete=index + 1,
+                    units_total=len(recipe["edited_stems"]),
+                )
+            progress("Saving rendered song", 0, stage="saving")
             return self.core._new_entry(
                 "generated",
                 item["name"] + "_rerender",
@@ -643,13 +733,31 @@ class Songs:
             raise ValueError("This song has no reusable sample arrangement")
         audio = self.core.load(self.asset(recipe["musical_file"]))
         samples = {s["id"]: s for s in recipe["samples"]}
-        for placement in (
+        placements = (
             recipe["placements"] if recipe.get("render_mode", "postmix") == "postmix" else []
-        ):
+        )
+        progress(
+            "Mixing saved samples",
+            0,
+            stage="rendering",
+            units_complete=0,
+            units_total=len(placements),
+        )
+        for index, placement in enumerate(placements):
+            if canceled():
+                raise Canceled("Saved arrangement rendering canceled")
             fragment = self.core.load(self.asset(samples[placement["sample_id"]]["file"]))
             start = placement["offset_samples"]
             count = min(placement["length_samples"], len(fragment), len(audio) - start)
             audio[start : start + count] += fragment[:count] * placement.get("gain", 1)
+            progress(
+                "Mixing saved samples",
+                (index + 1) / len(placements),
+                stage="rendering",
+                units_complete=index + 1,
+                units_total=len(placements),
+            )
+        progress("Saving rendered song", 0, stage="saving")
         return self.core._new_entry(
             "generated",
             item["name"] + "_rerender",
@@ -770,6 +878,7 @@ class Songs:
         directory = self.core.LIB / "assets" / "vocals" / original_id / key
         metadata_file = directory / "analysis.json"
         cached = False
+        progress("Checking saved source stems", 0, stage="checking_cache")
         if metadata_file.exists():
             metadata = json.loads(metadata_file.read_text())
             cached = all(
@@ -777,6 +886,9 @@ class Songs:
                 for path, checksum in metadata["files"].items()
             )
         if not cached:
+            progress(
+                "Preparing fresh source stems", 0, stage="loading", timing_profile={"cache": False}
+            )
             directory.mkdir(parents=True, exist_ok=True)
             import shutil
 
@@ -810,6 +922,19 @@ class Songs:
                 0.9,
                 stage="cache_hit",
                 cache_hit=True,
+                timing_profile={
+                    "cache": True,
+                    "backend": "cpu-cache",
+                    "gpu": "none",
+                    "offload": "none",
+                    "precision": "fp32",
+                    "model": "hdemucs-high+ecapa",
+                    "torch": None,
+                    "cuda": None,
+                    "threads": None,
+                    "runtime_mode": "cached-files",
+                    "memory_policy": "not-used",
+                },
             )
         return item, metadata, recipe, cached
 
@@ -896,6 +1021,13 @@ class Songs:
         audio = self.core.load(self.asset(metadata["accompaniment_file"]))
         settings = values.get("group_settings", recipe.get("group_settings", {}))
         edited = {}
+        progress(
+            "Rendering voice groups",
+            0,
+            stage="rendering",
+            units_complete=0,
+            units_total=len(assignments),
+        )
         for index, segment in enumerate(assignments):
             if canceled():
                 raise Canceled("Vocal rendering canceled")
@@ -908,13 +1040,33 @@ class Songs:
             if group not in edited:
                 edited[group] = np.zeros_like(vocals)
             edited[group][start:end] = part
-            progress("Rendering voice groups", (index + 1) / len(assignments), stage="rendering")
+            progress(
+                "Rendering voice groups",
+                (index + 1) / len(assignments),
+                stage="rendering",
+                units_complete=index + 1,
+                units_total=len(assignments),
+            )
         directory = self.core.LIB / "assets" / "vocal-edits" / uuid.uuid4().hex
         directory.mkdir(parents=True, exist_ok=True)
+        progress(
+            "Saving edited voice audio",
+            0,
+            stage="saving",
+            units_complete=0,
+            units_total=len(edited) + 1,
+        )
         for group, stem in edited.items():
             sf.write(directory / (group + ".wav"), stem, self.core.SR, subtype="FLOAT")
         path = directory / "song.wav"
         self.core.save_wav(path, audio)
+        progress(
+            "Saving edited voice audio",
+            1,
+            stage="saving",
+            units_complete=len(edited) + 1,
+            units_total=len(edited) + 1,
+        )
         if not values.get("save", True):
             return {"message": "Preview only", "audio": self.media(path)}
         saved_recipe = {
@@ -953,7 +1105,14 @@ class Songs:
             while name in existing:
                 name = base_name + f"_{version}"
                 version += 1
+        progress(
+            "Encoding edited song download", 0, stage="exporting", units_complete=0, units_total=1
+        )
         mp3 = self.core.to_mp3(path)
+        progress(
+            "Encoding edited song download", 1, stage="exporting", units_complete=1, units_total=1
+        )
+        progress("Saving FX version", 0, stage="saving")
         if mode == "update":
             result = self.core.update_item(
                 item["id"], name=name, path=str(path), mp3=mp3, recipe=saved_recipe, is_song=True

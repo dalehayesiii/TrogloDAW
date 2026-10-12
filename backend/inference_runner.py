@@ -8,6 +8,9 @@ import os
 import sys
 import time
 import textwrap
+import shutil
+import subprocess
+import re
 from types import MethodType
 from importlib import import_module
 from pathlib import Path
@@ -15,7 +18,7 @@ from pathlib import Path
 
 def emit(stage, fraction=0, **values):
     print(
-        "TROGLO_EVENT " + json.dumps({"stage": stage, "fraction": fraction, **values}), flush=True
+        "\nTROGLO_EVENT " + json.dumps({"stage": stage, "fraction": fraction, **values}), flush=True
     )
 
 
@@ -59,6 +62,56 @@ def adapt_generation(model, conditioned=False):
         )
 
 
+def gpu_memory(torch):
+    """Use driver-wide headroom as well as CUDA's process budget (Windows WDDM)."""
+    if not torch.cuda.is_available():
+        return 0, 0, "unavailable"
+    free, total = torch.cuda.mem_get_info()
+    command = shutil.which("nvidia-smi")
+    if command:
+        try:
+            output = subprocess.check_output(
+                [
+                    command,
+                    "--query-gpu=uuid,memory.free,memory.total",
+                    "--format=csv,noheader,nounits",
+                ],
+                text=True,
+                timeout=3,
+                stderr=subprocess.DEVNULL,
+                creationflags=0x08000000 if os.name == "nt" else 0,
+            )
+            rows = [line.split(",") for line in output.strip().splitlines()]
+            properties = torch.cuda.get_device_properties(torch.cuda.current_device())
+            match = re.search(
+                r"[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}",
+                str(getattr(properties, "uuid", "")),
+                re.I,
+            )
+            selected = next(
+                (row for row in rows if match and match[0].lower() in row[0].lower()),
+                rows[0] if len(rows) == 1 and not match else None,
+            )
+            if selected is not None:
+                driver_free, driver_total = int(selected[1]) * 1024**2, int(selected[2]) * 1024**2
+                if 0 <= driver_free <= driver_total and abs(driver_total - total) < 256 * 1024**2:
+                    return min(free, driver_free), total, "cuda+driver"
+        except (OSError, ValueError, subprocess.SubprocessError, IndexError):
+            pass
+    return free, total, "cuda"
+
+
+def hardware(torch, device):
+    return {
+        "gpu": torch.cuda.get_device_name() if device == "cuda" else "none",
+        "backend": device,
+        "cpu": import_module("platform").processor(),
+        "threads": torch.get_num_threads(),
+        "torch": torch.__version__,
+        "cuda": torch.version.cuda if device == "cuda" else None,
+    }
+
+
 def generate(request):
     if import_module("psutil").virtual_memory().available < 12 * 1024**3:
         raise RuntimeError(
@@ -73,12 +126,21 @@ def generate(request):
         inference.generate_music,
     )
 
-    emit("loading")
-    free, total = torch.cuda.mem_get_info() if torch.cuda.is_available() else (0, 0)
+    free, total, memory_policy = gpu_memory(torch)
     if not torch.cuda.is_available() or free < 5.5 * 1024**3:
         raise RuntimeError(
             "This model needs at least 5.5 GiB free CUDA memory for the validated offload configuration. Close GPU-heavy apps and retry."
         )
+    parameters = request["parameters"]
+    context = {
+        **hardware(torch, "cuda"),
+        "offload": "cpu+dit",
+        "quantization": "none",
+        "precision": "bf16",
+        "runtime_mode": "fresh_process",
+        "memory_policy": memory_policy,
+    }
+    emit("loading", timing_profile=context, stage_device="cuda")
     handler = AceStepHandler()
     # Acquisition is exclusively handled by explicit setup. No upstream auto-download/code rewrite.
     handler._ensure_models_present = lambda **_: None
@@ -96,11 +158,10 @@ def generate(request):
     )
     if not success:
         raise RuntimeError(status)
-    parameters = request["parameters"]
     conditioned = parameters.get("effective_mode") == "conditioned"
     adapt_generation(handler.model, conditioned=conditioned)
     emit(
-        "generating",
+        "encoding",
         device="cuda",
         free_vram=free,
         total_vram=total,
@@ -129,8 +190,40 @@ def generate(request):
         use_cot_lyrics=False,
     )
 
-    def progress(fraction, desc="", **_):
-        emit("generating", min(0.99, max(0, float(fraction))), message=desc)
+    completed = 0
+
+    def before_step(_module, _inputs):
+        if completed == 0:
+            emit(
+                "generating", units_complete=0, units_total=parameters["steps"], stage_device="cuda"
+            )
+
+    def diffusion_step(_module, _inputs, _output):
+        nonlocal completed
+        torch.cuda.synchronize()
+        completed += 1
+        emit(
+            "generating",
+            min(0.99, completed / parameters["steps"]),
+            units_complete=completed,
+            units_total=parameters["steps"],
+            stage_device="cuda",
+        )
+        if completed >= parameters["steps"]:
+            emit("finalizing_music", message="Finalizing generated music", stage_device="cuda")
+
+    pre_hook = handler.model.decoder.register_forward_pre_hook(before_step)
+    hook = handler.model.decoder.register_forward_hook(diffusion_step)
+    original_decode = handler.tiled_decode
+
+    def decode(*args, **kwargs):
+        emit("decoding", units_complete=0, units_total=1, stage_device="cuda")
+        audio = original_decode(*args, **kwargs)
+        torch.cuda.synchronize()
+        emit("decoding", units_complete=1, units_total=1, stage_device="cuda")
+        return audio
+
+    handler.tiled_decode = decode
 
     started = time.monotonic()
     result = generate_music(
@@ -141,8 +234,11 @@ def generate(request):
             batch_size=1, use_random_seed=False, seeds=[parameters["seed"]], audio_format="wav32"
         ),
         save_dir=request["output"],
-        progress=progress,
+        # The upstream timer callback guesses fractions; use actual forward calls.
+        progress=lambda *_args, **_kwargs: None,
     )
+    hook.remove()
+    pre_hook.remove()
     if not result.success or not result.audios:
         raise RuntimeError(result.error or "Music inference produced no audio")
     first = result.audios[0]
@@ -174,9 +270,22 @@ def separate(request):
 
     torch.set_num_threads(min(8, os.cpu_count() or 1))
     root = Path(request["root"])
-    emit("loading")
-    free = torch.cuda.mem_get_info()[0] if torch.cuda.is_available() else 0
+    free, _, memory_policy = gpu_memory(torch)
     device = "cuda" if free >= 2 * 1024**3 else "cpu"
+    emit(
+        "loading",
+        stage_device=device,
+        timing_profile={
+            **hardware(torch, device),
+            "model": "hdemucs-high+ecapa",
+            "offload": "none",
+            "precision": "fp32",
+            "quantization": "none",
+            "runtime_mode": "fresh_process",
+            "cache": False,
+            "memory_policy": memory_policy,
+        },
+    )
     model = torchaudio.models.hdemucs_high(sources=["drums", "bass", "other", "vocals"])
     state = torch.load(
         root / "separation" / "hdemucs_high_trained.pt", map_location="cpu", weights_only=True
@@ -192,6 +301,7 @@ def separate(request):
     vocals = torch.zeros((2, length))
     weights = torch.zeros(length)
     starts = list(range(0, length, chunk - overlap))
+    emit("separating", units_complete=0, units_total=len(starts), stage_device=device)
     with torch.inference_mode():
         for index, start in enumerate(starts):
             end = min(length, start + chunk)
@@ -225,7 +335,7 @@ def separate(request):
     sf.write(output / "vocals.wav", vocals.T.numpy(), sr, subtype="FLOAT")
     # Retain the exact residual; bypass reconstruction is sample-aligned by construction.
     sf.write(output / "accompaniment.wav", audio - vocals.T.numpy(), sr, subtype="FLOAT")
-    emit("identifying")
+    emit("loading_voices", stage_device="cpu")
     speaker = root / "speaker"
     # Load verified local hparams directly: from_hparams also tries an absent custom.py.
     with (speaker / "hyperparams.yaml").open(encoding="utf-8") as stream:
@@ -243,6 +353,7 @@ def separate(request):
     centroids, counts, groups, segments = [], [], [], []
     slot = 3 * sr
     count = (length + slot - 1) // slot
+    emit("identifying", units_complete=0, units_total=count, stage_device="cpu")
     with torch.inference_mode():
         for index, start in enumerate(range(0, length, slot)):
             end = min(length, start + slot)

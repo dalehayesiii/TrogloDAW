@@ -106,7 +106,7 @@ jobs:
       - run: uv sync --locked
       - run: uv lock --check
       - run: uv run --locked ruff check .
-      - run: uv run --locked ruff format --check backend/app.py backend/models.py backend/storage.py backend/songs.py backend/arrangement.py backend/inference_runner.py scripts backend/tests
+      - run: uv run --locked ruff format --check backend/app.py backend/models.py backend/storage.py backend/songs.py backend/arrangement.py backend/inference_runner.py backend/timing.py scripts backend/tests
       - run: uv run --locked ty check
       - run: uv run --locked pytest
 

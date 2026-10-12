@@ -26,6 +26,7 @@ import troglocore as troglodaw
 from models import Canceled, Models
 from songs import Songs, song_item
 from storage import Storage
+from timing import History, Tracking
 
 FRONTEND = Path(__file__).resolve().parents[1] / "frontend" / "dist" / "browser"
 VOICE_T, MUSIC_T, ANY_T = "voice", "music,generated,mix", "voice,music,generated,mix"
@@ -51,6 +52,119 @@ class MusicService:
         self.models = Models(self.storage)
         self.songs = Songs(core, self.models, self.file)
         self.cancel_events = {}
+        self.timing = {}
+        self.history = History(core.CONFIG_DIR / "timing-history.json")
+
+    def timing_profile(self, action, values):
+        import platform
+        import hashlib
+        from songs import generation_mode, generation_parameters
+
+        profile = {
+            "operation": action,
+            "platform": platform.platform(),
+            "processor": platform.processor(),
+            "model": self.models.selected,
+            "runtime": self.models.manifest["runtime_revision"],
+            "manifest": hashlib.sha256(
+                json.dumps(self.models.manifest, sort_keys=True).encode()
+            ).hexdigest(),
+            "outputs": values.get("count", 1),
+            "model_storage": self.storage.models.anchor,
+            "library_storage": self.core.LIB.anchor,
+        }
+        profile.update(self.storage.preferences.get("timing_hardware", {}).get(action, {}))
+        try:
+            if action == "song_generate":
+                sources = self.songs.collect_sources(values)
+                params = generation_parameters(values, sources, 0)
+                profile.update(
+                    duration=params["duration"],
+                    steps=params["steps"],
+                    sources=len(sources),
+                    input_seconds=round(sum(s["duration"] for s in sources), 1),
+                    conditioning=generation_mode(values, self.models, bool(sources))[
+                        "effective_mode"
+                    ],
+                    adherence=generation_mode(values, self.models, bool(sources))[
+                        "audio_adherence"
+                    ],
+                    guidance=params["guidance"] > 1,
+                    method=params["method"],
+                    sample_caps=[s["settings"].get("samples", 8) for s in sources],
+                )
+            elif action in {"vocal_prepare", "vocal_render", "rerender_song"}:
+                item = self.core.get_item(values["song_id"])
+                profile.update(
+                    duration=round(item["duration"], 1), fx=values.get("group_settings", {})
+                )
+                if action in {"vocal_prepare", "vocal_render"}:
+                    original = (item.get("recipe") or {}).get("source_song_id", item["id"])
+                    profile.update(
+                        model="hdemucs-high+ecapa",
+                        cache=any(
+                            (self.core.LIB / "assets/vocals" / original).glob("*/analysis.json")
+                        ),
+                    )
+            elif action == "model_install":
+                profile.update(model=values["model"])
+                from models import runtime_signature
+                from storage import safe_file
+
+                assets = [
+                    self.models.manifest["runtime"],
+                    *self.models.manifest["models"][values["model"]]["assets"],
+                    *self.models.manifest.get("auxiliary_assets", []),
+                ]
+                root = self.storage.models
+                present = sum(
+                    asset["bytes"]
+                    for asset in assets
+                    if (path := safe_file(root, asset["path"])).is_file()
+                    and path.stat().st_size == asset["bytes"]
+                )
+                total = sum(asset["bytes"] for asset in assets)
+                profile.update(
+                    setup_cache="complete"
+                    if present == total
+                    else "partial"
+                    if present
+                    else "empty",
+                    runtime_cached=(
+                        root / "runtime-packages" / runtime_signature()[:16] / ".complete"
+                    ).is_file(),
+                )
+        except (KeyError, ValueError, OSError):
+            # Invalid requests retain the normal worker failure/reporting path.
+            pass
+        return profile
+
+    def job_snapshot(self, jid):
+        state = {**self.jobs[jid], **self.timing[jid].snapshot()}
+        if state["status"] == "queued":
+            earlier = []
+            for identifier, job in self.jobs.items():
+                if identifier == jid:
+                    break
+                if job["status"] in {"queued", "running"}:
+                    if job["status"] == "queued" and self.cancel_events[identifier].is_set():
+                        continue
+                    earlier.append(identifier)
+            wait = {"low": 0, "high": 0, "basis": "queue", "samples": 0}
+            for identifier in earlier:
+                if self.jobs[identifier]["status"] == "running":
+                    predicted = self.timing[identifier].snapshot()["request_remaining"]
+                else:
+                    predicted = self.history.estimate("request", self.timing[identifier].profile)
+                if predicted is None:
+                    wait = None
+                    break
+                wait["low"] += predicted["low"]
+                wait["high"] += predicted["high"]
+                wait["samples"] += predicted["samples"]
+            state["queue_remaining"] = wait
+        state["cancel_requested"] = self.cancel_events[jid].is_set()
+        return state
 
     def close(self):
         self.pool.shutdown(wait=True)
@@ -108,6 +222,11 @@ class MusicService:
         }:
             raise HTTPException(422, "Unknown operation")
         jid = uuid.uuid4().hex
+        tracker = Tracking(
+            self.history,
+            self.timing_profile(action, values),
+            confirm_hardware=action in {"song_generate", "vocal_prepare", "vocal_render"},
+        )
         with self.lock:
             self.jobs[jid] = {
                 "status": "queued",
@@ -120,37 +239,63 @@ class MusicService:
                 "song_id": values.get("song_id"),
             }
             self.cancel_events[jid] = threading.Event()
+            self.timing[jid] = tracker
         self.pool.submit(self._work, jid, action, values)
         return {"id": jid}
 
     def _work(self, jid, action, values):
         cancel = self.cancel_events[jid]
+        tracker = self.timing[jid]
 
         def progress(message, fraction=0, **details):
+            cancel_safe = details.pop("cancel_safe", True)
+            if cancel.is_set() and cancel_safe:
+                raise Canceled("Processing canceled; completed songs are preserved")
             with self.lock:
+                hardware = details.get("timing_profile")
+                if hardware and "gpu" in hardware:
+                    # Remember actual hardware for later queued estimates; no audio data.
+                    known = self.storage.preferences.setdefault("timing_hardware", {})
+                    known[action] = {
+                        k: v for k, v in hardware.items() if k not in {"duration", "steps", "model"}
+                    }
+                    try:
+                        self.storage.persist()
+                    except OSError:
+                        # Optional timing metadata must not fail an audio operation.
+                        pass
+                tracker.update(message, fraction, **details)
                 self.jobs[jid].update(
                     status="running",
-                    progress=min(0.99, fraction),
+                    progress=tracker.snapshot()["stage_progress"] or 0,
                     message=message,
-                    **{k: v for k, v in details.items() if k != "diagnostic"},
+                    **{
+                        k: v
+                        for k, v in details.items()
+                        if k not in {"diagnostic", "timing_profile", "timing_stage_profile"}
+                    },
                 )
 
-        progress("Processing...", 0.05)
+        tracker.start()
         try:
+            progress("Initializing operation", 0, stage="initializing")
             if cancel.is_set():
                 raise Canceled("Canceled before processing")
             result = self.execute(action, values, progress, cancel.is_set)
             with self.lock:
                 self.jobs[jid].update(status="complete", progress=1, result=result)
+                tracker.finish("complete")
         except Canceled as exc:
             with self.lock:
                 self.jobs[jid].update(
                     status="canceled", message=str(exc), result=exc.result or self.result(str(exc))
                 )
+                tracker.finish("canceled")
         except Exception as exc:
             message = f"Produce failed: {exc}" if action == "produce" else str(exc)
             with self.lock:
                 self.jobs[jid].update(status="failed", message=message, result=self.result(message))
+                tracker.finish("failed")
 
     def execute(self, action, v, progress, canceled=lambda: False):
         core = self.core
@@ -183,7 +328,9 @@ class MusicService:
         if action == "vocal_render":
             return self.songs.render_fx(v, progress, canceled)
         if action == "rerender_song":
-            return self.result("Rerendered arrangement", self.songs.rerender(v["song_id"]))
+            return self.result(
+                "Rerendered arrangement", self.songs.rerender(v["song_id"], progress, canceled)
+            )
         if action == "model_install":
             return self.result(
                 "Model setup complete", models=self.models.install(v["model"], progress, canceled)
@@ -424,7 +571,7 @@ def create_app(core=troglodaw, frontend=FRONTEND, quit_callback=None):
     @api.get("/api/jobs")
     def active_jobs():
         with service.lock:
-            return {"jobs": [dict(job) for job in service.jobs.values()]}
+            return {"jobs": [service.job_snapshot(jid) for jid in service.jobs]}
 
     @api.post("/api/jobs/{jid}/cancel")
     def cancel_job(jid: str):
@@ -446,7 +593,7 @@ def create_app(core=troglodaw, frontend=FRONTEND, quit_callback=None):
         with service.lock:
             if jid not in service.jobs:
                 raise HTTPException(404, "Unknown job")
-            return dict(service.jobs[jid])
+            return service.job_snapshot(jid)
 
     @api.get("/api/media/{token}")
     def media(token: str, download: bool = False):

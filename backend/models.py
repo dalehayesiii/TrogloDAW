@@ -82,15 +82,52 @@ def cache_environment(root: Path, owner: str | None = None) -> dict:
     return env
 
 
-def download(asset: dict, root: Path, progress, canceled) -> tuple[Path, bool]:
+def verify_asset(path, asset, progress, canceled):
+    progress(
+        "Verifying " + Path(asset["path"]).name,
+        0,
+        stage="verifying",
+        units_complete=0,
+        units_total=asset["bytes"],
+        present_bytes=path.stat().st_size,
+    )
+    checksum = hashlib.sha256()
+    complete = 0
+    with path.open("rb") as stream:
+        while chunk := stream.read(8 * 1024 * 1024):
+            if canceled():
+                raise Canceled("Model verification canceled; downloaded files can be reused")
+            checksum.update(chunk)
+            complete += len(chunk)
+            progress(
+                "Verifying " + Path(asset["path"]).name,
+                min(0.99, complete / asset["bytes"]),
+                stage="verifying",
+                units_complete=complete,
+                units_total=asset["bytes"],
+                present_bytes=path.stat().st_size,
+            )
+    return complete == asset["bytes"] and checksum.hexdigest() == asset["sha256"]
+
+
+def download(
+    asset: dict, root: Path, progress, canceled, *, owner=None, record=None
+) -> tuple[Path, bool]:
     target = safe_file(root, asset["path"])
     target.parent.mkdir(parents=True, exist_ok=True)
     if (
         target.is_file()
         and target.stat().st_size == asset["bytes"]
-        and digest(target) == asset["sha256"]
+        and verify_asset(target, asset, progress, canceled)
     ):
-        progress("Reusing verified " + target.name, 1, stage="verifying")
+        progress(
+            "Reusing verified " + target.name,
+            1,
+            stage="verifying",
+            units_complete=asset["bytes"],
+            units_total=asset["bytes"],
+            cached_bytes=asset["bytes"],
+        )
         return target, False
     if target.exists():
         raise ValueError(
@@ -98,8 +135,22 @@ def download(asset: dict, root: Path, progress, canceled) -> tuple[Path, bool]:
             + str(target)
             + ". Choose another model folder to preserve it."
         )
-    partial = target.with_name(target.name + ".partial")
+    # Interrupted transfers belong to this install, not an unowned checkpoint root.
+    cache = Path("cache") / owner if owner else Path("cache")
+    partial = safe_file(
+        root,
+        (cache / "downloads" / (asset["sha256"] + ".partial")).as_posix(),
+    )
+    partial.parent.mkdir(parents=True, exist_ok=True)
     offset = partial.stat().st_size if partial.exists() else 0
+    if offset == asset["bytes"]:
+        if verify_asset(partial, asset, progress, canceled):
+            os.replace(partial, target)
+            if record:
+                record(target)
+            return target, True
+        partial.unlink()
+        offset = 0
     headers = {"Range": f"bytes={offset}-"} if offset and offset < asset["bytes"] else {}
     request = urllib.request.Request(asset["url"], headers=headers)
     progress(
@@ -108,29 +159,56 @@ def download(asset: dict, root: Path, progress, canceled) -> tuple[Path, bool]:
         stage="downloading",
         downloaded=offset,
         total_bytes=asset["bytes"],
+        units_complete=offset,
+        units_total=asset["bytes"],
+        resumed_bytes=offset,
     )
-    with urllib.request.urlopen(request, timeout=30) as response:
-        resume = bool(offset and response.status == 206)
-        if not resume:
-            offset = 0
-        with partial.open("ab" if resume else "wb") as stream:
-            while chunk := response.read(1024 * 1024):
-                if canceled():
-                    raise Canceled("Model installation canceled; partial downloads can resume")
-                stream.write(chunk)
-                offset += len(chunk)
+    try:
+        with urllib.request.urlopen(request, timeout=30) as response:
+            resume = bool(offset and response.status == 206)
+            if not resume:
+                offset = 0
+            with partial.open("ab" if resume else "wb") as stream:
                 progress(
                     "Downloading " + target.name,
-                    min(0.99, offset / asset["bytes"]),
+                    0,
                     stage="downloading",
                     downloaded=offset,
-                    total_bytes=asset["bytes"],
+                    resumed_bytes=offset,
+                    units_complete=offset,
+                    units_total=asset["bytes"],
                 )
-    progress("Verifying " + target.name, 0.99, stage="verifying")
-    if partial.stat().st_size != asset["bytes"] or digest(partial) != asset["sha256"]:
+                while chunk := response.read(1024 * 1024):
+                    if canceled():
+                        raise Canceled("Model installation canceled; partial downloads can resume")
+                    stream.write(chunk)
+                    offset += len(chunk)
+                    progress(
+                        "Downloading " + target.name,
+                        min(0.99, offset / asset["bytes"]),
+                        stage="downloading",
+                        downloaded=offset,
+                        total_bytes=asset["bytes"],
+                        units_complete=offset,
+                        units_total=asset["bytes"],
+                    )
+    finally:
+        if record and partial.is_file():
+            # Runs after the stream closes, including canceled/resumed transfers.
+            record(partial)
+    if not verify_asset(partial, asset, progress, canceled):
         partial.unlink(missing_ok=True)
         raise ValueError("Downloaded asset failed size/checksum verification: " + target.name)
     os.replace(partial, target)
+    if record:
+        record(target)
+    progress(
+        "Verified " + target.name,
+        1,
+        stage="verifying",
+        units_complete=asset["bytes"],
+        units_total=asset["bytes"],
+    )
     return target, True
 
 
@@ -175,7 +253,8 @@ def unpack_runtime(archive: Path, root: Path, revision: str) -> tuple[Path, list
     return destination, [*files, marker]
 
 
-def run_setup(command, env, progress, canceled):
+def run_setup(command, env, progress, canceled, stage="installing"):
+    progress(stage.replace("_", " ").capitalize(), 0, stage=stage)
     with subprocess.Popen(
         command,
         env=env,
@@ -195,6 +274,7 @@ def run_setup(command, env, progress, canceled):
         output = process.stdout
         threading.Thread(target=lambda: [lines.put(line) for line in output], daemon=True).start()
         messages = []
+        result = None
         while process.poll() is None or not lines.empty():
             if canceled():
                 process.terminate()
@@ -203,11 +283,17 @@ def run_setup(command, env, progress, canceled):
             try:
                 line = lines.get(timeout=0.2).strip()
                 messages.append(line)
-                progress("Installing inference runtime", 0, stage="installing", diagnostic=line)
+                if line.startswith("TROGLO_EVENT "):
+                    event = json.loads(line[len("TROGLO_EVENT ") :])
+                    if event["stage"] == "complete":
+                        result = event.get("result")
+                else:
+                    progress(stage.replace("_", " ").capitalize(), 0, stage=stage, diagnostic=line)
             except queue.Empty:
                 continue
         if process.returncode:
             raise RuntimeError("Inference runtime setup failed: " + "\n".join(messages[-8:]))
+        return result
 
 
 class Models:
@@ -310,8 +396,61 @@ class Models:
         )
         owned = []
         verified = []
+        overall_bytes = sum(a["bytes"] for a in assets)
+        present_bytes = {}
+        owner = self.storage.preferences["installation_id"]
+        for asset in assets:
+            final = safe_file(root, asset["path"])
+            partial = safe_file(root, f"cache/{owner}/downloads/{asset['sha256']}.partial")
+            existing = (
+                final if final.is_file() and final.stat().st_size == asset["bytes"] else partial
+            )
+            present_bytes[asset["path"]] = (
+                min(asset["bytes"], existing.stat().st_size) if existing.is_file() else 0
+            )
+        completed_bytes = 0
         for index, asset in enumerate(assets):
-            path, acquired = download(asset, root, progress, canceled)
+
+            def asset_progress(message, fraction=0, **details):
+                if details.get("stage") == "downloading":
+                    present_bytes[asset["path"]] = details.get("downloaded", 0)
+                elif details.get("stage") == "verifying":
+                    present_bytes[asset["path"]] = min(
+                        asset["bytes"], details.get("present_bytes", asset["bytes"])
+                    )
+                progress(
+                    message,
+                    fraction,
+                    **details,
+                    asset_name=asset["path"],
+                    assets_complete=index,
+                    assets_total=len(assets),
+                    overall_bytes_complete=completed_bytes
+                    + details.get(
+                        "present_bytes",
+                        details.get(
+                            "downloaded",
+                            asset["bytes"] if details.get("stage") == "verifying" else 0,
+                        ),
+                    ),
+                    overall_bytes_total=overall_bytes,
+                    destination=str(root),
+                    download_bytes_complete=sum(present_bytes.values()),
+                    download_bytes_total=overall_bytes,
+                    timing_stage_profile={
+                        "asset": asset["sha256"],
+                        "asset_bytes": asset["bytes"],
+                    },
+                )
+
+            path, acquired = download(
+                asset,
+                root,
+                asset_progress,
+                canceled,
+                owner=self.storage.preferences["installation_id"],
+                record=lambda path: self.storage.owned(root, [path]),
+            )
             if acquired:
                 owned.append(path)
                 # Record immediately so failed setup can be uninstalled safely.
@@ -326,13 +465,22 @@ class Models:
                     "mtime": path.stat().st_mtime_ns,
                 }
             )
+            completed_bytes += asset["bytes"]
             progress(
                 "Verified model assets",
                 (index + 1) / len(assets),
                 stage="verifying",
                 assets_complete=index + 1,
                 assets_total=len(assets),
+                overall_bytes_complete=completed_bytes,
+                overall_bytes_total=overall_bytes,
             )
+        progress(
+            "Extracting verified inference code",
+            0,
+            stage="extracting",
+            timing_stage_profile={"asset": "runtime"},
+        )
         code, code_files = unpack_runtime(
             root / self.manifest["runtime"]["path"], root, self.manifest["runtime_revision"]
         )
@@ -370,6 +518,7 @@ class Models:
                     env,
                     progress,
                     canceled,
+                    stage="preparing_runtime",
                 )
                 packages.mkdir(parents=True, exist_ok=True)
                 run_setup(
@@ -409,6 +558,7 @@ class Models:
                 env,
                 progress,
                 canceled,
+                stage="checking_runtime",
             )
         finally:
             probe.unlink(missing_ok=True)

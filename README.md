@@ -34,6 +34,12 @@ arrangement settings** inside Input Audio to set **Audio adherence**, or enable
 sample overlay. The model can reinterpret samples; originals and the complete
 arrangement remain available for inspection and portable replay.
 
+Long jobs show their active stage, completed work, elapsed time and separate
+queue/current-song/whole-request time ranges. Estimates update from real work
+events and recent comparable local runs; new workloads show **Estimating…**.
+Progress stays visible across workflow changes and browser reloads. See
+[progress and calibration](docs/progress.md) for measured accuracy and limits.
+
 ## Easiest: Windows installer
 
 Run **`TrogloDAW-Setup.exe`**. Python is included and no admin rights are needed. It installs to

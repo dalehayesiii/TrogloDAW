@@ -1,6 +1,8 @@
 import pytest
 
-from inference_runner import adapt_generation
+from inference_runner import adapt_generation, gpu_memory
+from types import SimpleNamespace
+import inference_runner
 
 
 def test_old_checkpoint_cfg_argument_receives_requested_value():
@@ -56,3 +58,32 @@ def test_unrecognized_pinned_cover_implementation_fails_clearly():
 
     with pytest.raises(RuntimeError, match="incompatible"):
         adapt_generation(DifferentCheckpoint(), conditioned=True)
+
+
+def test_driver_memory_caps_optimistic_cuda_budget_and_matches_visible_gpu(monkeypatch):
+    identifier = "12345678-1234-1234-1234-123456789abc"
+    torch = SimpleNamespace(
+        cuda=SimpleNamespace(
+            is_available=lambda: True,
+            mem_get_info=lambda: (7 * 1024**3, 8 * 1024**3),
+            current_device=lambda: 0,
+            get_device_properties=lambda _: SimpleNamespace(uuid=identifier),
+        )
+    )
+    monkeypatch.setattr(inference_runner.shutil, "which", lambda _: "nvidia-smi")
+    monkeypatch.setattr(
+        inference_runner.subprocess,
+        "check_output",
+        lambda *_args, **_kwargs: f"GPU-other, 7000, 8192\nGPU-{identifier}, 1500, 8192\n",
+    )
+    free, total, basis = gpu_memory(torch)
+    assert free == 1500 * 1024**2 and total == 8 * 1024**3
+    assert basis == "cuda+driver"
+
+
+def test_missing_driver_query_preserves_cuda_budget_without_a_dependency(monkeypatch):
+    torch = SimpleNamespace(
+        cuda=SimpleNamespace(is_available=lambda: True, mem_get_info=lambda: (7, 8))
+    )
+    monkeypatch.setattr(inference_runner.shutil, "which", lambda _: None)
+    assert gpu_memory(torch) == (7, 8, "cuda")

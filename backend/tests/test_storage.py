@@ -14,13 +14,13 @@ def test_relocation_verifies_and_preserves_source(tmp_path):
     (source / "catalog.json").write_text('{"items": []}')
     (source / "nested").mkdir()
     (source / "nested" / "asset.bin").write_bytes(b"asset")
-    copy_verified(source, destination, lambda *_: None)
+    copy_verified(source, destination, lambda *_, **__: None)
     assert (destination / "nested" / "asset.bin").read_bytes() == b"asset"
     assert (source / "nested" / "asset.bin").read_bytes() == b"asset"
     with pytest.raises(ValueError, match="not empty"):
-        copy_verified(source, destination, lambda *_: None)
+        copy_verified(source, destination, lambda *_, **__: None)
     with pytest.raises(ValueError, match="contain each other"):
-        copy_verified(source, source / "child", lambda *_: None)
+        copy_verified(source, source / "child", lambda *_, **__: None)
 
 
 def test_interrupted_relocation_keeps_original(tmp_path):
@@ -28,7 +28,7 @@ def test_interrupted_relocation_keeps_original(tmp_path):
     source.mkdir()
     (source / "asset.bin").write_bytes(b"asset")
 
-    def interrupt(*_):
+    def interrupt(*_, **__):
         raise OSError("drive disappeared")
 
     with pytest.raises(OSError, match="disappeared"):
@@ -41,12 +41,12 @@ def test_interrupted_relocation_keeps_original(tmp_path):
 def test_storage_preferences_survive_restart(core, tmp_path, monkeypatch):
     storage = Storage(core)
     with pytest.raises(ValueError, match="TROGLODAW_LIBRARY"):
-        storage.change("library", str(tmp_path / "elsewhere"), "open", lambda *_: None)
+        storage.change("library", str(tmp_path / "elsewhere"), "open", lambda *_, **__: None)
     monkeypatch.delenv("TROGLODAW_LIBRARY")
     new = tmp_path / "new library"
-    storage.change("library", str(new), "relocate", lambda *_: None)
+    storage.change("library", str(new), "relocate", lambda *_, **__: None)
     models = tmp_path / "model folder"
-    storage.change("model", str(models), "open", lambda *_: None)
+    storage.change("model", str(models), "open", lambda *_, **__: None)
     restarted = Storage(core)
     assert restarted.describe()["library_dir"] == str(new)
     assert restarted.models == models
@@ -116,7 +116,7 @@ def test_relocated_model_copy_does_not_inherit_other_installation_references(cor
     manager.owned(old, [owned])
     atomic_json(old / ".troglodaw/other.json", {"files": {"weight.bin": "other"}})
     new = tmp_path / "relocated"
-    manager.change("model", str(new), "relocate", lambda *_: None)
+    manager.change("model", str(new), "relocate", lambda *_, **__: None)
     assert (old / ".troglodaw/other.json").exists()
     assert not (new / ".troglodaw/other.json").exists()
     remove_owned_models(manager.config_path)

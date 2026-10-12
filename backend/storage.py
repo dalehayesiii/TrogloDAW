@@ -88,6 +88,13 @@ def copy_verified(source: Path, destination: Path, progress, excluded=()):
         stage / ".relocation.json", {"source": str(source), "destination": str(destination)}
     )
     try:
+        progress(
+            "Copying and verifying storage",
+            0,
+            stage="copying",
+            units_complete=0,
+            units_total=len(files),
+        )
         for index, old in enumerate(files):
             relative = old.relative_to(source).as_posix()
             safe_file(source, relative)
@@ -96,7 +103,13 @@ def copy_verified(source: Path, destination: Path, progress, excluded=()):
             shutil.copy2(old, new)
             if digest(old) != digest(new):
                 raise ValueError("Relocation verification failed; original folder is unchanged")
-            progress("Copying and verifying storage", (index + 1) / max(1, len(files)))
+            progress(
+                "Copying and verifying storage",
+                (index + 1) / max(1, len(files)),
+                stage="copying",
+                units_complete=index + 1,
+                units_total=len(files),
+            )
         (stage / ".relocation.json").unlink()
         if destination.exists():
             destination.rmdir()
