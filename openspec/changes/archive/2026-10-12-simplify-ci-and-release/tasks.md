@@ -2,7 +2,7 @@
 
 ## 1. Standard CI tools and ordering
 
-- [x] 1.1 Replace custom PR policy with maintained title/path actions, use released action tags and alls-green, run Python/Angular in parallel then integration/specs; verify actionlint and docs/failure conditions and document the graph/tool choices.
+- [x] 1.1 Replace custom PR policy with maintained title/path actions, use released action tags and native job dependencies, run Python/Angular in parallel then integration/specs; verify actionlint and docs/failure conditions and document the graph/tool choices.
 - [x] 1.2 Remove custom policy code/tests and release planning, share compiled Angular artifacts between jobs, configure dependency caches/Dependabot; verify no stale references or repeated builds and locked dependency checks.
 
 ## 2. Windows build and semantic publication
@@ -17,4 +17,4 @@
 ## Workflow follow-up
 
 - Sync canonical delivery specs, archive the completed change and validate archive hygiene in this PR.
-- Update and push PR #2, monitor GitHub until Required checks passes; leave it unmerged for the user.
+- Update and push PR #2, monitor GitHub until all five checks pass; leave it unmerged for the user.

@@ -132,9 +132,9 @@ code releases from earlier failed runs.
 
 The PR-title gate precedes parallel Python and Angular jobs, followed by integration
 and specs, then one Windows EXE build/installed-app job. Angular compiles once and
-its artifact is reused. Main runs the same stages. Required checks uses alls-green
-to reject failed/cancelled/unexpectedly skipped jobs. Only a gated non-docs main run
-can invoke official semantic-release with contents-write. There is no custom
+its artifact is reused. Main runs the same stages. GitHub's required status checks
+enforce the five jobs directly; their needs dependencies enforce ordering. Only
+a successful build can invoke main semantic-release with contents-write. There is no custom
 version planner. If a release is due, its prepare hook versions the checked payload
 with NSIS and tests that final EXE before tagging/publishing installer, SHA256SUMS
 and release.json. Notes include all Conventional Commit types since the previous

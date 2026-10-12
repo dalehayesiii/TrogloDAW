@@ -12,23 +12,23 @@ validation SHALL still report a required gate.
 
 #### Scenario: False docs claim
 - **WHEN** a docs PR modifies Python, dependencies or workflow code
-- **THEN** policy fails and the PR cannot satisfy Required checks
+- **THEN** the title/docs check fails and GitHub's required statuses block merging
 
 #### Scenario: Docs-only merge
 - **WHEN** a valid docs-only PR is squash merged to main
 - **THEN** no app build, version bump, tag or release occurs
 
 ### Requirement: Standard quality and installer gate
-After the title gate, one Python job and one Angular job SHALL run in parallel.
-Integration, OpenSpec and release-tool validation SHALL follow both; one Windows
-job SHALL then build and test the installed EXE. Ruff/ty/pytest, ESLint/Vitest,
-strict Angular compilation and Playwright SHALL run. Bundle validation SHALL fail
-on incompatible or missing dependencies/DLLs/ffmpeg. A maintained required-check
-aggregator SHALL reject failed/cancelled/unexpectedly skipped prerequisites.
+After the title gate, Python and Angular SHALL run in parallel, followed by
+integration/spec validation, then one Windows build/installed-EXE job. Checks SHALL
+cover Ruff/ty/pytest, ESLint/Vitest, strict Angular compilation and Playwright.
+Bundle validation SHALL fail on incompatible or missing dependencies/DLLs/ffmpeg.
+Jobs SHALL use native GitHub dependencies, with owners requiring individual
+statuses for merging; no aggregate check job SHALL be used.
 
 #### Scenario: Embedded runtime failure
 - **WHEN** the installer builds but installed runtime cannot run its CLI, producer or UI
-- **THEN** Required checks fails and no main release may publish
+- **THEN** the required build check fails and no main release may publish
 
 #### Scenario: Reuse checked frontend
 - **WHEN** integration tests and packaging need compiled frontend assets
@@ -50,7 +50,7 @@ code checks and a preview build on main, but SHALL not publish a release.
 - **THEN** no version is due and main does not create a tag or release
 
 ### Requirement: Publish tested version and artifact only
-Official semantic-release SHALL run only on main after Required checks passes.
+Official semantic-release SHALL run only on main after the build and its prerequisite jobs succeed.
 Its prepare hook SHALL version the installer from the checked payload and test
 that installed artifact before creating the tag. Publication SHALL include the
 installer, checksum and source/version manifest. Mismatched version/SHA/checksum
@@ -60,6 +60,16 @@ release writes; a separate custom version planner SHALL NOT be used.
 #### Scenario: Asset mismatch
 - **WHEN** an installer manifest differs from semantic-release's version or source
 - **THEN** publication fails before creating its release tag
+
+### Requirement: Owner-enforced merge configuration
+The repo SHALL document owner configuration for squash-title commits, mandatory
+up-to-date title/Python/Angular/integration/Windows build status checks, no
+direct/force main pushes and no bypass. Contributors without admin access SHALL
+report these requirements without claiming enforcement.
+
+#### Scenario: WRITE-only contributor
+- **WHEN** implementation is delivered by an account lacking repository admin
+- **THEN** owner setup is clearly documented and the PR remains reviewable
 
 ## ADDED Requirements
 

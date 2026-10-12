@@ -143,6 +143,8 @@ jobs:
       (needs.title.outputs.docs_only == 'true' ||
       (needs.python.result == 'success' && needs.angular.result == 'success'))
     runs-on: ubuntu-latest
+    outputs:
+      docs_only: ${{ needs.title.outputs.docs_only }}
     env:
       MM_LIBRARY: ${{ github.workspace }}/.tools/musicmaker-integration-library
     steps:
@@ -185,8 +187,8 @@ jobs:
 
   build:
     name: Windows build and installed app
-    needs: [title, integration]
-    if: needs.title.outputs.docs_only != 'true'
+    needs: integration
+    if: needs.integration.outputs.docs_only != 'true'
     runs-on: windows-latest
     timeout-minutes: 25
     env:
@@ -232,23 +234,10 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-  gate:
-    name: Required checks
-    needs: [title, python, angular, integration, build]
-    if: always()
-    runs-on: ubuntu-latest
-    steps:
-      - uses: re-actors/alls-green@v1.3.0
-        with:
-          jobs: ${{ toJSON(needs) }}
-          allowed-skips: ${{ needs.title.outputs.docs_only == 'true' && 'python,angular,build' || '' }}
-
   release:
     name: Semantic release
-    needs: [title, gate]
-    if: >-
-      github.event_name == 'push' && github.ref == 'refs/heads/main' &&
-      needs.gate.result == 'success' && needs.title.outputs.docs_only != 'true'
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: windows-latest
     timeout-minutes: 20
     permissions:

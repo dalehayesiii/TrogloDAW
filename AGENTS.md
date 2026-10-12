@@ -7,8 +7,9 @@
   `refactor`, `style`, `test`, `chore`, `revert`). Use `!` for breaking code changes.
   `docs:` may contain only documentation and cannot declare breaking changes.
 - Run the checks in `docs/development.md`, push, open the PR, and monitor Actions.
-  Fix failures until `Required checks` passes on the latest revision. Pending,
-  skipped, cancelled, or absent required checks do not count as passing.
+  Fix failures until all required jobs pass on the latest revision. Pending,
+  cancelled, failed or absent required checks do not count as passing. Only the
+  documented docs-only skips are expected; other skips must be investigated.
 - Keep the PR open unless merging is authorized. If authorized, ensure it is current
   with main and all checks pass, then squash merge with the exact validated PR title
   and preserve any `BREAKING CHANGE:` footer in the body. Never bypass protection.

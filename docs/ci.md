@@ -7,8 +7,7 @@ flowchart LR
     P --> I[Integration and specs]
     A --> I
     I --> B[Windows EXE build and installed tests]
-    B --> G[Required checks]
-    G --> R[Semantic release on main]
+    B --> R[Semantic release on main]
 ```
 
 The first job uses [amannn/action-semantic-pull-request](https://github.com/amannn/action-semantic-pull-request)
@@ -34,10 +33,12 @@ cache. Caches do not share a ready-installed node_modules directory. Likewise,
 Python environments are installed once per job with setup-uv caching. The compiled
 frontend is shared as an artifact and is built only once per workflow.
 
-The stable [Required checks](https://github.com/re-actors/alls-green) aggregator
-fails if any prerequisite fails, is cancelled or is unexpectedly skipped. Valid
-docs changes skip Python, Angular and build; integration still checks specs and
-release configuration. No docs merge runs semantic-release or publishes assets.
+Each job depends on its preceding stage using GitHub's built-in `needs` ordering.
+The owner requires the five individual PR checks through GitHub branch protection;
+there is no aggregate job or custom success checker. Valid docs changes skip
+Python, Angular and build; integration still checks specs and release configuration.
+No docs merge runs semantic-release or publishes assets. See the exact
+[required status names](repository-settings.md).
 
 Actions use explicit released version tags, with monthly Dependabot updates.
 Version tags are readable but can be moved upstream; immutable commit pins were
@@ -88,6 +89,7 @@ releases. The initial main attempt failed in note rendering before any tag was m
 | `scripts/build_manifest.py` / `release-guard.mjs` | Associate this EXE with checked source/version and reject changed/mismatched artifacts before tagging | SHA-256, Git, semantic-release prepare lifecycle |
 
 The custom Python PR validator and custom next-version planner were removed.
-Generic title, changed-path, dependency, test, spec-format, required-job and release
-behavior use their maintained upstream tools. Project-specific tests remain in
+Generic title, changed-path, dependency, test, spec-format and release behavior
+use their maintained upstream tools; GitHub handles job ordering and required
+statuses. Project-specific tests remain in
 pytest/Playwright, rather than replacing either framework with custom CI logic.

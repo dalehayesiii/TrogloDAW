@@ -34,10 +34,10 @@ branch protection, or inventing version/tag history.
   preset/writer compatibility and expose every Conventional Commit type in notes.
   A GitHub API preflight rejects version tags lacking a published release; normal
   semantic-release then uses the last successful tagged release as its baseline.
-- Use alls-green for the stable Required checks gate. Docs may skip the two code
-  jobs and build; integration still validates specs/tooling. Dependabot maintains
-  explicit released action tags. Tags are readable but less immutable than SHAs,
-  as requested by the user.
+- Use native GitHub job dependencies and require individual statuses through
+  branch protection. No aggregate job is needed. Docs may skip the code jobs and
+  build; integration still validates specs/tooling. Dependabot maintains explicit
+  released action tags, following the user's requested policy.
 - Preserve app-specific bundle validation, config/icon helpers, synthetic producer
   smoke tests, source/version checksum manifest and pre-tag artifact guard. Keep
   check_specs.py only for the project's full-lifecycle rule, which the OpenSpec
@@ -54,6 +54,6 @@ branch protection, or inventing version/tag history.
 
 ## Migration Plan
 
-Extend PR #2 and leave it open. Keep the Required checks name so branch protection
-need not change. Owner action must allow the maintained third-party actions. Main
-release only happens when the user merges; revert workflow changes if needed.
+Extend PR #2 and leave it open. The owner replaces the old aggregate requirement
+with the five individual check names and allows the maintained third-party actions.
+Main release only happens when the user merges; revert workflow changes if needed.

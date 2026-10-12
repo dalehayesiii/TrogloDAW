@@ -4,13 +4,17 @@ The contributing account has WRITE, not ADMIN, permission. An owner must configu
 these settings; workflows alone cannot prevent merging despite failed checks.
 
 1. Enable GitHub Actions and allow the released actions in `ci.yml`, including
-   amannn/action-semantic-pull-request, dorny/paths-filter, astral-sh/setup-uv and
-   re-actors/alls-green. Dependabot proposes action version updates monthly.
+   amannn/action-semantic-pull-request, dorny/paths-filter and astral-sh/setup-uv.
+   Dependabot proposes action version updates monthly.
 2. Allow only squash merges. Set the squash subject to **Pull request title** and
    body to **Pull request body** to preserve conventional titles/breaking footers.
-3. Protect main: require PRs and GitHub Actions' **Required checks**, require the
-   branch up to date, block force pushes/deletion, apply to admins with no bypass.
-   Select the check after this PR's first CI run. It also reports on docs PRs.
+3. Protect main: require PRs and these five GitHub status checks:
+   **PR title and docs**, **Python checks**, **Angular checks**,
+   **Integration and specs**, **Windows build and installed app**.
+   Remove the old aggregate **Required checks** requirement. Require the branch
+   up to date, block force pushes/deletion, and apply to admins with no bypass.
+   Valid docs changes intentionally skip Python/Angular/build; title and specs
+   still run. GitHub enforces required statuses; there is no aggregate-check job.
 4. Permit `contents: write` for the main publisher's `GITHUB_TOKEN`. Keep default
    tokens read-only; never add personal release tokens to PR jobs.
 5. Create `openspec:proposal-only` only if proposal-only work is requested.

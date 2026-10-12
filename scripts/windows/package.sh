@@ -15,7 +15,9 @@ WIN_INSTALL="$(cfg windows.install_dir MM_WIN_INSTALL_DIR '$LOCALAPPDATA\MusicMa
 WIN_LIBRARY="$(cfg windows.library_dir MM_WIN_LIBRARY_DIR '$DOCUMENTS\MusicMaker\library')"
 command -v makensis >/dev/null || { echo "Install NSIS and add it to PATH"; exit 1; }
 [[ -f "$STAGE/app/frontend/dist/browser/index.html" ]] || { echo "Checked payload is missing"; exit 1; }
+NSIS_SCRIPT="$REPO/cicd/windows/musicmaker.nsi"
+[[ "$OSTYPE" == msys* ]] && NSIS_SCRIPT="$(cygpath -w "$NSIS_SCRIPT")"
 mkdir -p "$(dirname "$OUT")"
 MSYS_NO_PATHCONV=1 makensis -V2 -DVERSION="$VERSION" -DSTAGE="$STAGE" -DOUTFILE="$OUT" \
-    -DINSTALL_DIR="$WIN_INSTALL" -DLIBRARY_DIR="$WIN_LIBRARY" "$REPO/cicd/windows/musicmaker.nsi"
+    -DINSTALL_DIR="$WIN_INSTALL" -DLIBRARY_DIR="$WIN_LIBRARY" "$NSIS_SCRIPT"
 MM_VERSION="$VERSION" "$PYTHON" "$REPO/scripts/build_manifest.py" "$OUT"
