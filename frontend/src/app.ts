@@ -170,6 +170,9 @@ export class AppComponent {
   dialogKind = '';
   selectedSong = '';
   libraryAudio: Media | null = null;
+  libraryLoading = false;
+  libraryPreviewError = '';
+  private librarySelection = 0;
   libraryAssets: { label: string; media: Media | null }[] = [];
   get selectedRecipe() {
     return JSON.stringify(this.selected?.recipe, null, 2);
@@ -196,6 +199,21 @@ export class AppComponent {
   fxGroup = '';
   fxName = '';
   fxPreview: Media | null = null;
+  private fxPreviewSettings = '';
+  get fxSettings() {
+    return JSON.stringify({
+      groups: this.fx?.groups.map((group: any) => [group.id, group.settings]),
+      segments: this.fx?.segments,
+    });
+  }
+  get fxPreviewStale() {
+    return !!this.fxPreview && this.fxPreviewSettings !== this.fxSettings;
+  }
+  get generationCountError() {
+    return Number.isInteger(this.draft.count) && this.draft.count >= 1 && this.draft.count <= 32
+      ? ''
+      : 'Enter a whole number from 1 to 32.';
+  }
   capture?: MediaStream;
   recorder?: MediaRecorder;
   recording = false;
@@ -624,6 +642,10 @@ export class AppComponent {
     this.saveDraft();
   }
   async generate() {
+    if (this.generationCountError) {
+      document.getElementById('generation-count')?.focus();
+      return;
+    }
     try {
       await this.submit('song_generate', this.draft);
     } catch (error) {
@@ -646,17 +668,28 @@ export class AppComponent {
     return value == null || value === '' || String(value).toLowerCase() === 'auto';
   }
   async selectSong(item: Item) {
+    const selection = ++this.librarySelection;
     this.beginWorkflow('library');
+    this.selectedSong = item.id;
+    this.songName = item.name;
+    this.songFolder = item.folder || '';
+    this.libraryAudio = null;
+    this.libraryAssets = [];
+    this.libraryPreviewError = '';
+    this.libraryLoading = true;
     try {
-      this.selectedSong = item.id;
-      this.songName = item.name;
-      this.songFolder = item.folder || '';
       const preview = await this.api('/api/items/' + item.id);
+      if (selection !== this.librarySelection) return;
       this.libraryAudio = preview.audio;
       this.libraryAssets = preview.assets || [];
     } catch (error) {
-      this.fail(error, 'library');
+      if (selection === this.librarySelection) {
+        this.libraryPreviewError =
+          'Could not load this song preview. Retry, or refresh the library.';
+        this.fail(error, 'library');
+      }
     } finally {
+      if (selection === this.librarySelection) this.libraryLoading = false;
       this.cdr.markForCheck();
     }
   }
@@ -681,10 +714,17 @@ export class AppComponent {
   }
   async deleteSong() {
     if (!this.selectedSong || !confirm('Delete this song from the library?')) return;
+    const id = this.selectedSong;
     try {
-      await this.submit('delete', { id: this.selectedSong });
-      this.selectedSong = '';
-      this.libraryAudio = null;
+      await this.submit('delete', { id });
+      if (this.selectedSong === id) {
+        this.librarySelection++;
+        this.selectedSong = '';
+        this.libraryAudio = null;
+        this.libraryAssets = [];
+        this.libraryLoading = false;
+        this.libraryPreviewError = '';
+      }
     } catch (error) {
       this.fail(error);
     }
@@ -740,6 +780,7 @@ export class AppComponent {
     this.fxSongId = item.id;
     this.fx = null;
     this.fxPreview = null;
+    this.fxPreviewSettings = '';
     this.fxGroup = '';
     this.changeTab(2);
     try {
@@ -791,8 +832,9 @@ export class AppComponent {
   }
   async renderFx(save: boolean, mode: string) {
     this.closeDialog();
+    const settings = this.fxSettings;
     try {
-      await this.submit('vocal_render', {
+      const rendered = await this.submit('vocal_render', {
         song_id: this.fxSongId,
         group_settings: Object.fromEntries(
           this.fx.groups.map((group: any) => [group.id, group.settings]),
@@ -802,6 +844,8 @@ export class AppComponent {
         save,
         mode,
       });
+      if (this.fxPreview?.url === rendered.result?.audio?.url) this.fxPreviewSettings = settings;
+      this.cdr.markForCheck();
     } catch (error) {
       this.fail(error);
     }

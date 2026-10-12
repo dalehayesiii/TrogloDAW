@@ -11,6 +11,7 @@ import {
   ViewChild,
   HostListener,
   OnDestroy,
+  SimpleChanges,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 
@@ -252,19 +253,23 @@ export class DownloadComponent {
   selector: 'troglodaw-audio',
   imports: [FormsModule, IconComponent],
   template: `<div class="audio-panel" [class.has-audio]="media">
-    <span class="corner-label"><troglodaw-icon name="note" />{{ label }}</span>
+    <span class="corner-label" [title]="label"
+      ><troglodaw-icon name="note" /><span>{{ label }}</span></span
+    >
     @if (media) {
       <a
         class="audio-download"
         [href]="media.url + '?download=true'"
         download
         [attr.aria-label]="'Download ' + label"
+        title="Download audio"
         >↓</a
       >
       <button
         type="button"
         class="audio-share"
-        [attr.aria-label]="'Copy link to ' + label"
+        [attr.aria-label]="'Copy local link to ' + label"
+        title="Copy local playback link (works while this app is running)"
         (click)="copyLink()"
       >
         ♧
@@ -274,7 +279,11 @@ export class DownloadComponent {
       #player
       [src]="media?.url || ''"
       (timeupdate)="time = player.currentTime"
-      (ended)="playing = false"
+      (play)="playing = true"
+      (pause)="playing = false"
+      (volumechange)="muted = player.muted"
+      (ratechange)="rate = player.playbackRate"
+      (error)="playbackFailed()"
       (loadedmetadata)="duration = player.duration"
     ></audio>
     @if (media) {
@@ -293,10 +302,17 @@ export class DownloadComponent {
       <div class="audio-controls">
         <button
           type="button"
-          (click)="player.muted = !player.muted"
-          [attr.aria-label]="'Mute ' + label"
+          (click)="player.muted = !player.muted; muted = player.muted"
+          [attr.aria-label]="(muted ? 'Unmute ' : 'Mute ') + label"
+          [attr.aria-pressed]="muted"
+          [title]="muted ? 'Unmute audio' : 'Mute audio'"
+          [class.muted-audio]="muted"
         >
-          <troglodaw-icon name="volume" />
+          @if (muted) {
+            <span>×</span>
+          } @else {
+            <troglodaw-icon name="volume" />
+          }
         </button>
         <select
           aria-label="Playback speed"
@@ -321,6 +337,9 @@ export class DownloadComponent {
           </button>
         </div>
       </div>
+      @if (feedback) {
+        <p class="audio-feedback" role="status">{{ feedback }}</p>
+      }
     } @else {
       <span class="empty-note" aria-hidden="true"><troglodaw-icon name="note" /></span>
     }
@@ -330,6 +349,7 @@ export class AudioComponent implements OnChanges, AfterViewInit, OnDestroy {
   private cdr = inject(ChangeDetectorRef);
   @Input() label = '';
   @Input() media: Media | null = null;
+  @ViewChild('player') player?: ElementRef<HTMLAudioElement>;
   wave?: ElementRef<HTMLCanvasElement>;
   @ViewChild('wave') set waveformElement(element: ElementRef<HTMLCanvasElement> | undefined) {
     this.resize?.disconnect();
@@ -344,12 +364,25 @@ export class AudioComponent implements OnChanges, AfterViewInit, OnDestroy {
   time = 0;
   duration = 0;
   rate = 1;
+  muted = false;
+  feedback = '';
   samples?: Float32Array;
   private resize?: ResizeObserver;
-  async ngOnChanges() {
+  async ngOnChanges(changes: SimpleChanges) {
+    if (!changes['media'] || changes['media'].previousValue?.url === this.media?.url) return;
     this.playing = false;
     this.time = 0;
     this.duration = 0;
+    this.rate = 1;
+    this.muted = false;
+    this.feedback = '';
+    this.samples = undefined;
+    if (this.player) {
+      this.player.nativeElement.pause();
+      this.player.nativeElement.muted = false;
+      this.player.nativeElement.playbackRate = 1;
+    }
+    this.draw();
     if (!this.media) return;
     const url = this.media.url;
     try {
@@ -378,10 +411,11 @@ export class AudioComponent implements OnChanges, AfterViewInit, OnDestroy {
   }
   draw() {
     const canvas = this.wave?.nativeElement;
-    if (!canvas || !this.samples) return;
+    if (!canvas) return;
     if (canvas.getBoundingClientRect().width <= 0) return;
     const context = canvas.getContext('2d')!;
     context.clearRect(0, 0, canvas.width, canvas.height);
+    if (!this.samples) return;
     context.fillStyle =
       getComputedStyle(document.documentElement).getPropertyValue('--waveform').trim() || '#9ca3af';
     const bars = Math.max(1, Math.floor(canvas.getBoundingClientRect().width / 5));
@@ -400,15 +434,17 @@ export class AudioComponent implements OnChanges, AfterViewInit, OnDestroy {
     this.draw();
   }
   async play(player: HTMLAudioElement) {
+    const url = this.media?.url;
+    this.feedback = '';
     if (this.playing) {
       player.pause();
       this.playing = false;
     } else {
       try {
         await player.play();
-        this.playing = true;
+        if (this.media?.url === url) this.playing = !player.paused;
       } catch {
-        this.playing = false;
+        if (this.media?.url === url) this.playbackFailed();
       }
     }
   }
@@ -421,9 +457,25 @@ export class AudioComponent implements OnChanges, AfterViewInit, OnDestroy {
     if (Number.isFinite(player.duration))
       player.currentTime = Math.min(player.duration, Math.max(0, player.currentTime + seconds));
   }
-  copyLink() {
-    if (this.media)
-      navigator.clipboard.writeText(new URL(this.media.url, location.href).href).catch(() => {});
+  playbackFailed() {
+    if (!this.media) return;
+    this.playing = false;
+    this.feedback = 'Could not play this audio. Try Play again or download the file.';
+    this.cdr.markForCheck();
+  }
+  async copyLink() {
+    if (!this.media) return;
+    const url = this.media.url;
+    try {
+      await navigator.clipboard.writeText(new URL(url, location.href).href);
+      if (this.media?.url !== url) return;
+      this.feedback =
+        'Local link copied. It works on this computer while the app is running. Download the audio to share it.';
+    } catch {
+      if (this.media?.url !== url) return;
+      this.feedback = 'Could not copy the local link. Try again, or download the audio file.';
+    }
+    this.cdr.markForCheck();
   }
   clock(value: number, round = false) {
     value = round ? Math.round(value) : value;

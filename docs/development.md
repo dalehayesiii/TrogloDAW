@@ -48,6 +48,16 @@ rewriting the original DSP. Frontend checks use angular-eslint, Vitest through t
 Angular CLI, strict TypeScript/templates, and Playwright with real audio operations.
 E2E tests synthesize a WAV in memory and use a temporary library. Backend tests
 cover waveform/recipe equivalence, HTTP uploads/media, producer behavior and shutdown.
+Playwright's `shutdown` project depends on the `app` project so Quit runs after all
+ordinary app tests, regardless of filename order. Keep service-stopping tests in
+`tests/e2e/shutdown.spec.mjs`; focused app test runs can use `--project=app`.
+
+Frontend interaction/layout changes use the repository-local
+[`ui-ux-audit` skill](../.agents/skills/ui-ux-audit/SKILL.md), routed by
+`frontend/AGENTS.md`. Review the affected flow and record concrete findings,
+repairs and limitations in the PR. Layout reviews include desktop/narrow views in
+both themes; behavior repairs add relevant real-service regressions. See the
+[initial usability audit](frontend-ux-audit.md) for provenance and measurement limits.
 
 For CLI integration tests set TROGLODAW_LIBRARY to a temporary directory, then run
 `uv run --locked python backend/cli.py demo` and

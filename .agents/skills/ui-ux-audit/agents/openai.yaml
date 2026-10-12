@@ -1,0 +1,4 @@
+interface:
+  display_name: "Frontend UX Audit"
+  short_description: "Review frontend usability and truthful audio state"
+  default_prompt: "Use $ui-ux-audit to review the affected TrogloDAW frontend flow and fix confirmed usability issues."
