@@ -71,11 +71,15 @@ Variety zero SHALL preserve original styles exactly. Higher values SHALL produce
 - **THEN** each retains its effective prompt, original styles and unchanged supplied lyrics
 
 ### Requirement: Sequential independent outputs
-Number of Generations SHALL be a positive integer defaulting to one. Each output SHALL be independently cataloged with separate seed/settings and success/failure state. GPU-heavy stages SHALL run sequentially when memory requires; count SHALL not imply concurrent GPU batch size.
+Number of Generations SHALL be a positive integer defaulting to two for fresh drafts and omitted counts. Saved explicit counts SHALL remain unchanged. Each output SHALL be independently cataloged with separate seed/settings and success/failure state. GPU-heavy stages SHALL run sequentially when memory requires; count SHALL not imply concurrent GPU batch size.
 
 #### Scenario: One output fails in a request
 - **WHEN** a generation fails after an earlier output completed
 - **THEN** the completed song remains available and each requested output has an explicit outcome
+
+#### Scenario: Upgrade a saved one-output draft
+- **WHEN** an existing draft explicitly requests one output
+- **THEN** it continues requesting one while fresh drafts default to two
 
 ### Requirement: Inspectable reusable assets
 Recipes SHALL preserve source, sample, arrangement and model assets sufficient for portable inspection and rerender. Conditioned songs SHALL replay the saved generated mix without another sample overlay; postmix songs SHALL reconstruct gain-bearing placements over saved generated music. Existing recipes SHALL retain their original replay semantics. Missing assets SHALL report errors.
@@ -156,3 +160,24 @@ Audible-region decisions SHALL be robust to supported level changes in the same 
 #### Scenario: Transient and loud effect
 - **WHEN** a source has an isolated pop or a pitch/effect variant raises its peak
 - **THEN** phrase selection is not reduced to the pop's threshold alone and saved transformed samples/guide have bounded peaks without modifying the original
+### Requirement: Editable local automatic lyrics
+Generation SHALL offer explicit local lyric writing from a song idea and language preference. Successful text SHALL become editable input lyrics; failures SHALL preserve the previous text. Manual lyrics SHALL remain unchanged during music generation and blank lyrics SHALL remain instrumental. Historical job restoration SHALL not overwrite a newer draft.
+
+#### Scenario: Generate and edit words
+- **WHEN** a user generates lyrics from an idea with an installed planner
+- **THEN** the local planner writes lyrics, the user can edit them before generating music, and an expiring dismissible notification reports completion
+
+#### Scenario: Failed writing preserves manual text
+- **WHEN** local lyric writing fails or is canceled
+- **THEN** existing lyrics remain available without a partial replacement
+
+### Requirement: Bounded model-planned song duration
+Explicit duration SHALL support 10–300 seconds. Missing, blank or auto duration SHALL invoke an installed local planner before sample arrangement, preserve supplied lyrics/styles and bound its finite positive suggestion to 10–300 seconds. Recipes SHALL retain the request, raw suggestion, effective length and planner provenance. Unavailable planning SHALL explain setup or explicit-duration alternatives.
+
+#### Scenario: Automatic instrumental duration
+- **WHEN** styles are supplied, lyrics are blank and duration is unspecified
+- **THEN** the local planner chooses a bounded length without a fixed one-minute default and the rendered song remains instrumental
+
+#### Scenario: Five-minute explicit song
+- **WHEN** duration is 300 seconds
+- **THEN** generation attempts the complete requested length with existing memory safeguards and reports failure rather than silently truncating

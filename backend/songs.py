@@ -113,9 +113,11 @@ def generation_parameters(draft: dict, sources: list[dict], seed: int):
         }
     else:
         duration, derivation = float(options["duration"]), None
-    if not math.isfinite(duration) or not 10 <= duration <= 120:
+    if options["duration"] == "auto":
+        duration = min(300, duration)
+    if not math.isfinite(duration) or not 10 <= duration <= 300:
         raise ValueError(
-            "This configuration supports 10–120 seconds. Choose a duration in that range"
+            "This configuration supports 10–300 seconds. Choose a duration in that range"
         )
     effective_styles = styles
     rng = random.Random(seed)
@@ -200,6 +202,10 @@ class Songs:
             "model": state["model"],
             "packages": str(safe_file(root, state["packages"])),
             "code": str(safe_file(root, state["code"])),
+            "planner": self.models.manifest["models"][state["model"]].get("planner"),
+            "lyric_writer": (self.models.planner() or {}).get("writer"),
+            "writer_revision": (self.models.planner() or {}).get("writer_revision"),
+            "runtime_revision": state["runtime_revision"],
             **values,
         }
         request_file = root / "cache" / (uuid.uuid4().hex + ".json")
@@ -509,13 +515,45 @@ class Songs:
             }
         return layer, assets, placements, analyses
 
+    def require_planner(self):
+        if self.local_inference and not self.models.planner_ready():
+            raise ValueError(
+                "Install the optional song writing tools in Settings for automatic lyrics or song length, "
+                "or choose an explicit duration between 10 and 300 seconds."
+            )
+
+    def lyrics(self, values, progress, canceled):
+        prompt = str(values.get("prompt", "")).strip()
+        language = str(values.get("language", "en"))
+        if not 1 <= len(prompt) <= 1000:
+            raise ValueError("Describe your song idea using 1–1000 characters")
+        if language != "auto" and not re.fullmatch(r"[a-z]{2}", language):
+            raise ValueError("Choose Auto or a two-letter lyrics language code")
+        self.require_planner()
+        result = self.invoke(
+            "write_lyrics",
+            {
+                "prompt": prompt,
+                "language": language,
+                "seed": random.SystemRandom().randrange(2**31),
+            },
+            progress,
+            canceled,
+        )
+        lyrics = result.get("lyrics")
+        if not isinstance(lyrics, str) or not lyrics.strip() or len(lyrics) > 4096:
+            raise ValueError("The local planner did not produce usable lyrics. Try another idea.")
+        return {"message": "Lyrics ready to edit", "lyrics": lyrics, "planning": result}
+
     def generate(self, draft, progress, canceled):
         if self.local_inference and not self.models.ready():
             raise ValueError("Install or verify a music model in Settings before this operation")
-        count = draft.get("count", 1)
+        count = draft.get("count", 2)
         if isinstance(count, bool) or not isinstance(count, int) or not 1 <= count <= 32:
             raise ValueError("Number of Generations must be an integer between 1 and 32")
         sources = self.collect_sources(draft)
+        if generation_parameters(draft, sources, 0)["requested"]["duration"] == "auto":
+            self.require_planner()
         estimate = count * (
             sum(
                 source["duration"]
@@ -536,7 +574,7 @@ class Songs:
             )
             * self.core.SR
             * 8
-            + 120 * self.core.SR * 32
+            + 300 * self.core.SR * 32
         )
         writable_root(str(self.core.LIB), int(estimate) + 64 * 1024 * 1024)
         outcomes = []
@@ -566,6 +604,36 @@ class Songs:
                 )
 
             try:
+                if parameters["requested"]["duration"] == "auto":
+                    plan = self.invoke(
+                        "plan_song", {"parameters": parameters}, item_progress, canceled
+                    )
+                    suggested = plan.get("duration")
+                    if (
+                        isinstance(suggested, bool)
+                        or not isinstance(suggested, (int, float))
+                        or not math.isfinite(suggested)
+                        or suggested <= 0
+                    ):
+                        raise ValueError(
+                            "The song planner did not produce a usable duration. Choose an explicit length or retry."
+                        )
+                    parameters["duration"] = min(300, max(10, suggested))
+                    parameters["duration_derivation"] = {
+                        "method": "local-model-planner",
+                        "suggested_seconds": suggested,
+                        "effective_seconds": parameters["duration"],
+                        "planning": plan,
+                    }
+                    item_progress(
+                        "Song length planned",
+                        1,
+                        stage="planning_song",
+                        timing_profile={
+                            "duration": parameters["duration"],
+                            "duration_mode": "auto",
+                        },
+                    )
                 layer, samples, placements, analyses = self.arrange(
                     current_sources,
                     directory,

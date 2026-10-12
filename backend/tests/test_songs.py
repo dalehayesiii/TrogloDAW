@@ -75,8 +75,95 @@ def test_controls_preserve_lyrics_and_have_independent_mappings():
     assert variety["effective_styles"] != draft["styles"]
     auto = generation_parameters({"lyrics": "word " * 100}, [], 42)
     assert auto["duration"] > 30 and auto["duration_derivation"]["lyric_words"] == 100
-    with pytest.raises(ValueError, match="10–120"):
+    with pytest.raises(ValueError, match="10–300"):
         generation_parameters({**draft, "options": {"duration": 900}}, [], 42)
+
+
+def test_five_minute_duration_and_default_two_independent_outputs(core, songs):
+    assert (
+        generation_parameters({"styles": "folk", "options": {"duration": 300}}, [], 1)["duration"]
+        == 300
+    )
+    for duration in [9, 301, float("inf"), float("nan")]:
+        with pytest.raises(ValueError, match="10–300"):
+            generation_parameters({"styles": "folk", "options": {"duration": duration}}, [], 1)
+    service, _ = songs
+    result = service.generate(
+        {"styles": "folk", "options": {"duration": 10}},
+        lambda *_args, **_kwargs: None,
+        lambda: False,
+    )
+    assert len(result["outcomes"]) == 2
+    one = service.generate(
+        {"styles": "folk", "count": 1, "options": {"duration": 10}},
+        lambda *_args, **_kwargs: None,
+        lambda: False,
+    )
+    assert len(one["outcomes"]) == 1
+
+
+def test_native_auto_duration_precedes_arrangement_and_keeps_manual_words(core, songs):
+    service, _ = songs
+    original = service.invoke
+    sequence = []
+
+    def planned(action, values, progress, canceled):
+        sequence.append(action)
+        if action == "plan_song":
+            assert values["parameters"]["lyrics"] == "[Verse]\nMy unchanged words"
+            return {
+                "duration": 18,
+                "planner": "synthetic-native-planner",
+                "suggested_caption": "DO NOT replace styles",
+            }
+        assert values["parameters"]["duration"] == 18
+        assert values["parameters"]["caption"] == "folk"
+        return original(action, values, progress, canceled)
+
+    service.invoke = planned
+    result = service.generate(
+        {"styles": "folk", "lyrics": "[Verse]\nMy unchanged words", "count": 1},
+        lambda *_args, **_kwargs: None,
+        lambda: False,
+    )
+    assert sequence == ["plan_song", "generate"]
+    recipe = result["outcomes"][0]["song"]["recipe"]
+    assert recipe["parameters"]["lyrics"] == "[Verse]\nMy unchanged words"
+    assert recipe["parameters"]["duration_derivation"]["suggested_seconds"] == 18
+    assert core.load(service.asset(recipe["conditioning_file"])).shape[0] == 18 * core.SR
+
+
+@pytest.mark.parametrize("suggested,effective", [(1, 10), (320, 300)])
+def test_auto_duration_bounds_are_recorded(songs, suggested, effective):
+    service, _ = songs
+    original = service.invoke
+
+    def planned(action, values, progress, canceled):
+        if action == "plan_song":
+            return {"duration": suggested, "planner": "synthetic"}
+        return original(action, values, progress, canceled)
+
+    service.invoke = planned
+    result = service.generate(
+        {"styles": "folk", "count": 1}, lambda *_args, **_kwargs: None, lambda: False
+    )
+    params = result["outcomes"][0]["song"]["recipe"]["parameters"]
+    assert params["duration"] == effective
+    assert params["duration_derivation"]["suggested_seconds"] == suggested
+
+
+def test_lyrics_are_local_editable_results_and_invalid_results_fail(songs):
+    service, _ = songs
+    result = service.lyrics(
+        {"prompt": "A song about cave lights"}, lambda *_args, **_kwargs: None, lambda: False
+    )
+    assert result["lyrics"].startswith("[Verse]")
+    for values in [{"prompt": ""}, {"prompt": "idea", "language": "invalid"}]:
+        with pytest.raises(ValueError):
+            service.lyrics(values, lambda *_args, **_kwargs: None, lambda: False)
+    service.invoke = lambda *args: {"lyrics": ""}
+    with pytest.raises(ValueError, match="usable lyrics"):
+        service.lyrics({"prompt": "idea"}, lambda *_args, **_kwargs: None, lambda: False)
 
 
 def test_every_input_has_transformed_assets_and_rerenders_portably(core, songs):

@@ -192,6 +192,7 @@
   </ng-template>
   <div class="content flex-1">
     <section role="tabpanel" id="panel-0" aria-labelledby="tab-0" [hidden]="tab!==0">
+      <h2 class="sr-only">Generation</h2>
       <div class="columns grid gap-4 md:grid-cols-2">
         <div class="stack">
           <div class="group input-stone">
@@ -382,10 +383,47 @@
               id="lyrics"
               rows="5"
               maxlength="4096"
+              [disabled]="busy"
               [(ngModel)]="draft.lyrics"
               placeholder="Your words stay your words. Leave blank for instrumental music."
-            ></textarea
-            ><label for="styles">Input Styles</label
+            ></textarea>
+            <details>
+              <summary>Write lyrics for me</summary>
+              <label for="lyric-idea">Song idea</label>
+              <textarea
+                id="lyric-idea"
+                rows="3"
+                maxlength="1000"
+                [(ngModel)]="draft.lyric_idea"
+                placeholder="What should your song be about? Uses title and styles if left blank."
+                [disabled]="busy"
+              ></textarea>
+              <label for="lyric-language">Lyrics language</label>
+              <input
+                id="lyric-language"
+                [(ngModel)]="draft.lyric_language"
+                placeholder="en, es, ja… or auto"
+                [disabled]="busy"
+              />
+              <p class="muted">
+                Use a two-letter language code, or auto. Written locally; replaces your lyrics only
+                after success, then you can edit them.
+              </p>
+              <button
+                type="button"
+                (click)="generateLyrics()"
+                [disabled]="busy || !library.models.planner?.ready"
+              >
+                Generate lyrics
+              </button>
+              @if(!library.models.planner?.ready){
+              <p class="muted">
+                Install the optional song writing tools in Settings to write lyrics and choose song
+                length automatically.
+              </p>
+              }
+            </details>
+            <label for="styles">Input Styles</label
             ><textarea
               id="styles"
               rows="2"
@@ -435,8 +473,8 @@
                   (valueChange)="draft.options[control.key]=$event;saveDraft()"
                 />}
                 <p class="muted">
-                  Auto length follows your lyrics and inputs. Vocal character is a preference for
-                  newly generated voices. Variety changes styles, never lyrics.
+                  Auto length uses the local song planner, up to five minutes. Vocal character is a
+                  preference for newly generated voices. Variety changes styles, never lyrics.
                 </p>
               </div>
             </details>
@@ -448,7 +486,7 @@
             <button
               type="button"
               class="primary generate-button"
-              [disabled]="busy || recording || !library.models.ready"
+              [disabled]="busy || recording || !library.models.ready || (automaticDuration && !library.models.planner?.ready)"
               (click)="generate()"
             >
               <svg viewBox="0 0 28 28" aria-hidden="true">
@@ -456,7 +494,12 @@
               </svg>
               Generate song{{draft.count>1 ? 's' : ''}}<span aria-hidden="true">↗</span>
             </button>
-            @if (!library.models.ready) {
+            @if(library.models.ready && automaticDuration && !library.models.planner?.ready){
+            <p class="muted">
+              Automatic length needs the optional song writing tools. Install it in Settings or set
+              a duration of 10–300 seconds in More Options.
+            </p>
+            } @if (!library.models.ready) {
             <p class="muted">
               Local model setup is required before generation.
               <button type="button" (click)="openDialog('storage')">Set up model</button>
@@ -513,6 +556,7 @@
       </div>
     </section>
     <section role="tabpanel" id="panel-1" aria-labelledby="tab-1" [hidden]="tab!==1">
+      <h2 class="sr-only">Library</h2>
       <div class="columns grid gap-4 md:grid-cols-2">
         <div class="stack">
           <div class="group library-stone">
@@ -614,6 +658,7 @@
       </div>
     </section>
     <section role="tabpanel" id="panel-2" aria-labelledby="tab-2" [hidden]="tab!==2">
+      <h2 class="sr-only">Vocal FX</h2>
       @if(!fx){
       <div class="group fx-empty-stone">
         <div class="section-kicker">
@@ -812,6 +857,20 @@
           >
             Install / verify selected model
           </button>
+          @if(library.models.planner;as planner){
+          <p class="muted">
+            Optional song writing tools: {{planner.ready ? 'ready' : 'not installed'}}.
+            {{(planner.bytes/1073741824).toFixed(2)}} GiB of extra weights for local lyrics and
+            automatic song length. Explicit-duration songs work without it.
+          </p>
+          <button
+            type="button"
+            (click)="installModel(true)"
+            [disabled]="storageBusy || choosingFolder || !!folderChoice || modelPath!==library.storage.model_dir"
+          >
+            Install / verify song writing tools
+          </button>
+          }
         </div>
         <details class="group" [open]="dialogKind==='setup'">
           <summary>Library storage</summary>

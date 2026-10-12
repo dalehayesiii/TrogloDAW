@@ -93,9 +93,9 @@ settings cap selection at eight one-second cuts, with +2 semitones, 1.1� speed
 -12 dB volume before individual variations. Apply or keep settings explicitly.
 The decision/version stays with the clip; unchanged clips do not repeatedly prompt.
 
-Lyrics/styles work without audio input. The exact supplied lyrics reach the local
+Lyrics/styles work without audio input. Expand **Write lyrics for me** to draft editable lyrics locally, or type your own and leave the field blank for an instrumental. See [local song planning](song-planning.md). The exact supplied lyrics reach the local
 model. Blank titles derive from up to six lyric/style words. **Number of
-Generations** defaults to one, supports 1–32, and runs independent seeds
+Generations** defaults to two for fresh drafts, supports 1–32, and runs independent seeds
 sequentially. Each song is separately cataloged; earlier successes remain if
 another output fails or the request is canceled. Completed outputs are visible
 while later outputs run. Model quality can repeat material or pronounce lyrics
@@ -106,7 +106,7 @@ imperfectly; this is documented rather than hidden by rewriting lyrics.
 | Control         | Local mapping                                                                                                                                                                                                |
 | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Vocal Gender    | Unset/Male/Female caption guidance for newly generated voices; a preference, not guaranteed classification or an effect on source recordings                                                                 |
-| Duration        | Auto derives seconds from lyric words/2.2 plus 12 seconds of structure, or from the longest selected sample budget times 1.25, with minimum 10; explicit or auto results outside 10–120 seconds fail clearly |
+| Duration        | Auto uses the optional local model planner before arranging samples and bounds its suggested length to 10–300 seconds; explicit lengths must be within that range |
 | Weirdness       | 0–100 maps to schedule shift 1–5 with the supported ODE sampler throughout; independent of style guidance                                                                                                 |
 | Style Influence | 0–100 maps to Base-family classifier-free guidance 1–15                                                                                                                                                      |
 | Variety         | Zero retains styles exactly; higher values append one to three bounded structural/style phrases chosen per seed; lyrics stay unchanged                                                                       |

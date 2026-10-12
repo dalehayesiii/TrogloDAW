@@ -259,6 +259,238 @@ def generate(request):
     )
 
 
+def last_token_logits(model):
+    """Use the supported inference-only Qwen argument to avoid full-prefill logits."""
+    if "logits_to_keep" not in inspect.signature(model.forward).parameters:
+        return None
+
+    def before_forward(_module, inputs, values):
+        return inputs, {**values, "logits_to_keep": 1}
+
+    return model.register_forward_pre_hook(before_forward, with_kwargs=True)
+
+
+def write_lyrics(request):
+    """Use an explicitly installed instruction model without remote code or APIs."""
+    torch = import_module("torch")
+    transformers = import_module("transformers")
+    torch.set_num_threads(8)
+    torch.manual_seed(request["seed"])
+    free, _total, policy = gpu_memory(torch)
+    if not torch.cuda.is_available() or free < 2 * 1024**3:
+        raise RuntimeError(
+            "Local lyric writing needs 2 GiB of free CUDA memory. Close GPU-heavy apps and retry."
+        )
+    if import_module("psutil").virtual_memory().available < 3 * 1024**3:
+        raise RuntimeError("Local lyric writing needs 3 GiB of available system RAM.")
+    if request.get("lyric_writer") != "Qwen3-0.6B-lyrics":
+        raise ValueError("This model has no supported local lyric writer")
+    emit(
+        "loading_planner",
+        message="Loading local lyric writer",
+        stage_device="cuda",
+        timing_profile={
+            **hardware(torch, "cuda"),
+            "planner": request["lyric_writer"],
+            "runtime_mode": "fresh_process",
+            "memory_policy": policy,
+            "planning_mode": "instruction-lyrics-v1",
+        },
+    )
+    path = str(Path(request["root"]) / "checkpoints" / request["lyric_writer"])
+    tokenizer = transformers.AutoTokenizer.from_pretrained(
+        path, local_files_only=True, trust_remote_code=False
+    )
+    model = (
+        transformers.AutoModelForCausalLM.from_pretrained(
+            path, local_files_only=True, trust_remote_code=False, dtype=torch.bfloat16
+        )
+        .to("cuda")
+        .eval()
+    )
+    messages = [
+        {
+            "role": "system",
+            "content": "Write song lyrics following the requested idea and language. Return only singable lyrics with [Verse] and [Chorus] section labels. Keep the complete draft under 350 words. Do not include commentary.",
+        },
+        {
+            "role": "user",
+            "content": f"Language: {request['language']}\nSong idea: {request['prompt']}",
+        },
+    ]
+    text = tokenizer.apply_chat_template(
+        messages, tokenize=False, add_generation_prompt=True, enable_thinking=False
+    )
+    inputs = tokenizer(text, return_tensors="pt").to("cuda")
+    passes = 0
+
+    def decoded(_module, _inputs, _output):
+        nonlocal passes
+        passes += 1
+        if passes == 1 or passes % 16 == 0:
+            emit(
+                "writing_lyrics",
+                message=f"Writing lyrics locally · {passes} decode steps",
+                planner_decode_steps=passes,
+                stage_device="cuda",
+            )
+
+    hook = model.register_forward_hook(decoded)
+    started = time.monotonic()
+    try:
+        with torch.inference_mode():
+            output = model.generate(
+                **inputs, max_new_tokens=768, do_sample=True, temperature=0.7, top_p=0.8, top_k=20
+            )
+        if int(output[0][-1]) != tokenizer.eos_token_id:
+            raise RuntimeError(
+                "The lyric writer reached its draft limit. Request a shorter song idea and retry."
+            )
+        lyrics = tokenizer.decode(
+            output[0][inputs.input_ids.shape[1] :], skip_special_tokens=True
+        ).strip()
+        emit(
+            "complete",
+            1,
+            result={
+                "lyrics": lyrics,
+                "planner": request["lyric_writer"],
+                "writer_revision": request.get("writer_revision"),
+                "runtime_revision": request.get("runtime_revision"),
+                "decode_steps": passes,
+                "seconds": time.monotonic() - started,
+                "peak_vram": torch.cuda.max_memory_allocated(),
+            },
+        )
+    finally:
+        hook.remove()
+
+
+def plan_song(request):
+    """Use ACE's public local planner before loading any music-generation weights."""
+    torch = import_module("torch")
+    torch.set_num_threads(8)
+    torch.manual_seed(request["parameters"]["seed"])
+    free, _total, policy = gpu_memory(torch)
+    if not torch.cuda.is_available() or free < 4.5 * 1024**3:
+        raise RuntimeError(
+            "The local song planner needs 4.5 GiB of free CUDA memory. Close GPU-heavy apps and retry."
+        )
+    if import_module("psutil").virtual_memory().available < 6 * 1024**3:
+        raise RuntimeError("The local song planner needs 6 GiB of available system RAM.")
+    if request.get("planner") != "acestep-5Hz-lm-1.7B":
+        raise ValueError("This model has no supported local song planner")
+    context = {
+        **hardware(torch, "cuda"),
+        "planner": request["planner"],
+        "runtime_mode": "fresh_process",
+        "memory_policy": policy,
+        "planning_mode": "metadata-only-last-logit-v1",
+    }
+    emit(
+        "loading_planner",
+        timing_profile=context,
+        stage_device="cuda",
+        message="Loading local song planner",
+    )
+    handler = import_module("acestep.llm_inference").LLMHandler()
+    status, success = handler.initialize(
+        checkpoint_dir=str(Path(request["root"]) / "checkpoints"),
+        lm_model_path=request["planner"],
+        backend="pt",
+        device="cuda",
+        dtype=torch.bfloat16,
+        offload_to_cpu=True,
+    )
+    if not success:
+        raise RuntimeError(status)
+    handler.disable_tqdm = True
+    # This process only plans text/metadata; DiT is loaded after it exits.
+    handler.constrained_processor.set_max_duration(300)
+    stage = "planning_song"
+    message = "Planning song length locally"
+    passes = 0
+
+    def decoded(_module, _inputs, _output):
+        nonlocal passes
+        passes += 1
+        if passes == 1 or passes % 16 == 0:
+            emit(
+                stage,
+                message=f"{message} · {passes} decode steps",
+                planner_decode_steps=passes,
+                stage_device="cuda",
+            )
+
+    emit(stage, message=message, stage_device="cuda")
+    hook = handler.llm.register_forward_hook(decoded)
+    logits_hook = last_token_logits(handler.llm)
+    started = time.monotonic()
+    try:
+        parameters = request["parameters"]
+        prompt = handler.build_formatted_prompt_for_format(
+            parameters["caption"], parameters["lyrics"]
+        )
+        text, status = handler.generate_from_formatted_prompt(
+            formatted_prompt=prompt,
+            cfg={
+                "temperature": 0.85,
+                "top_k": None,
+                "top_p": None,
+                "repetition_penalty": 1.0,
+                "target_duration": None,
+                "user_metadata": None,
+                "skip_caption": False,
+                "skip_language": False,
+                "skip_genres": False,
+                "generation_phase": "understand",
+                "caption": "",
+                "lyrics": "",
+            },
+            use_constrained_decoding=True,
+            stop_at_reasoning=True,
+        )
+        if not text:
+            raise RuntimeError(status or "Local metadata planning failed")
+        metadata, _codes = handler.parse_lm_output(text)
+        from types import SimpleNamespace
+
+        result = SimpleNamespace(
+            success=True,
+            lyrics=parameters["lyrics"],
+            duration=metadata.get("duration"),
+            bpm=metadata.get("bpm"),
+            keyscale=metadata.get("keyscale", ""),
+            language=metadata.get("language", ""),
+            timesignature=metadata.get("timesignature", ""),
+            caption=metadata.get("caption", ""),
+        )
+        if not result.success:
+            raise RuntimeError(result.error or "Local song planning failed")
+        emit(
+            "complete",
+            1,
+            result={
+                "planner": request["planner"],
+                "runtime_revision": request.get("runtime_revision"),
+                "lyrics": result.lyrics,
+                "duration": result.duration,
+                "bpm": result.bpm,
+                "keyscale": result.keyscale,
+                "language": result.language,
+                "timesignature": result.timesignature,
+                "suggested_caption": result.caption,
+                "decode_steps": passes,
+                "seconds": time.monotonic() - started,
+                "peak_vram": torch.cuda.max_memory_allocated(),
+            },
+        )
+    finally:
+        hook.remove()
+        if logits_hook:
+            logits_hook.remove()
+
+
 def separate(request):
     import numpy as np
     import soundfile as sf
@@ -445,6 +677,10 @@ def main():
     try:
         if request["action"] == "generate":
             generate(request)
+        elif request["action"] == "write_lyrics":
+            write_lyrics(request)
+        elif request["action"] == "plan_song":
+            plan_song(request)
         elif request["action"] == "separate":
             separate(request)
         elif request["action"] == "probe":

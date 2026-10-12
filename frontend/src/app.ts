@@ -31,6 +31,8 @@ interface Clip {
 interface Draft {
   clips: Clip[];
   lyrics: string;
+  lyric_idea: string;
+  lyric_language: string;
   styles: string;
   title: string;
   count: number;
@@ -61,9 +63,11 @@ interface Job extends ProcessingJob {
 const defaults = (): Draft => ({
   clips: [],
   lyrics: '',
+  lyric_idea: '',
+  lyric_language: 'en',
   styles: '',
   title: '',
-  count: 1,
+  count: 2,
   audio_mode: 'conditioned',
   audio_adherence: 75,
   options: {
@@ -206,7 +210,7 @@ export class AppComponent {
       'Male',
       'Female',
     ]),
-    field('duration', 'Duration (auto or 10–120 seconds)', 'text', 'auto'),
+    field('duration', 'Duration (auto or 10–300 seconds)', 'text', 'auto'),
     field('weirdness', 'Weirdness — Safe to Chaos', 'slider', 50, 0, 100, 1),
     field('influence', 'Style Influence — Loose to Strong', 'slider', 50, 0, 100, 1),
     field('variety', 'Variety — vary the styles, keep your lyrics', 'slider', 0, 0, 100, 1),
@@ -401,6 +405,10 @@ export class AppComponent {
     if (!result) return;
     if (job.action === 'song_generate') this.results = result.outcomes || [];
     if (job.status !== 'complete') return;
+    if (announce && job.action === 'lyrics_generate') {
+      this.draft.lyrics = result.lyrics;
+      this.saveDraft();
+    }
     if (job.action === 'vocal_prepare' && job.song_id === this.fxSongId) {
       const previous = this.fx?.song?.id === result.song.id ? this.fx.groups : [];
       for (const group of result.groups) {
@@ -616,6 +624,21 @@ export class AppComponent {
     } catch (error) {
       this.fail(error);
     }
+  }
+  async generateLyrics() {
+    try {
+      await this.submit('lyrics_generate', {
+        prompt:
+          this.draft.lyric_idea || [this.draft.title, this.draft.styles].filter(Boolean).join('. '),
+        language: this.draft.lyric_language,
+      });
+    } catch (error) {
+      this.fail(error);
+    }
+  }
+  get automaticDuration() {
+    const value = this.draft.options['duration'];
+    return value == null || value === '' || String(value).toLowerCase() === 'auto';
   }
   async selectSong(item: Item) {
     this.beginWorkflow('library');
@@ -838,7 +861,7 @@ export class AppComponent {
       this.cdr.markForCheck();
     }
   }
-  async installModel() {
+  async installModel(planner = false) {
     if (
       this.folderChoice ||
       this.choosingFolder ||
@@ -847,7 +870,7 @@ export class AppComponent {
       return;
     try {
       const choice = this.modelChoice;
-      await this.submit('model_install', { model: choice });
+      await this.submit('model_install', { model: choice, planner });
     } catch (error) {
       this.fail(error);
     }

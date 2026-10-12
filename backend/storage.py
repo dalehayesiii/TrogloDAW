@@ -233,7 +233,10 @@ class Storage:
                 self.model_manifest.get("runtime", {}),
                 *self.model_manifest.get("auxiliary_assets", []),
             ]
-            for model in self.model_manifest.get("models", {}).values():
+            for model in [
+                *self.model_manifest.get("models", {}).values(),
+                *self.model_manifest.get("planners", {}).values(),
+            ]:
                 assets.extend(model["assets"])
             return any(safe_file(root, a["path"]).is_file() for a in assets if "path" in a) or any(
                 p.is_file() for p in (root / "cache" / owner).rglob("*")
@@ -253,7 +256,10 @@ class Storage:
             self.model_manifest.get("runtime", {}),
             *self.model_manifest.get("auxiliary_assets", []),
         ]
-        for model in self.model_manifest.get("models", {}).values():
+        for model in [
+            *self.model_manifest.get("models", {}).values(),
+            *self.model_manifest.get("planners", {}).values(),
+        ]:
             assets.extend(model["assets"])
         paths.update(asset["path"] for asset in assets if "path" in asset)
         ready = root / ".troglodaw" / ("ready-" + owner + ".json")
@@ -336,7 +342,10 @@ class Storage:
                 self.model_manifest.get("runtime", {}),
                 *self.model_manifest.get("auxiliary_assets", []),
             ]
-            for model in self.model_manifest.get("models", {}).values():
+            for model in [
+                *self.model_manifest.get("models", {}).values(),
+                *self.model_manifest.get("planners", {}).values(),
+            ]:
                 assets.extend(model["assets"])
             expected = {**{a["path"]: a["sha256"] for a in assets if "path" in a}, **expected}
         if mode in {"relocate", "move"}:
