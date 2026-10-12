@@ -126,6 +126,8 @@ export class AppComponent {
   results: any[] = [];
   error = '';
   status = '';
+  stopped = false;
+  quitting = false;
   dialogKind = '';
   selectedSong = '';
   libraryAudio: Media | null = null;
@@ -859,12 +861,21 @@ export class AppComponent {
     this.cdr.markForCheck();
   }
   async quit() {
-    this.cleanup();
+    if (this.quitting || this.stopped) return;
+    this.quitting = true;
     try {
-      this.status = (await this.api('/api/shutdown', {})).message;
+      await this.api('/api/shutdown', {});
+      this.cleanup();
+      document.querySelectorAll('audio').forEach((audio) => audio.pause());
+      this.closeDialog();
+      this.stopped = true;
       this.cdr.markForCheck();
+      requestAnimationFrame(() => document.getElementById('quit-heading')?.focus());
     } catch (error) {
       this.fail(error);
+    } finally {
+      this.quitting = false;
+      this.cdr.markForCheck();
     }
   }
 }

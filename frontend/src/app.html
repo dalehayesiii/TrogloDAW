@@ -1,3 +1,17 @@
+@if(stopped){
+<main class="quit-screen" aria-labelledby="quit-heading">
+  <section class="quit-card" role="status">
+    <svg class="brand-mark" viewBox="0 0 64 64" aria-hidden="true" focusable="false">
+      <path class="brand-stone" d="M8 53 5 32 13 12 31 5 51 12 59 34 55 54 40 59 22 57Z" />
+      <path class="brand-cave" d="M18 49V34C18 15 47 15 47 34V49Z" />
+      <path class="brand-wave" d="M23 35V42M29 29V47M35 33V44M41 36V41" />
+    </svg>
+    <p class="quit-eyebrow">The cave is quiet.</p>
+    <h1 id="quit-heading" tabindex="-1">TrogloDAW has stopped.</h1>
+    <p>You can close this window now.</p>
+  </section>
+</main>
+} @else {
 <main class="flex min-h-screen flex-col" (input)="saveDraft()">
   <header class="app-header">
     <svg class="cave-mural" viewBox="0 0 460 180" aria-hidden="true" focusable="false">
@@ -611,7 +625,9 @@
   <footer>
     <span class="footer-mark"><span aria-hidden="true">◈</span> Made here. Kept here.</span>
     <button type="button" (click)="refresh()">Refresh library</button
-    ><button type="button" class="stop" (click)="quit()" [disabled]="busy">Quit</button>
+    ><button type="button" class="stop" (click)="quit()" [disabled]="busy || quitting">
+      {{quitting ? 'Stopping…' : 'Quit'}}
+    </button>
   </footer>
   <dialog #dialog (cancel)="closeDialog()" aria-labelledby="dialog-heading">
     <div class="dialog-heading">
@@ -821,3 +837,4 @@
     </div>
   </dialog>
 </main>
+}

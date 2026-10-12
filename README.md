@@ -51,7 +51,8 @@ Progress stays visible across workflow changes and browser reloads. See
 Run **`TrogloDAW-Setup.exe`**. Python is included and no admin rights are needed. It installs to
 `%LOCALAPPDATA%\TrogloDAW`, adds **TrogloDAW** to the Desktop and Start Menu, and keeps your files in
 `Documents\TrogloDAW\library` (set in `%LOCALAPPDATA%\TrogloDAW\app\config.json`). The app opens in your browser
-and has no console window. Use the **Quit** button to stop it. Initial setup installs the recommended
+and has no console window. **Quit** stops the app and replaces the page with a
+confirmation that you can close the browser window. Initial setup installs the recommended
 model into a folder you choose; weights are not bundled. Uninstall offers removal
 of installed model assets checked by default, with an option to retain them. Uninstall from
 Settings > Apps or the Start Menu. Your library is kept. Command line: `%LOCALAPPDATA%\TrogloDAW\troglodaw.bat <command>`.
