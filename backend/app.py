@@ -356,7 +356,15 @@ def create_app(core=mm, frontend=FRONTEND, quit_callback=None):
             raise HTTPException(404, str(exc)) from exc
         rec = entry.get("recipe") or {}
         rec = rec.get("creation_recipe", rec)
-        references = [("Generated musical parts", rec.get("musical_file"))]
+        references = [
+            (
+                "Generated whole mix"
+                if rec.get("render_mode") == "conditioned"
+                else "Generated musical parts",
+                rec.get("musical_file"),
+            ),
+            ("Transformed sample arrangement", rec.get("conditioning_file")),
+        ]
         references.extend(
             ("Original input: " + value.get("label", value["id"]), value.get("file"))
             for value in rec.get("sources", [])

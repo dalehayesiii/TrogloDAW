@@ -112,7 +112,8 @@ def test_every_input_has_transformed_assets_and_rerenders_portably(core, songs):
     assert len({item["recipe"]["parameters"]["seed"] for item in items}) == 2
     recipe = items[0]["recipe"]
     assert {sample["source_id"] for sample in recipe["samples"]} == {a["id"], b["id"]}
-    assert len(recipe["placements"]) == len(recipe["samples"]) == 8
+    assert len(recipe["placements"]) >= len(recipe["samples"]) >= 2
+    assert all(analysis["selection"]["effective_budget"] == 1 for analysis in recipe["analysis"])
     assert all(not Path(sample["file"]).is_absolute() for sample in recipe["samples"])
     assert recipe["sources"][0]["source_type"] == "microphone"
     rerender = service.rerender(items[0]["id"])

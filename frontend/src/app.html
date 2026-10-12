@@ -137,6 +137,26 @@
                 Choose from Library
               </button>
             </div>
+            @if(draft.clips.length){
+            <details class="audio-arrangement-settings">
+              <summary>Audio arrangement settings</summary>
+              <label for="postmix-mode"><input id="postmix-mode" type="checkbox"
+                [ngModel]="draft.audio_mode==='postmix'"
+                (ngModelChange)="draft.audio_mode=$event ? 'postmix' : 'conditioned';saveDraft()" />
+                Mix samples after generation</label>
+              @if(draft.audio_mode==='postmix'){
+              <p class="muted">Generate music independently, then mix your transformed sample arrangement into it.</p>
+              } @else if(!audioConditioningSupported){
+              <p class="muted">This model does not support audio conditioning. Your samples will be mixed after generation.</p>
+              } @else {
+              <p class="muted">Arrange your transformed samples first, then let the model build the whole song around that audio. It can change the samples' sound.</p>
+              <label for="audio-adherence">Audio adherence ({{draft.audio_adherence}}%)</label>
+              <input id="audio-adherence" type="range" min="0" max="100" step="1"
+                [(ngModel)]="draft.audio_adherence" (ngModelChange)="saveDraft()" />
+              <p class="muted">Higher values follow the arrangement more closely; zero uses text guidance only. Separate from Style Influence.</p>
+              }
+            </details>
+            }
             @for (clip of draft.clips; track clip.key; let index=$index) {
             <article class="clip-card">
               <label [for]="'clip-label-'+index">Clip label</label

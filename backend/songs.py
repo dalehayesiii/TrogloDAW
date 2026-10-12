@@ -17,6 +17,7 @@ from pathlib import Path
 import numpy as np
 import soundfile as sf
 
+from arrangement import positions, sample_transform, select_regions
 from models import CREATE_FLAGS, ROOT, Canceled, cache_environment, runtime_signature
 from storage import atomic_json, digest, safe_file, writable_root
 
@@ -28,12 +29,39 @@ PRESET = {
     "stretch": 1.1,
     "gain": -12.0,
 }
-CLIP_DEFAULTS = {"sample_seconds": 2.0, "samples": 4, "pitch": 0.0, "stretch": 1.0, "gain": -6.0}
+CLIP_DEFAULTS = {"sample_seconds": 2.0, "samples": 8, "pitch": 0.0, "stretch": 1.0, "gain": -6.0}
 OPTIONS = {"gender": "", "duration": "auto", "weirdness": 50, "influence": 50, "variety": 0}
 
 
 def song_item(item):
     return item.get("is_song", False) or item["type"] in {"generated", "mix"}
+
+
+def generation_mode(draft, models, has_samples):
+    requested = draft.get("audio_mode", "conditioned")
+    if requested not in {"conditioned", "postmix"}:
+        raise ValueError("Choose audio-conditioned generation or post-generation sample mixing")
+    adherence = draft.get("audio_adherence", 75)
+    if (
+        isinstance(adherence, bool)
+        or not isinstance(adherence, (int, float))
+        or not math.isfinite(adherence)
+        or not 0 <= adherence <= 100
+    ):
+        raise ValueError("Audio adherence must be between 0 and 100")
+    supported = "cover" in models.manifest["models"][models.selected].get("conditioning", [])
+    effective = requested if has_samples else "text"
+    reason = None
+    if has_samples and requested == "conditioned" and not supported:
+        effective = "postmix"
+        reason = "This model does not support audio conditioning; mixing samples after generation."
+    return {
+        "requested_mode": requested,
+        "effective_mode": effective,
+        "audio_adherence": adherence,
+        "effective_audio_adherence": adherence / 100 if effective == "conditioned" else None,
+        "fallback_reason": reason,
+    }
 
 
 def generation_parameters(draft: dict, sources: list[dict], seed: int):
@@ -287,11 +315,14 @@ class Songs:
             )
         return sources
 
-    def arrange(self, sources, directory, parameters, progress):
+    def arrange(self, sources, directory, parameters, progress, canceled=lambda: False):
         layer = np.zeros((round(parameters["duration"] * self.core.SR), 2), np.float32)
         assets, placements, analyses = [], [], []
         rng = random.Random(parameters["seed"])
+        source_samples, tempos = [], []
         for source_index, source in enumerate(sources):
+            if canceled():
+                raise Canceled("Sample analysis canceled")
             audio = (
                 self.core.load(self.asset(source["saved_file"]))
                 if source.get("saved_file")
@@ -305,23 +336,17 @@ class Songs:
             source["file"] = self.relative(input_file)
             progress("Analyzing " + source["label"], 0, stage="analyzing")
             analysis = self.core.analyze_vocal(audio)
-            analyses.append({"source_id": source["id"], "analysis": analysis})
-            settings = source["settings"]
-            width = min(len(audio), round(float(settings["sample_seconds"]) * self.core.SR))
-            count = int(settings["samples"])
-            # Strata span the entire source. The whole clip is never simply overlaid.
-            starts = np.linspace(0, max(0, len(audio) - width), count, dtype=int)
-            for index, start in enumerate(starts):
-                fragment = audio[start : start + width].copy()
-                fx = {
-                    "pitch": float(settings["pitch"]),
-                    "stretch": float(settings["stretch"]),
-                    "gain": float(settings["gain"]),
-                    "normalize": False,
-                    "trim": False,
-                }
-                transformed = self.core.apply_fx(fragment, fx)
-                transformed = self.core.fade(transformed, 0.01, 0.03)
+            regions, budget = select_regions(audio, self.core.SR, source["settings"], analysis)
+            analyses.append({"source_id": source["id"], "analysis": analysis, "selection": budget})
+            if analysis.get("tempo_confidence", 0) >= 0.25 and analysis.get("tempo_raw"):
+                tempos.append(float(analysis["tempo_raw"]))
+            transformed_samples = []
+            for index, region in enumerate(regions):
+                if canceled():
+                    raise Canceled("Sample transformation canceled")
+                fragment = audio[region["start"] : region["end"]].copy()
+                fx = sample_transform(source["settings"], region, index, rng)
+                transformed = self.core.fade(self.core.apply_fx(fragment, fx), 0.01, 0.03)
                 filename = directory / "samples" / f"{source_index}-{index}.wav"
                 filename.parent.mkdir(exist_ok=True)
                 sf.write(filename, transformed, self.core.SR, subtype="FLOAT")
@@ -331,31 +356,53 @@ class Songs:
                         "id": identifier,
                         "source_id": source["id"],
                         "file": self.relative(filename),
-                        "source_start": int(start),
-                        "source_end": int(start + width),
+                        "source_start": region["start"],
+                        "source_end": region["end"],
+                        "selection": region,
                         "transformation": fx,
                     }
                 )
-                bpm = float(analysis.get("tempo_raw") or 90)
-                beat = self.core.SR * 60 / min(180, max(60, bpm))
-                available = max(0, len(layer) - len(transformed))
-                position = min(available, round(rng.uniform(0, available) / beat) * round(beat))
-                end = min(len(layer), position + len(transformed))
-                layer[position:end] += transformed[: end - position]
+                transformed_samples.append((identifier, transformed))
+                progress(
+                    "Transforming source samples",
+                    (index + 1) / len(regions),
+                    stage="sampling",
+                    source=source_index + 1,
+                    sources_total=len(sources),
+                    units_complete=index + 1,
+                    units_total=len(regions),
+                )
+            source_samples.append(transformed_samples)
+        bpm = min(180, max(60, float(np.median(tempos)) if tempos else 90))
+        for source_index, transformed_samples in enumerate(source_samples):
+            for index, position, gain in positions(
+                len(transformed_samples), source_index, len(sources), len(layer), self.core.SR, bpm
+            ):
+                if canceled():
+                    raise Canceled("Sample arrangement canceled")
+                identifier, transformed = transformed_samples[index]
+                length = min(len(layer) - position, len(transformed))
+                layer[position : position + length] += transformed[:length] * gain
                 placements.append(
                     {
                         "sample_id": identifier,
                         "offset_samples": position,
-                        "length_samples": end - position,
+                        "length_samples": length,
+                        "gain": gain,
                     }
                 )
-                progress(
-                    "Transforming and arranging samples",
-                    (index + 1) / count,
-                    stage="sampling",
-                    source=source_index + 1,
-                    sources_total=len(sources),
-                )
+        peak = float(np.max(np.abs(layer), initial=0))
+        if peak > 0.8:
+            gain = 0.8 / peak
+            layer *= gain
+            for placement in placements:
+                placement["gain"] *= gain
+        for analysis in analyses:
+            analysis["arrangement"] = {
+                "method": "shared-grid-recurring-motifs-v1",
+                "bpm": bpm,
+                "tempo_source": "detected" if tempos else "fallback",
+            }
         return layer, assets, placements, analyses
 
     def generate(self, draft, progress, canceled):
@@ -398,7 +445,7 @@ class Songs:
 
             try:
                 layer, samples, placements, analyses = self.arrange(
-                    current_sources, directory, parameters, item_progress
+                    current_sources, directory, parameters, item_progress, canceled
                 )
                 if draft.get("arrangement"):
                     imported = draft["arrangement"]
@@ -416,7 +463,9 @@ class Songs:
                         sample = next(s for s in samples if s["id"] == placement["sample_id"])
                         fragment = self.core.load(self.asset(sample["file"]))
                         start, length = placement["offset_samples"], placement["length_samples"]
-                        layer[start : start + length] += fragment[:length]
+                        layer[start : start + length] += fragment[:length] * placement.get(
+                            "gain", 1
+                        )
                     reusable = {}
                     for old_sample in imported["samples"]:
                         original = self.asset(old_sample["file"])
@@ -443,11 +492,25 @@ class Songs:
                             raise ValueError(
                                 "Saved placements exceed the selected duration. Choose a longer duration or a fresh arrangement"
                             )
-                        layer[offset : offset + length] += audio[:length]
+                        layer[offset : offset + length] += audio[:length] * old_placement.get(
+                            "gain", 1
+                        )
                         placements.append({**old_placement, "sample_id": sample["id"]})
+                mode = generation_mode(draft, self.models, bool(samples))
+                parameters.update(mode)
+                arrangement_file = directory / "sample-arrangement.wav"
+                sf.write(arrangement_file, layer, self.core.SR, subtype="FLOAT")
+                if mode["fallback_reason"]:
+                    item_progress(mode["fallback_reason"], 0, stage="conditioning_fallback")
                 inferred = self.invoke(
                     "generate",
-                    {"parameters": parameters, "output": str(directory / "generated")},
+                    {
+                        "parameters": parameters,
+                        "output": str(directory / "generated"),
+                        "conditioning_audio": str(arrangement_file)
+                        if mode["effective_mode"] == "conditioned"
+                        else None,
+                    },
                     item_progress,
                     canceled,
                 )
@@ -466,7 +529,9 @@ class Songs:
                 musical_file = directory / "musical-parts.wav"
                 sf.write(musical_file, generated, self.core.SR, subtype="FLOAT")
                 item_progress("Mixing and mastering", 0, stage="rendering")
-                mixed = self.core.master(generated + layer)
+                mixed = self.core.master(
+                    generated + layer if mode["effective_mode"] == "postmix" else generated
+                )
                 title = str(draft.get("title", "")).strip()
                 if not title:
                     words = re.findall(
@@ -477,9 +542,13 @@ class Songs:
                     title += f" {index + 1}"
                 recipe = {
                     "op": "song",
-                    "version": 1,
+                    "version": 2,
+                    "render_mode": mode["effective_mode"],
+                    "conditioning_file": self.relative(arrangement_file),
                     "draft": {
                         **copy.deepcopy(draft),
+                        "audio_mode": mode["requested_mode"],
+                        "audio_adherence": mode["audio_adherence"],
                         "clips": [
                             {k: v for k, v in c.items() if k not in {"audio", "key"}}
                             for c in draft.get("clips", [])
@@ -521,6 +590,7 @@ class Songs:
                         "audio": self.media(item["path"]),
                         "download": self.media(mp3),
                         "effective_styles": parameters["effective_styles"],
+                        "generation_mode": mode,
                     }
                 )
             except Canceled:
@@ -559,11 +629,13 @@ class Songs:
             raise ValueError("This song has no reusable sample arrangement")
         audio = self.core.load(self.asset(recipe["musical_file"]))
         samples = {s["id"]: s for s in recipe["samples"]}
-        for placement in recipe["placements"]:
+        for placement in (
+            recipe["placements"] if recipe.get("render_mode", "postmix") == "postmix" else []
+        ):
             fragment = self.core.load(self.asset(samples[placement["sample_id"]]["file"]))
             start = placement["offset_samples"]
             count = min(placement["length_samples"], len(fragment), len(audio) - start)
-            audio[start : start + count] += fragment[:count]
+            audio[start : start + count] += fragment[:count] * placement.get("gain", 1)
         return self.core._new_entry(
             "generated",
             item["name"] + "_rerender",
@@ -598,7 +670,15 @@ class Songs:
                     ]
                 except (KeyError, ValueError):
                     pass
-        for key in ("styles", "lyrics", "title", "options", "clips"):
+        for key in (
+            "styles",
+            "lyrics",
+            "title",
+            "options",
+            "clips",
+            "audio_mode",
+            "audio_adherence",
+        ):
             if key in draft:
                 available[key] = copy.deepcopy(draft[key])
         if recipe.get("sources"):
@@ -625,7 +705,16 @@ class Songs:
             "available": available,
             "unavailable": [
                 key
-                for key in ("clips", "styles", "lyrics", "title", "options", "arrangement")
+                for key in (
+                    "clips",
+                    "styles",
+                    "lyrics",
+                    "title",
+                    "options",
+                    "audio_mode",
+                    "audio_adherence",
+                    "arrangement",
+                )
                 if key not in available
             ],
         }

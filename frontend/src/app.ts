@@ -26,6 +26,8 @@ interface Draft {
   title: string;
   count: number;
   options: Record<string, Value>;
+  audio_mode: 'conditioned' | 'postmix';
+  audio_adherence: number;
   arrangement?: any;
 }
 interface Item {
@@ -53,6 +55,8 @@ const defaults = (): Draft => ({
   styles: '',
   title: '',
   count: 1,
+  audio_mode: 'conditioned',
+  audio_adherence: 75,
   options: {
     gender: '',
     duration: 'auto',
@@ -104,6 +108,10 @@ export class AppComponent {
   tabs = ['Generation', 'Library', 'Vocal FX'];
   tab = 0;
   draft = defaults();
+  get audioConditioningSupported() {
+    const model = this.library.models;
+    return model.choices.some((choice: any) => choice.id === model.selected && choice.conditioning?.includes('cover'));
+  }
   library: any = {
     items: [],
     folders: [],
@@ -550,6 +558,8 @@ export class AppComponent {
           lyrics: 'Lyrics',
           title: 'Title',
           options: 'Generation controls',
+          audio_mode: 'Input audio generation mode',
+          audio_adherence: 'Audio adherence',
           arrangement: 'Sample transformations and placements',
         } as Record<string, string>
       )[key] || key
