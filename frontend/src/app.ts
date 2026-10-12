@@ -141,6 +141,8 @@ export class AppComponent {
   libraryPath = '';
   modelPath = '';
   modelChoice = 'acestep-v15-base';
+  choosingFolder = false;
+  folderChoice: { kind: 'library' | 'model'; path: string; from: string } | null = null;
   presetClip?: Clip;
   reference: any = null;
   referenceFields: Record<string, boolean> = {};
@@ -356,12 +358,18 @@ export class AppComponent {
   }
   openDialog(kind: string) {
     this.dialogKind = kind;
+    if (kind === 'storage') {
+      this.libraryPath = this.library.storage.library_dir;
+      this.modelPath = this.library.storage.model_dir;
+      this.folderChoice = null;
+    }
     this.cdr.detectChanges();
     this.dialog?.nativeElement.showModal();
   }
   closeDialog() {
     this.micSession++;
     this.dialogKind = '';
+    this.folderChoice = null;
     this.stopCapture();
     this.discardTake();
     this.dialog?.nativeElement.close();
@@ -647,27 +655,74 @@ export class AppComponent {
       this.fail(error);
     }
   }
-  async changeStorage(kind: string, mode: string) {
+  async chooseFolder(kind: 'library' | 'model') {
+    if (this.choosingFolder || this.busy) return;
+    this.choosingFolder = true;
+    this.error = '';
     try {
-      await this.submit('storage', {
-        kind,
-        mode,
-        path: kind === 'library' ? this.libraryPath : this.modelPath,
-      });
+      const selection = await this.api('/api/storage/pick', { kind });
+      if (selection.path && this.dialogKind === 'storage')
+        await this.prepareFolder(kind, selection.path);
+    } catch (error) {
+      this.fail(error);
+    } finally {
+      this.choosingFolder = false;
+      this.cdr.markForCheck();
+    }
+  }
+  async prepareFolder(kind: 'library' | 'model', path: string) {
+    try {
+      const storage = (await this.api('/api/library')).storage;
+      const from = kind === 'library' ? storage.library_dir : storage.model_dir;
+      const same = storage.native_folder_picker
+        ? path.replaceAll('\\', '/').replace(/\/+$/, '').toLowerCase() ===
+          from.replaceAll('\\', '/').replace(/\/+$/, '').toLowerCase()
+        : path === from;
+      if (same) return;
+      if (kind === 'library' ? storage.library_has_data : storage.model_has_data) {
+        this.folderChoice = { kind, path, from };
+        this.cdr.detectChanges();
+        document.getElementById('folder-choice-heading')?.focus();
+      } else {
+        await this.applyFolder(kind, path, 'open');
+      }
     } catch (error) {
       this.fail(error);
     }
   }
+  async acceptFolder(mode: 'move' | 'open') {
+    const choice = this.folderChoice;
+    if (!choice || this.busy) return;
+    await this.applyFolder(choice.kind, choice.path, mode);
+  }
+  cancelFolderChoice() {
+    this.folderChoice = null;
+    this.libraryPath = this.library.storage.library_dir;
+    this.modelPath = this.library.storage.model_dir;
+  }
+  async applyFolder(kind: 'library' | 'model', path: string, mode: string) {
+    try {
+      const result = await this.submit('storage', { kind, mode, path });
+      if (result.status === 'complete') {
+        this.libraryPath = this.library.storage.library_dir;
+        this.modelPath = this.library.storage.model_dir;
+        this.folderChoice = null;
+      }
+    } catch (error) {
+      this.fail(error);
+    } finally {
+      this.cdr.markForCheck();
+    }
+  }
   async installModel() {
+    if (
+      this.folderChoice ||
+      this.choosingFolder ||
+      this.modelPath !== this.library.storage.model_dir
+    )
+      return;
     try {
       const choice = this.modelChoice;
-      if (this.modelPath !== this.library.storage.model_dir) {
-        await this.submit('storage', {
-          kind: 'model',
-          mode: 'open',
-          path: this.modelPath,
-        });
-      }
       await this.submit('model_install', { model: choice });
     } catch (error) {
       this.fail(error);

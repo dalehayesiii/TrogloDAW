@@ -1,6 +1,7 @@
 import json
 import subprocess
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -194,3 +195,132 @@ def test_model_reuse_preserves_original_ownership_checksum_and_external_files(co
     assert manifest["files"] == {"managed.bin": checksum}
     remove_owned_models(second.config_path)
     assert managed.read_bytes() == b"user replacement" and external.read_bytes() == b"external"
+
+
+def test_move_models_removes_only_verified_unshared_unchanged_managed_originals(core, tmp_path):
+    manager = Storage(core)
+    old = tmp_path / "models"
+    old.mkdir()
+    manager.preferences["model_dir"] = str(old)
+    paths = {name: old / name for name in ["own.bin", "shared.bin", "changed.bin", "personal.txt"]}
+    for path in paths.values():
+        path.write_bytes(b"original")
+    manager.owned(old, [paths["own.bin"], paths["shared.bin"], paths["changed.bin"]])
+    paths["changed.bin"].write_bytes(b"user replacement")
+    atomic_json(old / ".troglodaw/other.json", {"files": {"shared.bin": "other"}})
+    new = tmp_path / "new models"
+    state = manager.change("model", str(new), "move", lambda *_, **__: None)
+    assert state["model_dir"] == str(new) and state["retained_files"] == 2
+    assert (
+        not paths["own.bin"].exists()
+        and paths["shared.bin"].exists()
+        and paths["changed.bin"].exists()
+    )
+    assert paths["personal.txt"].exists() and not (new / "personal.txt").exists()
+    assert (old / ".troglodaw/other.json").exists() and not (new / ".troglodaw/other.json").exists()
+    assert (new / "own.bin").read_bytes() == b"original"
+    remove_owned_models(manager.config_path)
+    assert not (new / "own.bin").exists() and not (new / "shared.bin").exists()
+    assert (new / "changed.bin").read_bytes() == b"user replacement"
+    assert paths["shared.bin"].exists() and paths["changed.bin"].exists()
+
+
+def test_move_failure_and_preference_commit_failure_keep_original_active(
+    core, tmp_path, monkeypatch
+):
+    monkeypatch.delenv("TROGLODAW_LIBRARY")
+    item = core._new_entry("voice", "Synthetic", core.synth_voice(1), "fixture")
+    manager = Storage(core)
+    old = core.LIB
+
+    def failed_commit():
+        raise OSError("Cannot save preferences")
+
+    monkeypatch.setattr(manager, "persist", failed_commit)
+    with pytest.raises(OSError, match="preferences"):
+        manager.change(
+            "library", str(tmp_path / "failed destination"), "move", lambda *_, **__: None
+        )
+    assert core.LIB == old and Path(item["path"]).is_file()
+    assert manager.preferences.get("library_dir") is None
+
+
+def test_move_retains_a_library_file_changed_after_verification(core, tmp_path, monkeypatch):
+    monkeypatch.delenv("TROGLODAW_LIBRARY")
+    item = core._new_entry("voice", "Synthetic", core.synth_voice(1), "fixture")
+    original = Path(item["path"])
+    manager = Storage(core)
+    new = tmp_path / "moved library"
+
+    def externally_changed(_old, _new, _copied):
+        original.write_bytes(b"external change after copying")
+
+    state = manager.change("library", str(new), "move", lambda *_, **__: None, externally_changed)
+    assert state["retained_files"] == 1 and core.LIB == new
+    assert original.read_bytes() == b"external change after copying"
+    assert Path(core.get_item(item["id"])["path"]).read_bytes().startswith(b"RIFF")
+
+
+def test_custom_replacement_of_a_known_unowned_model_is_preserved(core, tmp_path):
+    manager = Storage(core)
+    old = tmp_path / "original models"
+    old.mkdir()
+    asset = old / "weights.bin"
+    asset.write_bytes(b"custom replacement")
+    manager.preferences["model_dir"] = str(old)
+    manager.model_manifest = {
+        "models": {
+            "base": {"assets": [{"path": "weights.bin", "sha256": "original pinned checksum"}]}
+        }
+    }
+    new = tmp_path / "new models"
+    state = manager.change("model", str(new), "move", lambda *_, **__: None)
+    assert state["retained_files"] == 1 and asset.read_bytes() == b"custom replacement"
+    remove_owned_models(manager.config_path)
+    assert (new / "weights.bin").read_bytes() == b"custom replacement"
+
+
+def test_unreadable_coowner_metadata_preserves_original_models_after_verified_move(core, tmp_path):
+    manager = Storage(core)
+    old = tmp_path / "models"
+    old.mkdir()
+    asset = old / "weights.bin"
+    asset.write_bytes(b"shared perhaps")
+    manager.preferences["model_dir"] = str(old)
+    manager.owned(old, [asset])
+    (old / ".troglodaw/other.json").write_text("corrupted external ownership record")
+    new = tmp_path / "new models"
+    state = manager.change("model", str(new), "move", lambda *_, **__: None)
+    assert manager.models == new and state["retained_files"] > 0
+    assert asset.read_bytes() == (new / "weights.bin").read_bytes() == b"shared perhaps"
+
+
+def test_move_reuses_pinned_runtime_without_this_owners_ready_record(core, tmp_path, monkeypatch):
+    import models
+
+    monkeypatch.setattr(models, "runtime_signature", lambda: "fixturelock000000000")
+    manager = Storage(core)
+    old = tmp_path / "default models"
+    old.mkdir()
+    manager.preferences["model_dir"] = str(old)
+    manager.model_manifest = {"runtime_revision": "pinnedrevision"}
+    code = old / "inference-code/pinnedrevision/engine.py"
+    package = old / "runtime-packages/fixturelock00000/torch.dll"
+    for path in [code, package]:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b"shared pinned runtime")
+    manager.owned(old, [code, package])
+    own = old / ".troglodaw" / (manager.preferences["installation_id"] + ".json")
+    own.rename(old / ".troglodaw/previousinstallation.json")
+    unrelated = old / "runtime-packages/unrelated-version/custom.dll"
+    unrelated.parent.mkdir(parents=True)
+    unrelated.write_bytes(b"leave unrelated version")
+    new = tmp_path / "new models"
+    manager.change("model", str(new), "move", lambda *_, **__: None)
+    assert code.exists() and package.exists()  # The other installation still owns them.
+    assert (new / code.relative_to(old)).read_bytes() == b"shared pinned runtime"
+    assert (new / package.relative_to(old)).read_bytes() == b"shared pinned runtime"
+    assert unrelated.exists() and not (new / unrelated.relative_to(old)).exists()
+    remove_owned_models(manager.config_path)
+    assert not (new / code.relative_to(old)).exists()
+    assert code.exists()

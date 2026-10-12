@@ -58,7 +58,9 @@ Settings > Apps or the Start Menu. Your library is kept. Command line: `%LOCALAP
 Windows SmartScreen may warn because the installer isn't code-signed. Click *More info > Run anyway*.
 
 Open **Settings** before model setup to choose separate library and model folders,
-including a different drive. The default model folder is `Documents\TrogloDAW\models`.
+including a different drive. Windows opens a folder browser. If the current folder
+contains data, choose whether to move it, use the new folder without moving, or cancel.
+The default model folder is `Documents\TrogloDAW\models`.
 Generation uses the verified ACE-Step 1.5 Base model and currently requires a supported
 NVIDIA GPU with 5.5 GiB free VRAM and 12 GiB available RAM. Allow about 19 GB for
 model assets, inference wheels and caches; see the model guide for measured limits.
@@ -85,8 +87,9 @@ You don't need to install ffmpeg separately. A copy comes with the `imageio-ffmp
 ## Where your files live
 
 Source defaults to `library` next to the app; the installer defaults to
-`Documents\TrogloDAW\library`. Settings can open an existing library or copy and
-verify the current library at a new location, retaining the original recovery copy.
+`Documents\TrogloDAW\library`. Settings can use an existing library or move the
+current library to a new folder after copying and verifying it. Shared, changed
+and unrelated files stay at the original location; existing destinations are not overwritten.
 Keep the complete library together so saved recipes and audio remain portable:
 
 ```

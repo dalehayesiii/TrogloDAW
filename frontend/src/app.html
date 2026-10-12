@@ -654,40 +654,105 @@
           0)/1000000000).toFixed(1)}} GB of music weights, plus about 12 GB for inference tools and
           voice analysis.
         </p>
-        <label for="model-location">Model storage folder</label
-        ><input id="model-location" [(ngModel)]="modelPath" />
-        <p class="muted">
-          All models and supporting caches use this location. Choose an absolute local folder with
-          enough free space.
-        </p>
-        <div class="actions">
-          <button type="button" class="primary" (click)="installModel()" [disabled]="busy">
-            Install / verify selected model</button
-          ><button type="button" (click)="changeStorage('model','open')" [disabled]="busy">
-            Use this model folder</button
-          ><button type="button" (click)="changeStorage('model','relocate')" [disabled]="busy">
-            Relocate models here
+        <label for="model-location">Model storage folder</label>
+        <div class="folder-picker-row">
+          <input id="model-location" [value]="modelPath" readonly />
+          @if(library.storage.native_folder_picker){
+          <button
+            type="button"
+            (click)="chooseFolder('model')"
+            [disabled]="busy || choosingFolder || !!folderChoice"
+          >
+            Choose model folder…
           </button>
+          }
         </div>
-        <p>Download destination: {{modelPath}}</p>
+        <p class="muted">
+          All models and supporting caches use this location. Choose a folder with enough free
+          space.
+        </p>
+        @if(!library.storage.native_folder_picker){
+        <details>
+          <summary>Set folder path on this platform</summary>
+          <label for="manual-model-location">Manual model folder path</label
+          ><input id="manual-model-location" [(ngModel)]="modelPath" />
+          <button
+            type="button"
+            (click)="prepareFolder('model',modelPath)"
+            [disabled]="busy || !!folderChoice"
+          >
+            Use model folder
+          </button>
+        </details>
+        }
+        <button
+          type="button"
+          class="primary"
+          (click)="installModel()"
+          [disabled]="busy || choosingFolder || !!folderChoice || modelPath!==library.storage.model_dir"
+        >
+          Install / verify selected model
+        </button>
       </div>
       <details class="group">
         <summary>Library storage</summary>
-        <p>
-          The complete library stays together. Relocation copies and verifies it, retaining the
-          original as a recovery copy.
+        <p>Your songs, original inputs and saved recipes stay together.</p>
+        <label for="library-location">Library folder</label>
+        <div class="folder-picker-row">
+          <input id="library-location" [value]="libraryPath" readonly />
+          @if(library.storage.native_folder_picker){
+          <button
+            type="button"
+            (click)="chooseFolder('library')"
+            [disabled]="busy || choosingFolder || !!folderChoice"
+          >
+            Choose library folder…
+          </button>
+          }
+        </div>
+        @if(!library.storage.native_folder_picker){
+        <details>
+          <summary>Set folder path on this platform</summary>
+          <label for="manual-library-location">Manual library folder path</label
+          ><input id="manual-library-location" [(ngModel)]="libraryPath" />
+          <button
+            type="button"
+            (click)="prepareFolder('library',libraryPath)"
+            [disabled]="busy || !!folderChoice"
+          >
+            Use library folder
+          </button>
+        </details>
+        }
+      </details>
+      @if(choosingFolder){
+      <p role="status">
+        Choose a folder in the Windows dialog, or cancel to keep the current location.
+      </p>
+      } @if(folderChoice;as choice){
+      <section class="group folder-choice" aria-labelledby="folder-choice-heading">
+        <h3 id="folder-choice-heading" tabindex="-1">
+          Move existing {{choice.kind==='model' ? 'models' : 'library data'}}?
+        </h3>
+        <p>Existing data was found at <span class="storage-destination">{{choice.from}}</span>.</p>
+        <p>New folder: <span class="storage-destination">{{choice.path}}</span></p>
+        <p class="muted">
+          Moved data is verified first. Shared, changed and unrelated files stay at the original
+          location.
         </p>
-        <label for="library-location">Library folder</label
-        ><input id="library-location" [(ngModel)]="libraryPath" />
         <div class="actions">
-          <button type="button" (click)="changeStorage('library','open')" [disabled]="busy">
-            Open this library</button
-          ><button type="button" (click)="changeStorage('library','relocate')" [disabled]="busy">
-            Relocate current library here
+          <button type="button" class="primary" (click)="acceptFolder('move')" [disabled]="busy">
+            Move existing data
+          </button>
+          <button type="button" (click)="acceptFolder('open')" [disabled]="busy">
+            Use folder without moving
+          </button>
+          <button type="button" (click)="cancelFolderChoice()" [disabled]="busy">
+            Cancel folder change
           </button>
         </div>
-      </details>
-      @for(job of jobs;track job.id){@if(active(job) && (job.action==='model_install' ||
+      </section>
+      } @for(job of jobs;track job.id){@if(active(job) && (job.action==='model_install' ||
       job.action==='storage')){
       <troglodaw-job-status [job]="job" (cancelRequested)="cancel(job)" />}}
       <button type="button" (click)="closeDialog()">
