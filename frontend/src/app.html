@@ -81,6 +81,13 @@
   <p class="error-banner" role="alert">{{error}}</p>
   } @if (status) {
   <p class="status-line" role="status">{{status}}</p>
+  } @if(jobs.length){
+  <aside class="job-panel" aria-label="Processing jobs">
+    @for(job of jobs;track job.id){@if(active(job) || job.status==='failed' ||
+    job.status==='canceled'){
+    <troglodaw-job-status [job]="job" (cancelRequested)="cancel(job)" />
+    }}
+  </aside>
   }
   <div class="content flex-1">
     <section role="tabpanel" id="panel-0" aria-labelledby="tab-0" [hidden]="tab!==0">
@@ -601,21 +608,6 @@
       }
     </section>
   </div>
-  @if(jobs.length){
-  <aside class="job-panel" aria-label="Processing jobs">
-    @for(job of jobs;track job.id){@if(active(job) || job.status==='failed' ||
-    job.status==='canceled'){
-    <div class="job">
-      <p role="status">{{job.message}} · {{job.status}}</p>
-      @if(active(job)){<label [for]="'progress-'+job.id">Current stage progress</label
-      ><progress [id]="'progress-'+job.id" [value]="job.progress" max="1"></progress
-      ><button type="button" (click)="cancel(job)">Cancel</button>}@if(job.items_total){
-      <p>{{job.items_complete || 0}} of {{job.items_total}} songs complete</p>
-      }
-    </div>
-    }}
-  </aside>
-  }
   <footer>
     <span class="footer-mark"><span aria-hidden="true">◈</span> Made here. Kept here.</span>
     <button type="button" (click)="refresh()">Refresh library</button
@@ -697,9 +689,7 @@
       </details>
       @for(job of jobs;track job.id){@if(active(job) && (job.action==='model_install' ||
       job.action==='storage')){
-      <p role="status">{{job.message}}</p>
-      <progress [value]="job.progress" max="1" aria-label="Setup progress"></progress
-      ><button type="button" (click)="cancel(job)">Cancel setup</button>}}
+      <troglodaw-job-status [job]="job" (cancelRequested)="cancel(job)" />}}
       <button type="button" (click)="closeDialog()">
         {{library.models.ready ? 'Done' : 'Set up later'}}
       </button>

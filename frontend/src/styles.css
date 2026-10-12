@@ -112,6 +112,68 @@ details.group[open] > * + * {
   display: grid;
   gap: 6px;
 }
+.processing-card {
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--lime-ink);
+  border-radius: 12px;
+  background: var(--surface);
+}
+.processing-card p {
+  margin: 4px 0;
+}
+.processing-card progress {
+  appearance: none;
+  border: 1px solid var(--control-border);
+  background: var(--inset);
+  overflow: hidden;
+}
+.processing-card progress::-webkit-progress-bar {
+  background: var(--inset);
+}
+.processing-card progress::-webkit-progress-value {
+  background: var(--lime-ink);
+}
+.processing-card progress::-moz-progress-bar {
+  background: var(--lime-ink);
+}
+.processing-card progress:indeterminate {
+  background: linear-gradient(
+    100deg,
+    var(--inset) 25%,
+    var(--lime-wash) 45%,
+    var(--lime-ink) 50%,
+    var(--inset) 65%
+  );
+  background-size: 200% 100%;
+  animation: cave-progress 2s linear infinite;
+}
+.processing-card progress:indeterminate::-webkit-progress-bar {
+  background: transparent;
+}
+@keyframes cave-progress {
+  to {
+    background-position: -200% 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .processing-card progress:indeterminate {
+    animation: none;
+  }
+}
+.remaining-times {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.remaining-times p {
+  display: grid;
+  gap: 4px;
+  min-width: 120px;
+}
+.storage-destination {
+  overflow-wrap: anywhere;
+}
 progress {
   width: 100%;
   accent-color: var(--orange);

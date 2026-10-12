@@ -16,6 +16,10 @@ def asset(data):
     }
 
 
+def partial_file(root, data):
+    return root / "cache" / "downloads" / (asset(data)["sha256"] + ".partial")
+
+
 class Response(io.BytesIO):
     def __init__(self, data, status=200):
         super().__init__(data)
@@ -38,8 +42,8 @@ def test_verified_asset_reused_without_network(tmp_path, monkeypatch):
 
 def test_resume_range_and_checksum(tmp_path, monkeypatch):
     data = b"verified weights"
-    partial = tmp_path / "checkpoints" / "weights.bin.partial"
-    partial.parent.mkdir()
+    partial = partial_file(tmp_path, data)
+    partial.parent.mkdir(parents=True)
     partial.write_bytes(data[:5])
 
     def response(request, **_):
@@ -53,8 +57,8 @@ def test_resume_range_and_checksum(tmp_path, monkeypatch):
 
 def test_range_ignored_restarts_safely(tmp_path, monkeypatch):
     data = b"verified weights"
-    partial = tmp_path / "checkpoints" / "weights.bin.partial"
-    partial.parent.mkdir()
+    partial = partial_file(tmp_path, data)
+    partial.parent.mkdir(parents=True)
     partial.write_bytes(data[:5])
     monkeypatch.setattr(models.urllib.request, "urlopen", lambda *_args, **_kwargs: Response(data))
     path, _ = download(asset(data), tmp_path, lambda *_args, **_kwargs: None, lambda: False)
@@ -82,7 +86,7 @@ def test_canceled_download_keeps_partial_for_resume(tmp_path, monkeypatch):
 
     with pytest.raises(Canceled):
         download(asset(data), tmp_path, lambda *_args, **_kwargs: None, canceled)
-    assert (tmp_path / "checkpoints" / "weights.bin.partial").stat().st_size == 1024 * 1024
+    assert partial_file(tmp_path, data).stat().st_size == 1024 * 1024
     assert not (tmp_path / "checkpoints" / "weights.bin").exists()
 
 
@@ -98,6 +102,42 @@ def test_cache_environment_keeps_assets_in_selected_folder(tmp_path):
         "TORCHINDUCTOR_CACHE_DIR",
     ]:
         assert env[key].startswith(str(tmp_path))
+
+
+def test_canceled_partial_is_owned_for_uninstall_while_legacy_partial_is_preserved(
+    core, monkeypatch
+):
+    from storage import Storage, remove_owned_models
+
+    storage = Storage(core)
+    root = storage.models
+    owner = storage.preferences["installation_id"]
+    legacy = root / "checkpoints" / "weights.bin.partial"
+    legacy.parent.mkdir(parents=True)
+    legacy.write_bytes(b"external legacy transfer")
+    data = b"x" * (1024 * 1024 + 1)
+    monkeypatch.setattr(models.urllib.request, "urlopen", lambda *_args, **_kwargs: Response(data))
+    calls = 0
+
+    def canceled():
+        nonlocal calls
+        calls += 1
+        return calls > 1
+
+    with pytest.raises(Canceled):
+        download(
+            asset(data),
+            root,
+            lambda *_args, **_kwargs: None,
+            canceled,
+            owner=owner,
+            record=lambda path: storage.owned(root, [path]),
+        )
+    partial = root / "cache" / owner / "downloads" / (asset(data)["sha256"] + ".partial")
+    assert partial.stat().st_size == 1024 * 1024
+    removed = remove_owned_models(storage.config_path)
+    assert str(partial) in removed["removed"] and not partial.exists()
+    assert legacy.read_bytes() == b"external legacy transfer"
 
 
 def test_existing_different_file_is_preserved(tmp_path):
@@ -121,3 +161,45 @@ def test_runtime_fingerprint_ignores_unrelated_packages_but_tracks_transitive_pi
     assert models.runtime_signature(tmp_path) == first
     lock.write_text(prefix.replace('name="engine"\nversion="1"', 'name="engine"\nversion="2"'))
     assert models.runtime_signature(tmp_path) != first
+
+
+def test_complete_partial_can_finish_offline_with_measured_verification(tmp_path, monkeypatch):
+    data = b"verified weights"
+    partial = partial_file(tmp_path, data)
+    partial.parent.mkdir(parents=True)
+    partial.write_bytes(data)
+    events, owned = [], []
+
+    def no_network(*_, **__):
+        raise AssertionError("A complete verified partial does not need a new download")
+
+    monkeypatch.setattr(models.urllib.request, "urlopen", no_network)
+    path, acquired = download(
+        asset(data),
+        tmp_path,
+        lambda message, fraction=0, **event: events.append(event),
+        lambda: False,
+        record=owned.append,
+    )
+    assert acquired and path.read_bytes() == data and not partial.exists()
+    assert path in owned
+    assert events[0]["units_complete"] == 0
+    assert events[-1]["units_complete"] == len(data)
+    assert all(event["stage"] == "verifying" for event in events)
+
+
+def test_cancel_cached_verification_preserves_existing_asset(tmp_path):
+    data = b"verified weights"
+    path = tmp_path / asset(data)["path"]
+    path.parent.mkdir(parents=True)
+    path.write_bytes(data)
+    events = []
+    with pytest.raises(Canceled, match="verification"):
+        download(
+            asset(data),
+            tmp_path,
+            lambda message, fraction=0, **event: events.append(event),
+            lambda: True,
+        )
+    assert path.read_bytes() == data
+    assert events[0]["stage"] == "verifying" and events[0]["units_complete"] == 0

@@ -41,6 +41,17 @@ Unchecking the option (silent uninstall: `/KEEP_MODELS`) retains assets. Upgrade
 preserve preferences and model files. Setup never recursively deletes the chosen
 model root. Manually changed assets require a separate folder or explicit repair.
 
+## Setup progress and time remaining
+
+Setup reports elapsed time, destination, current-file bytes, resumed bytes, total
+model-file bytes present and verified-file count. During transfer it estimates
+the time remaining for all known model files from actual download speed, with a
+range that adapts as the connection changes. Verification and runtime installation
+remain separate stages; the download estimate does not promise setup is ready.
+Unknown dependency-install work stays indeterminate. Compatible successful local
+runs progressively improve whole-setup estimates. See [progress and measured
+accuracy](progress.md).
+
 ## Validated configuration
 
 Measured on 2026-10-12, Windows, NVIDIA RTX 3070 8 GiB, driver 617.14, ordinary

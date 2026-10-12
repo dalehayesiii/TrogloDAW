@@ -8,6 +8,7 @@ import {
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { AudioComponent, DownloadComponent, Field, FieldComponent, Media, Value } from './controls';
+import { JobStatusComponent, ProcessingJob } from './job-status';
 
 interface Clip {
   key: string;
@@ -39,7 +40,7 @@ interface Item {
   recipe?: any;
   source_type?: string;
 }
-interface Job {
+interface Job extends ProcessingJob {
   id: string;
   action: string;
   status: string;
@@ -99,7 +100,7 @@ export const fxFields: Field[] = [
 
 @Component({
   selector: 'troglodaw-app',
-  imports: [FormsModule, AudioComponent, DownloadComponent, FieldComponent],
+  imports: [FormsModule, AudioComponent, DownloadComponent, FieldComponent, JobStatusComponent],
   templateUrl: './app.html',
 })
 export class AppComponent {
