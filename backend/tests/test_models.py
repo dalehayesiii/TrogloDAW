@@ -1,10 +1,33 @@
 import hashlib
 import io
+import os
+import sys
 
 import pytest
 
 import models
 from models import Canceled, cache_environment, download
+
+
+def test_runtime_installation_reports_safe_package_activity_without_guessing_totals():
+    events = []
+    command = [
+        sys.executable,
+        "-c",
+        "print('Downloading torch (2.5 GiB)'); print('https://example.invalid/private-secret'); print('Downloaded torch'); print('Installed 3 packages in 1s')",
+    ]
+    models.run_setup(
+        command,
+        dict(os.environ),
+        lambda message, fraction=0, **details: events.append({"message": message, **details}),
+        lambda: False,
+    )
+    assert any("Downloading torch (2.5 GiB)" in event["message"] for event in events)
+    assert any("Installed 3 packages" in event["message"] for event in events)
+    assert all("private-secret" not in event["message"] for event in events)
+    assert any(event.get("runtime_running") for event in events)
+    assert events[-1]["runtime_running"] is False
+    assert all("units_total" not in event for event in events)
 
 
 def asset(data):
@@ -203,3 +226,70 @@ def test_cancel_cached_verification_preserves_existing_asset(tmp_path):
         )
     assert path.read_bytes() == data
     assert events[0]["stage"] == "verifying" and events[0]["units_complete"] == 0
+
+
+def test_fresh_install_reuses_retained_assets_and_reports_real_installation_checkpoints(
+    core, monkeypatch
+):
+    import io
+    import zipfile
+    from storage import Storage
+
+    storage = Storage(core)
+    manager = models.Models(storage)
+    archive = io.BytesIO()
+    with zipfile.ZipFile(archive, "w") as zipped:
+        zipped.writestr("revision/acestep/__init__.py", "# Synthetic pinned inference code")
+    code_asset = {**asset(archive.getvalue()), "path": "archives/code.zip"}
+    weight_asset = asset(b"synthetic pinned weights")
+    manager.manifest = {
+        "runtime": code_asset,
+        "runtime_revision": "synthetic-revision",
+        "models": {"fixture": {"name": "Fixture", "assets": [weight_asset]}},
+    }
+    monkeypatch.setattr(models, "runtime_signature", lambda: "synthetic-lock")
+    from types import SimpleNamespace
+
+    monkeypatch.setattr(models.shutil, "disk_usage", lambda _path: SimpleNamespace(free=1024**3))
+    monkeypatch.setattr(models, "run_setup", lambda *args, **kwargs: None)
+
+    def no_network(*args, **kwargs):
+        raise AssertionError("Retained complete pinned files require no network")
+
+    monkeypatch.setattr(models.urllib.request, "urlopen", no_network)
+    for entry, content in [
+        (code_asset, archive.getvalue()),
+        (weight_asset, b"synthetic pinned weights"),
+    ]:
+        path = storage.models / entry["path"]
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(content)
+    packages = storage.models / "runtime-packages/synthetic-lock"
+    packages.mkdir(parents=True)
+    (packages / ".complete").write_text("synthetic-lock")
+    storage.preferences["music_model"] = "fixture"
+    storage.persist()
+    events = []
+    result = manager.install(
+        "fixture", lambda _message, _fraction=0, **event: events.append(event), lambda: False
+    )
+    assert result["ready"]
+    checkpoints = [
+        event["installation_steps_complete"]
+        for event in events
+        if "installation_steps_complete" in event
+    ]
+    assert checkpoints == sorted(checkpoints) and checkpoints[-1] == 8
+    assert events[-1]["installation_steps_total"] == 8
+    assert events[-1]["setup_phase"] == "installation"
+    assert any(event.get("stage") == "verifying" and event.get("units_total") for event in events)
+    # Reinstallation has a new identity, requiring explicit verification rather than trusting the old ready marker.
+    owner = storage.preferences["installation_id"]
+    storage.config_path.unlink()
+    fresh = Storage(core)
+    assert fresh.preferences["installation_id"] != owner and not fresh.describe()["setup_seen"]
+    fresh.preferences["music_model"] = "fixture"
+    reused = models.Models(fresh)
+    reused.manifest = manager.manifest
+    assert reused.ready() is None
+    assert reused.install("fixture", lambda *args, **kwargs: None, lambda: False)["ready"]

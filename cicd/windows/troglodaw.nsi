@@ -173,14 +173,32 @@ Section "Install"
 SectionEnd
 
 Section "Uninstall"
+  nsExec::ExecToLog '"$INSTDIR\python\python.exe" "$INSTDIR\app\backend\storage.py" "$INSTDIR\app\config.local.json" --guard-uninstall'
+  Pop $0
+  ${If} $0 != 0
+    IfSilent +2
+    MessageBox MB_ICONSTOP "Storage safety check could not complete. Your app and data are still present. Move any library/models out of the app's program folders in Settings, then retry uninstall."
+    SetErrorLevel 1
+    Abort
+  ${EndIf}
   !insertmacro StopRunning
   ${If} $RemoveModels == ${BST_CHECKED}
     nsExec::ExecToLog '"$INSTDIR\python\python.exe" "$INSTDIR\app\backend\storage.py" "$INSTDIR\app\config.local.json"'
     Pop $0
     ${If} $0 != 0
+      IfSilent +2
       MessageBox MB_ICONSTOP "Model cleanup could not safely complete. Your app and libraries are still present. Retry uninstall with model removal unchecked to retain the model files."
+      SetErrorLevel 1
       Abort
     ${EndIf}
+  ${EndIf}
+  nsExec::ExecToLog '"$INSTDIR\python\python.exe" "$INSTDIR\app\backend\credentials.py" "$INSTDIR\app\config.local.json"'
+  Pop $0
+  ${If} $0 != 0
+    IfSilent +2
+    MessageBox MB_ICONSTOP "Saved release access could not be removed. Your app and library are still present. Remove saved release access in Settings and retry uninstall."
+    SetErrorLevel 1
+    Abort
   ${EndIf}
   Delete "$DESKTOP\${APPNAME}.lnk"
   Delete "$SMPROGRAMS\${APPNAME}\${APPNAME}.lnk"

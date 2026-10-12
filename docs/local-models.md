@@ -2,7 +2,9 @@
 
 Generation uses ACE-Step 1.5 Base locally. The Windows installer contains the
 browser interface, Python, core DSP and the pinned uv setup tool; it does not
-contain model weights. On first launch, Settings offers explicit model setup.
+contain model weights. First-run setup offers explicit model installation; Settings
+provides the shared folder/model controls afterward. Upgrades reuse setup history;
+fresh reinstalls select retained folders again. See [installation recovery](installation-recovery.md).
 Choose the model folder with **Choose model folder…** before installing. Windows
 opens a native folder browser; cancel keeps the current location. The same controls
 are available later in **Settings**, including **Choose library folder…** under
@@ -53,14 +55,18 @@ model root. Manually changed assets require a separate folder or explicit repair
 
 ## Setup progress and time remaining
 
-Setup reports elapsed time, destination, current-file bytes, resumed bytes, total
-model-file bytes present and verified-file count. During transfer it estimates
-the time remaining for all known model files from actual download speed, with a
-range that adapts as the connection changes. Verification and runtime installation
-remain separate stages; the download estimate does not promise setup is ready.
+The top line shows local start time and combined download/installation remaining time.
+Overall/current-stage bars describe Download until model-file bytes are present, then
+switch to Installation. Download ranges adapt to measured speed; installation counts
+completed verification/runtime checkpoints rather than elapsed-time percentages.
+Destination, current-file bytes, resumption and verified-file count remain visible.
 Unknown dependency-install work stays indeterminate. Compatible successful local
 runs progressively improve whole-setup estimates. See [progress and measured
 accuracy](progress.md).
+
+After starting installation, **Continue in background** closes first-run setup safely.
+Keep the app running; importing, recording, playback, library browsing and draft editing
+remain available. New generation and fresh extraction wait for a ready compatible model.
 
 ![Initial setup with folder browsing and separate model installation](assets/setup-dark.png)
 

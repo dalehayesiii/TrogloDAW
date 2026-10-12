@@ -12,6 +12,8 @@ import tomllib
 import urllib.request
 import uuid
 import zipfile
+import re
+import time
 from pathlib import Path
 
 from storage import atomic_json, digest, safe_file, writable_root
@@ -275,6 +277,9 @@ def run_setup(command, env, progress, canceled, stage="installing"):
         threading.Thread(target=lambda: [lines.put(line) for line in output], daemon=True).start()
         messages = []
         result = None
+        last_activity = time.time()
+        last_report = time.monotonic()
+        activity = "Waiting for runtime tool output"
         while process.poll() is None or not lines.empty():
             if canceled():
                 process.terminate()
@@ -288,9 +293,40 @@ def run_setup(command, env, progress, canceled, stage="installing"):
                     if event["stage"] == "complete":
                         result = event.get("result")
                 else:
-                    progress(stage.replace("_", " ").capitalize(), 0, stage=stage, diagnostic=line)
+                    package = re.fullmatch(
+                        r"(Downloading|Downloaded) ([A-Za-z0-9_.-]+)(?: \(([0-9.]+ [KMGT]i?B)\))?",
+                        line,
+                    )
+                    summary = re.match(r"(Resolved|Prepared|Installed) (\d+) packages?\b", line)
+                    if package or summary:
+                        match = package or summary
+                        assert match is not None
+                        activity = match.group(0) if package else f"{match[1]} {match[2]} packages"
+                        last_activity = time.time()
+                    progress(
+                        stage.replace("_", " ").capitalize() + ": " + activity,
+                        0,
+                        stage=stage,
+                        runtime_running=True,
+                        runtime_activity_at=last_activity,
+                    )
+                    last_report = time.monotonic()
             except queue.Empty:
-                continue
+                if time.monotonic() - last_report >= 5:
+                    progress(
+                        stage.replace("_", " ").capitalize() + ": " + activity,
+                        0,
+                        stage=stage,
+                        runtime_running=True,
+                        runtime_activity_at=last_activity,
+                    )
+                    last_report = time.monotonic()
+        progress(
+            stage.replace("_", " ").capitalize() + ": runtime tool finished",
+            0,
+            stage=stage,
+            runtime_running=False,
+        )
         if process.returncode:
             raise RuntimeError("Inference runtime setup failed: " + "\n".join(messages[-8:]))
         return result
@@ -376,11 +412,41 @@ class Models:
         owner = self.storage.preferences["installation_id"]
         cache = root / "cache" / owner
         before = {p for p in cache.rglob("*") if p.is_file()} if cache.exists() else set()
+        succeeded = False
         try:
-            return self._install(model, progress, canceled)
+            result = self._install(model, progress, canceled)
+            succeeded = True
+            return result
         finally:
+
+            def record_cache(done, total):
+                details = {}
+                if succeeded:
+                    count = (
+                        1
+                        + len(self.manifest["models"][model]["assets"])
+                        + len(self.manifest.get("auxiliary_assets", []))
+                    )
+                    details = {
+                        "setup_phase": "installation",
+                        "installation_steps_complete": count + (6 if done == total else 5),
+                        "installation_steps_total": count + 6,
+                    }
+                progress(
+                    "Recording setup cache for safe uninstall",
+                    done / max(1, total),
+                    stage="registering_cache",
+                    units_complete=done,
+                    units_total=total,
+                    runtime_running=False,
+                    cancel_safe=False,
+                    **details,
+                )
+
             self.storage.owned(
-                root, [p for p in cache.rglob("*") if p.is_file() and p not in before]
+                root,
+                [p for p in cache.rglob("*") if p.is_file() and p not in before],
+                progress=record_cache,
             )
 
     def _install(self, model: str, progress, canceled):
@@ -391,9 +457,14 @@ class Models:
             *self.manifest["models"][model]["assets"],
             *self.manifest.get("auxiliary_assets", []),
         ]
-        root = writable_root(
-            str(self.storage.models), sum(a["bytes"] for a in assets) + 12 * 1024**3
-        )
+        root = writable_root(str(self.storage.models))
+        runtime_lock = runtime_signature()
+        runtime_marker = safe_file(root, "runtime-packages/" + runtime_lock[:16] + "/.complete")
+        reuse_runtime = runtime_marker.is_file() and runtime_marker.read_text() == runtime_lock
+        if runtime_marker.exists() and not reuse_runtime:
+            raise ValueError(
+                "Existing runtime differs from the locked installation. Choose another model folder to preserve it."
+            )
         owned = []
         verified = []
         overall_bytes = sum(a["bytes"] for a in assets)
@@ -408,7 +479,26 @@ class Models:
             present_bytes[asset["path"]] = (
                 min(asset["bytes"], existing.stat().st_size) if existing.is_file() else 0
             )
+        missing = sum(asset["bytes"] - present_bytes[asset["path"]] for asset in assets)
+        writable_root(str(root), missing + (0 if reuse_runtime else 12 * 1024**3) + 512 * 1024**2)
         completed_bytes = 0
+        installation_complete = 0
+        report = progress
+
+        def progress(message, fraction=0, **details):
+            # Count completed verification/runtime checkpoints, never guessed elapsed time.
+            details.setdefault("download_bytes_complete", sum(present_bytes.values()))
+            details.setdefault("download_bytes_total", overall_bytes)
+            details["setup_phase"] = (
+                "download"
+                if sum(present_bytes.values()) < overall_bytes
+                or details.get("stage") == "downloading"
+                else "installation"
+            )
+            details["installation_steps_complete"] = installation_complete
+            details["installation_steps_total"] = len(assets) + 6
+            report(message, fraction, **details)
+
         for index, asset in enumerate(assets):
 
             def asset_progress(message, fraction=0, **details):
@@ -466,6 +556,7 @@ class Models:
                 }
             )
             completed_bytes += asset["bytes"]
+            installation_complete = index + 1
             progress(
                 "Verified model assets",
                 (index + 1) / len(assets),
@@ -484,10 +575,11 @@ class Models:
         code, code_files = unpack_runtime(
             root / self.manifest["runtime"]["path"], root, self.manifest["runtime_revision"]
         )
+        installation_complete += 1
         self.storage.owned(root, code_files)
         if not code_files:
             self.storage.reference(root, [p for p in code.rglob("*") if p.is_file()])
-        lock = runtime_signature()
+        lock = runtime_lock
         packages = root / "runtime-packages" / lock[:16]
         env = cache_environment(root, self.storage.preferences["installation_id"])
         if not (packages / ".complete").exists():
@@ -520,6 +612,7 @@ class Models:
                     canceled,
                     stage="preparing_runtime",
                 )
+                installation_complete += 1
                 packages.mkdir(parents=True, exist_ok=True)
                 run_setup(
                     [
@@ -545,11 +638,26 @@ class Models:
                     canceled,
                 )
                 (packages / ".complete").write_text(lock)
+                installation_complete += 1
             finally:
                 temporary.unlink(missing_ok=True)
-                self.storage.owned(root, [p for p in packages.rglob("*") if p.is_file()])
+                self.storage.owned(
+                    root,
+                    [p for p in packages.rglob("*") if p.is_file()],
+                    progress=lambda done, total: progress(
+                        "Recording installed runtime files for safe uninstall",
+                        done / max(1, total),
+                        stage="registering_runtime",
+                        units_complete=done,
+                        units_total=total,
+                        runtime_running=False,
+                        cancel_safe=False,
+                    ),
+                )
         else:
             self.storage.reference(root, [p for p in packages.rglob("*") if p.is_file()])
+            installation_complete += 2
+        progress("Runtime files prepared", 1, stage="checking_runtime")
         probe = root / "cache" / ("probe-" + uuid.uuid4().hex + ".json")
         atomic_json(probe, {"action": "probe", "packages": str(packages), "code": str(code)})
         try:
@@ -560,6 +668,7 @@ class Models:
                 canceled,
                 stage="checking_runtime",
             )
+            installation_complete += 1
         finally:
             probe.unlink(missing_ok=True)
         state = {
@@ -584,4 +693,8 @@ class Models:
         self.storage.owned(root, [self.state_path(root)])
         self.storage.preferences["music_model"] = model
         self.storage.persist()
+        installation_complete += 1
+        progress(
+            "Model verified and activated", 1, stage="activating", units_complete=1, units_total=1
+        )
         return self.describe()

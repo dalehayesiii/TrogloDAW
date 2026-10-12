@@ -13,8 +13,15 @@ export interface ProcessingJob {
   status: string;
   message: string;
   stage?: string;
+  started_at?: number;
+  setup_phase?: string;
+  installation_steps_complete?: number;
+  installation_steps_total?: number;
   stage_progress?: number | null;
   elapsed_seconds?: number;
+  stage_elapsed_seconds?: number;
+  runtime_running?: boolean;
+  runtime_activity_at?: number;
   queue_wait_seconds?: number;
   queue_remaining?: RemainingRange | null;
   stage_remaining?: RemainingRange | null;
@@ -51,8 +58,49 @@ export interface ProcessingJob {
       </div>
       <p role="status">{{ j.message }}</p>
       @if (active(j)) {
-        <label [for]="progressId">Current stage progress</label>
-        <progress [id]="progressId" [attr.value]="j.stage_progress ?? null" max="1"></progress>
+        @if (j.action === 'model_install') {
+          <p class="setup-timing">
+            Started {{ started(j.started_at) }} · Download + installation:
+            <strong>{{ range(j.request_remaining) }}</strong>
+          </p>
+          <label [for]="progressId + '-overall'">Overall {{ setupPhase(j) }}</label>
+          <progress
+            [id]="progressId + '-overall'"
+            [attr.value]="setupOverall(j)"
+            max="1"
+          ></progress>
+          <p class="muted">
+            {{
+              setupPhase(j) === 'download'
+                ? range(j.download_remaining)
+                : range(j.request_remaining)
+            }}
+          </p>
+          <label [for]="progressId">Current stage {{ setupPhase(j) }}</label>
+          <progress [id]="progressId" [attr.value]="j.stage_progress ?? null" max="1"></progress>
+          <p class="muted">{{ range(j.stage_remaining) }}</p>
+          <p class="muted">Current stage elapsed {{ time(j.stage_elapsed_seconds) }}</p>
+          @if (j.runtime_running) {
+            <p class="muted">
+              Runtime tool is running. New package status may pause during large wheel downloads or
+              import checks.
+              @if (j.runtime_activity_at) {
+                Last package status
+                {{ time((DateNow() - j.runtime_activity_at * 1000) / 1000) }} ago.
+              }
+            </p>
+          }
+          @if (setupPhase(j) === 'installation' && j.installation_steps_total) {
+            <p class="muted">
+              {{ j.installation_steps_complete || 0 }} of
+              {{ j.installation_steps_total }} verification/runtime checkpoints completed.
+              Checkpoints measure completed work, not elapsed time.
+            </p>
+          }
+        } @else {
+          <label [for]="progressId">Current stage progress</label>
+          <progress [id]="progressId" [attr.value]="j.stage_progress ?? null" max="1"></progress>
+        }
         @if (j.units_total && !['downloading', 'verifying'].includes(j.stage || '')) {
           <p class="muted">
             {{ j.units_complete || 0 }} of {{ j.units_total }} {{ unit(j.stage) }}
@@ -70,29 +118,29 @@ export interface ProcessingJob {
               <span class="muted"> · Waited {{ time(j.queue_wait_seconds) }} in queue</span>
             }
           </p>
-          <div class="remaining-times">
-            @if (j.stage === 'downloading' && j.download_bytes_total) {
+          @if (j.action !== 'model_install') {
+            <div class="remaining-times">
               <p>
-                <span class="muted">All model files download</span
-                ><strong>{{ range(j.download_remaining) }}</strong>
+                <span class="muted">This stage</span><strong>{{ range(j.stage_remaining) }}</strong>
               </p>
-            }
-            <p>
-              <span class="muted">This stage</span><strong>{{ range(j.stage_remaining) }}</strong>
-            </p>
-            @if ((j.items_total || 0) > 1) {
+              @if ((j.items_total || 0) > 1) {
+                <p>
+                  <span class="muted">Current song</span
+                  ><strong>{{ range(j.item_remaining) }}</strong>
+                </p>
+              }
               <p>
-                <span class="muted">Current song</span
-                ><strong>{{ range(j.item_remaining) }}</strong>
+                <span class="muted">Whole request</span
+                ><strong>{{ range(j.request_remaining) }}</strong>
               </p>
-            }
-            <p>
-              <span class="muted">Whole request</span
-              ><strong>{{ range(j.request_remaining) }}</strong>
-            </p>
-          </div>
+            </div>
+          }
           <p class="muted" [class.notice]="j.estimate_state === 'taking_longer'">
-            {{ confidence(j.estimate_state) }}
+            {{
+              j.action === 'model_install' && !j.request_remaining
+                ? 'Installation time is still being measured. Download time covers file transfers only; runtime installation and verification follow.'
+                : confidence(j.estimate_state)
+            }}
           </p>
         }
       } @else {
@@ -143,6 +191,9 @@ export interface ProcessingJob {
   }`,
 })
 export class JobStatusComponent {
+  DateNow() {
+    return Date.now();
+  }
   readonly progressId = 'job-progress-' + nextProgressId++;
   readonly job = input.required<ProcessingJob>();
   readonly cancelRequested = output<void>();
@@ -160,6 +211,28 @@ export class JobStatusComponent {
     return value >= 1024 ** 3
       ? `${(value / 1024 ** 3).toFixed(2)} GiB`
       : `${(value / 1024 ** 2).toFixed(1)} MiB`;
+  }
+  started(value?: number) {
+    return value
+      ? new Intl.DateTimeFormat(undefined, { dateStyle: 'short', timeStyle: 'medium' }).format(
+          new Date(value * 1000),
+        )
+      : 'Waiting to start';
+  }
+  setupPhase(job: ProcessingJob) {
+    if (job.setup_phase) return job.setup_phase;
+    return job.download_bytes_total && (job.download_bytes_complete || 0) < job.download_bytes_total
+      ? 'download'
+      : 'installation';
+  }
+  setupOverall(job: ProcessingJob) {
+    const complete =
+      this.setupPhase(job) === 'download'
+        ? job.download_bytes_complete
+        : job.installation_steps_complete;
+    const total =
+      this.setupPhase(job) === 'download' ? job.download_bytes_total : job.installation_steps_total;
+    return total && complete !== undefined ? Math.min(0.99, Math.max(0, complete / total)) : null;
   }
   title(action: string) {
     return (
@@ -184,6 +257,8 @@ export class JobStatusComponent {
           sampling: 'samples',
           rendering: 'segments',
           copying: 'files',
+          registering_cache: 'files',
+          registering_runtime: 'files',
         } as Record<string, string>
       )[stage || ''] || 'work units'
     );

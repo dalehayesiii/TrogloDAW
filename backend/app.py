@@ -29,6 +29,8 @@ from models import Canceled, Models
 from songs import Songs, song_item
 from storage import Storage
 from timing import History, Tracking
+from updates import Updates
+import credentials
 
 FRONTEND = Path(__file__).resolve().parents[1] / "frontend" / "dist" / "browser"
 VOICE_T, MUSIC_T, ANY_T = "voice", "music,generated,mix", "voice,music,generated,mix"
@@ -43,13 +45,23 @@ class FolderRequest(BaseModel):
     kind: Literal["library", "model"]
 
 
+class UpdatePreference(BaseModel):
+    check_on_startup: bool
+
+
+class CaptureState(BaseModel):
+    client_id: str
+    active: bool
+
+
 class MusicService:
     """One processing worker keeps heavy DSP off the HTTP event loop."""
 
-    def __init__(self, core):
+    def __init__(self, core, updates_factory=Updates):
         self.core = core
         self.scratch = tempfile.TemporaryDirectory(prefix="troglodaw-")
         self.pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="troglodaw-dsp")
+        self.setup_pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="troglodaw-setup")
         self.jobs = {}
         self.media = {}
         self.uploads = {}
@@ -61,6 +73,10 @@ class MusicService:
         self.cancel_events = {}
         self.timing = {}
         self.history = History(core.CONFIG_DIR / "timing-history.json")
+        self.updates = updates_factory(self.storage)
+        self.handoff = False
+        self.active_uploads = 0
+        self.recording_leases = {}
 
     def timing_profile(self, action, values):
         import platform
@@ -157,6 +173,8 @@ class MusicService:
             for identifier, job in self.jobs.items():
                 if identifier == jid:
                     break
+                if (job["action"] == "model_install") != (state["action"] == "model_install"):
+                    continue
                 if job["status"] in {"queued", "running"}:
                     if job["status"] == "queued" and self.cancel_events[identifier].is_set():
                         continue
@@ -179,6 +197,7 @@ class MusicService:
 
     def close(self):
         self.pool.shutdown(wait=True)
+        self.setup_pool.shutdown(wait=True)
         self.scratch.cleanup()
 
     def file(self, path):
@@ -239,6 +258,26 @@ class MusicService:
             confirm_hardware=action in {"song_generate", "vocal_prepare", "vocal_render"},
         )
         with self.lock:
+            if self.handoff:
+                raise HTTPException(409, "The app is installing an update")
+            if action in {"storage", "model_install"} and any(
+                job["status"] in {"queued", "running"}
+                and job["action"] == ("model_install" if action == "storage" else "storage")
+                for job in self.jobs.values()
+            ):
+                raise HTTPException(
+                    409, "Finish model installation before changing storage, and vice versa"
+                )
+            if action in {"storage", "model_install"} and self.updates.snapshot()["phase"] in {
+                "downloading",
+                "handoff",
+            }:
+                raise HTTPException(
+                    409, "Wait for the update operation before changing model/storage setup"
+                )
+            if action == "model_install":
+                self.storage.preferences["setup_seen"] = True
+                self.storage.persist()
             self.jobs[jid] = {
                 "status": "queued",
                 "progress": 0,
@@ -251,7 +290,8 @@ class MusicService:
             }
             self.cancel_events[jid] = threading.Event()
             self.timing[jid] = tracker
-        self.pool.submit(self._work, jid, action, values)
+        worker = self.setup_pool if action == "model_install" else self.pool
+        worker.submit(self._work, jid, action, values)
         return {"id": jid}
 
     def _work(self, jid, action, values):
@@ -288,6 +328,8 @@ class MusicService:
                 )
 
         tracker.start()
+        with self.lock:
+            self.jobs[jid]["started_at"] = time.time()
         try:
             progress("Initializing operation", 0, stage="initializing")
             if cancel.is_set():
@@ -492,11 +534,14 @@ class MusicService:
         raise ValueError("Unknown operation")
 
 
-def create_app(core=troglodaw, frontend=FRONTEND, quit_callback=None, folder_picker=None):
-    service = MusicService(core)
+def create_app(
+    core=troglodaw, frontend=FRONTEND, quit_callback=None, folder_picker=None, updates_factory=None
+):
+    service = MusicService(core, updates_factory or Updates)
 
     @asynccontextmanager
     async def lifespan(_app):
+        service.updates.startup()
         yield
         service.close()
 
@@ -515,7 +560,146 @@ def create_app(core=troglodaw, frontend=FRONTEND, quit_callback=None, folder_pic
             from fastapi.responses import JSONResponse
 
             return JSONResponse({"detail": "Missing local request header"}, status_code=403)
-        return await call_next(request)
+        uploading = request.method == "POST" and request.url.path == "/api/uploads"
+        with service.lock:
+            if request.method in {"POST", "PATCH", "DELETE"} and service.handoff:
+                from fastapi.responses import JSONResponse
+
+                return JSONResponse({"detail": "The app is installing an update"}, status_code=409)
+            if uploading:
+                service.active_uploads += 1
+        try:
+            return await call_next(request)
+        finally:
+            if uploading:
+                with service.lock:
+                    service.active_uploads -= 1
+
+    @api.get("/api/updates")
+    def update_status():
+        with service.lock:
+            blocked = bool(
+                service.active_uploads
+                or picker_lock.locked()
+                or any(job["status"] in {"queued", "running"} for job in service.jobs.values())
+                or any(expiry > time.monotonic() for expiry in service.recording_leases.values())
+            )
+            return {
+                **service.updates.snapshot(),
+                "install_allowed": not blocked and not service.handoff,
+            }
+
+    @api.post("/api/updates/preferences")
+    def update_preferences(preference: UpdatePreference):
+        with service.lock:
+            service.storage.preferences["check_updates"] = preference.check_on_startup
+            service.storage.persist()
+        return service.updates.snapshot()
+
+    @api.post("/api/updates/check")
+    def check_updates():
+        try:
+            return service.updates.check()
+        except ValueError as exc:
+            raise HTTPException(409, str(exc)) from exc
+
+    @api.post("/api/updates/access")
+    async def save_release_access(request: Request):
+        # Avoid validation errors echoing a sensitive request field.
+        try:
+            payload = await request.json()
+            token = payload.get("token") if isinstance(payload, dict) else None
+            if not isinstance(token, str):
+                raise ValueError("Enter a GitHub release-access token")
+            credentials.save(token, service.updates.credential_target)
+            service.updates.set_state(saved_access=True)
+            return service.updates.snapshot()
+        except (ValueError, OSError) as exc:
+            raise HTTPException(400, str(exc)) from exc
+
+    @api.post("/api/updates/access/remove")
+    def remove_release_access():
+        try:
+            credentials.remove(service.updates.credential_target)
+            service.updates.set_state(saved_access=False)
+            return service.updates.snapshot()
+        except OSError as exc:
+            raise HTTPException(400, str(exc)) from exc
+
+    @api.post("/api/updates/capture")
+    def report_capture(capture: CaptureState):
+        try:
+            client = uuid.UUID(capture.client_id).hex
+        except ValueError as exc:
+            raise HTTPException(400, "Invalid recording session") from exc
+        with service.lock:
+            now = time.monotonic()
+            service.recording_leases = {
+                key: expiry for key, expiry in service.recording_leases.items() if expiry > now
+            }
+            if capture.active:
+                if len(service.recording_leases) >= 64 and client not in service.recording_leases:
+                    raise HTTPException(409, "Too many active recording sessions")
+                service.recording_leases[client] = now + 30
+            else:
+                service.recording_leases.pop(client, None)
+        return {"message": "Recording state updated"}
+
+    @api.post("/api/updates/download")
+    def download_update():
+        with service.lock:
+            if any(
+                job["status"] in {"queued", "running"}
+                and job["action"] in {"storage", "model_install"}
+                for job in service.jobs.values()
+            ):
+                raise HTTPException(409, "Finish model/storage setup before downloading an update")
+            try:
+                return service.updates.download()
+            except ValueError as exc:
+                raise HTTPException(409, str(exc)) from exc
+
+    @api.post("/api/updates/cancel")
+    def cancel_update():
+        try:
+            return service.updates.cancel()
+        except ValueError as exc:
+            raise HTTPException(409, str(exc)) from exc
+
+    @api.post("/api/updates/apply")
+    def apply_update(request: Request):
+        with service.lock:
+            if (
+                service.active_uploads
+                or picker_lock.locked()
+                or any(job["status"] in {"queued", "running"} for job in service.jobs.values())
+                or any(expiry > time.monotonic() for expiry in service.recording_leases.values())
+            ):
+                raise HTTPException(
+                    409,
+                    "Finish processing, uploads and folder selection, and stop recordings in all app tabs before updating",
+                )
+            service.handoff = True
+            try:
+                host = request.url.hostname
+                if host not in {"127.0.0.1", "localhost", "::1"}:
+                    raise ValueError("Open the app on localhost before installing an update")
+                result = service.updates.apply(
+                    pid=os.getpid(), host=host, port=request.url.port or 80
+                )
+            except (ValueError, OSError) as exc:
+                service.handoff = False
+                raise HTTPException(409, str(exc)) from exc
+            callback = quit_callback or (lambda: os._exit(0))
+            threading.Timer(0.8, callback).start()
+            return result
+
+    @api.post("/api/setup/acknowledge")
+    def acknowledge_setup():
+        with service.lock:
+            service.storage.preferences["setup_seen"] = True
+            service.storage.persist()
+        return {"message": "Setup can be resumed from Settings"}
 
     @api.get("/api/library")
     def library():
@@ -579,8 +763,11 @@ def create_app(core=troglodaw, frontend=FRONTEND, quit_callback=None, folder_pic
 
     @api.post("/api/storage/pick")
     def select_folder(selection: FolderRequest):
-        if not picker_lock.acquire(blocking=False):
-            raise HTTPException(409, "A folder picker is already open")
+        with service.lock:
+            if service.handoff:
+                raise HTTPException(409, "The app is installing an update")
+            if not picker_lock.acquire(blocking=False):
+                raise HTTPException(409, "A folder picker is already open")
         try:
             initial = str(service.storage.models if selection.kind == "model" else core.LIB)
             return {"path": pick_folder(initial, f"Choose {selection.kind} storage folder")}
@@ -658,6 +845,8 @@ def create_app(core=troglodaw, frontend=FRONTEND, quit_callback=None, folder_pic
             "application": "troglodaw",
             "product": "TrogloDAW",
             "frontend": (Path(frontend) / "index.html").is_file(),
+            "version": service.updates.identity["version"],
+            "sha": service.updates.identity["sha"],
         }
 
     if Path(frontend).is_dir():

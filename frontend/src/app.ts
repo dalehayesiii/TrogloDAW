@@ -7,6 +7,7 @@ import {
   inject,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { NgTemplateOutlet } from '@angular/common';
 import { AudioComponent, DownloadComponent, Field, FieldComponent, Media, Value } from './controls';
 import { JobStatusComponent, ProcessingJob } from './job-status';
 
@@ -100,7 +101,14 @@ export const fxFields: Field[] = [
 
 @Component({
   selector: 'troglodaw-app',
-  imports: [FormsModule, AudioComponent, DownloadComponent, FieldComponent, JobStatusComponent],
+  imports: [
+    FormsModule,
+    NgTemplateOutlet,
+    AudioComponent,
+    DownloadComponent,
+    FieldComponent,
+    JobStatusComponent,
+  ],
   templateUrl: './app.html',
 })
 export class AppComponent {
@@ -126,8 +134,15 @@ export class AppComponent {
   results: any[] = [];
   error = '';
   status = '';
+  private statusTimer?: ReturnType<typeof setTimeout>;
   stopped = false;
   quitting = false;
+  update: any = { phase: 'idle', version: '0.0.0', supported: false };
+  updateToken = '';
+  updateHandoff = false;
+  private updateTimer?: ReturnType<typeof setTimeout>;
+  private captureTimer?: ReturnType<typeof setInterval>;
+  private captureClient = crypto.randomUUID();
   dialogKind = '';
   selectedSong = '';
   libraryAudio: Media | null = null;
@@ -144,7 +159,11 @@ export class AppComponent {
   modelPath = '';
   modelChoice = 'acestep-v15-base';
   choosingFolder = false;
-  folderChoice: { kind: 'library' | 'model'; path: string; from: string } | null = null;
+  folderChoice: {
+    kind: 'library' | 'model';
+    path: string;
+    from: string;
+  } | null = null;
   presetClip?: Clip;
   reference: any = null;
   referenceFields: Record<string, boolean> = {};
@@ -205,10 +224,11 @@ export class AppComponent {
       this.jobs = (await this.api('/api/jobs')).jobs;
       for (const job of this.jobs) {
         if (this.active(job)) void this.poll(job.id).catch((error) => this.fail(error));
-        else if (job.status === 'complete') this.receive(job);
+        else if (job.status === 'complete') this.receive(job, false);
       }
       await this.hydrateClips();
-      if (!this.library.models.ready) this.openDialog('storage');
+      if (!this.library.storage.setup_seen) this.openDialog('setup');
+      void this.refreshUpdates();
     } catch (error) {
       this.fail(error);
     }
@@ -235,9 +255,21 @@ export class AppComponent {
     this.error = error instanceof Error ? error.message : String(error);
     this.cdr.markForCheck();
   }
+  notify(message: string) {
+    this.dismissStatus();
+    this.status = message;
+    this.statusTimer = setTimeout(() => this.dismissStatus(), 8000);
+    this.cdr.markForCheck();
+  }
+  dismissStatus() {
+    if (this.statusTimer) clearTimeout(this.statusTimer);
+    this.statusTimer = undefined;
+    this.status = '';
+    this.cdr.markForCheck();
+  }
   async refresh() {
     this.library = await this.api('/api/library');
-    if (this.dialogKind !== 'storage') {
+    if (!['storage', 'setup'].includes(this.dialogKind) || !this.libraryPath || !this.modelPath) {
       this.libraryPath = this.library.storage.library_dir;
       this.modelPath = this.library.storage.model_dir;
       this.modelChoice = this.library.models.selected;
@@ -253,7 +285,16 @@ export class AppComponent {
     return ['queued', 'running'].includes(job.status);
   }
   get busy() {
-    return this.audioImports > 0 || this.jobs.some((job) => this.active(job));
+    return (
+      this.audioImports > 0 ||
+      this.jobs.some((job) => this.active(job) && job.action !== 'model_install')
+    );
+  }
+  get installingModel() {
+    return this.jobs.some((job) => job.action === 'model_install' && this.active(job));
+  }
+  get storageBusy() {
+    return this.busy || this.installingModel;
   }
   get songs(): Item[] {
     return this.library.items.filter((item: Item) => ['generated', 'mix'].includes(item.type));
@@ -302,7 +343,7 @@ export class AppComponent {
       this.polling.delete(id);
     }
   }
-  receive(job: Job) {
+  receive(job: Job, announce = true) {
     const result = job.result;
     if (!result) return;
     if (job.action === 'song_generate') this.results = result.outcomes || [];
@@ -326,7 +367,7 @@ export class AppComponent {
         this.fxSongId = result.song.id;
       }
     }
-    this.status = result.message || '';
+    if (announce && result.message) this.notify(result.message);
     this.cdr.markForCheck();
   }
   async cancel(job: Job) {
@@ -359,8 +400,9 @@ export class AppComponent {
     }
   }
   openDialog(kind: string) {
+    if (['storage', 'setup'].includes(kind) && !this.library.storage.library_dir) return;
     this.dialogKind = kind;
-    if (kind === 'storage') {
+    if (['storage', 'setup'].includes(kind)) {
       this.libraryPath = this.library.storage.library_dir;
       this.modelPath = this.library.storage.model_dir;
       this.folderChoice = null;
@@ -368,7 +410,17 @@ export class AppComponent {
     this.cdr.detectChanges();
     this.dialog?.nativeElement.showModal();
   }
-  closeDialog() {
+  async closeDialog() {
+    if (this.dialogKind === 'setup') {
+      try {
+        await this.api('/api/setup/acknowledge', {});
+        this.library.storage.setup_seen = true;
+      } catch (error) {
+        this.fail(error);
+        return;
+      }
+    }
+    this.updateToken = '';
     this.micSession++;
     this.dialogKind = '';
     this.folderChoice = null;
@@ -403,24 +455,31 @@ export class AppComponent {
     }
   }
   async acceptFile(file: File, type: string, replace = -1) {
-    const uploaded = await this.upload(file);
-    const job = await this.submit('accept_audio', {
-      uploads: [uploaded.id],
-      source_type: type,
-    });
-    const accepted = job.result.accepted[0];
-    const clip: Clip = {
-      key: crypto.randomUUID(),
-      id: accepted.item.id,
-      label: accepted.item.name,
-      source_type: type,
-      audio: accepted.audio,
-      settings: {},
-    };
-    if (replace >= 0) this.draft.clips[replace] = clip;
-    else this.draft.clips.push(clip);
-    this.saveDraft();
-    this.cdr.markForCheck();
+    this.audioImports++;
+    try {
+      await this.reportActivity();
+      const uploaded = await this.upload(file);
+      const job = await this.submit('accept_audio', {
+        uploads: [uploaded.id],
+        source_type: type,
+      });
+      const accepted = job.result.accepted[0];
+      const clip: Clip = {
+        key: crypto.randomUUID(),
+        id: accepted.item.id,
+        label: accepted.item.name,
+        source_type: type,
+        audio: accepted.audio,
+        settings: {},
+      };
+      if (replace >= 0) this.draft.clips[replace] = clip;
+      else this.draft.clips.push(clip);
+      this.saveDraft();
+      this.cdr.markForCheck();
+    } finally {
+      this.audioImports--;
+      void this.reportActivity().catch(() => {});
+    }
   }
   async replaceFile(event: Event, index: number) {
     const input = event.target as HTMLInputElement;
@@ -658,12 +717,12 @@ export class AppComponent {
     }
   }
   async chooseFolder(kind: 'library' | 'model') {
-    if (this.choosingFolder || this.busy) return;
+    if (this.choosingFolder || this.storageBusy) return;
     this.choosingFolder = true;
     this.error = '';
     try {
       const selection = await this.api('/api/storage/pick', { kind });
-      if (selection.path && this.dialogKind === 'storage')
+      if (selection.path && ['storage', 'setup'].includes(this.dialogKind))
         await this.prepareFolder(kind, selection.path);
     } catch (error) {
       this.fail(error);
@@ -694,7 +753,7 @@ export class AppComponent {
   }
   async acceptFolder(mode: 'move' | 'open') {
     const choice = this.folderChoice;
-    if (!choice || this.busy) return;
+    if (!choice || this.storageBusy) return;
     await this.applyFolder(choice.kind, choice.path, mode);
   }
   cancelFolderChoice() {
@@ -746,6 +805,7 @@ export class AppComponent {
         throw new Error(
           'Recording needs a supported browser on localhost or a secure connection. Upload an audio file instead.',
         );
+      await this.reportActivity();
       const capture = await navigator.mediaDevices.getUserMedia({
         audio: true,
       });
@@ -808,6 +868,7 @@ export class AppComponent {
       );
     } finally {
       this.requestingMic = false;
+      void this.reportActivity().catch(() => {});
       this.cdr.markForCheck();
     }
   }
@@ -816,6 +877,7 @@ export class AppComponent {
     this.capture?.getTracks().forEach((track) => track.stop());
     this.capture = undefined;
     this.recording = false;
+    void this.reportActivity().catch(() => {});
   }
   discardTake() {
     if (this.takeUrl) URL.revokeObjectURL(this.takeUrl);
@@ -835,6 +897,99 @@ export class AppComponent {
     this.micSession++;
     this.stopCapture();
     this.discardTake();
+    if (this.updateTimer) clearTimeout(this.updateTimer);
+  }
+  async reportActivity() {
+    const active = this.recording || this.requestingMic || this.audioImports > 0;
+    if (active && !this.captureTimer) {
+      this.captureTimer = setInterval(() => void this.reportActivity().catch(() => {}), 5000);
+    } else if (!active && this.captureTimer) {
+      clearInterval(this.captureTimer);
+      this.captureTimer = undefined;
+    }
+    await fetch('/api/updates/capture', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-TrogloDAW-Request': '1',
+      },
+      body: JSON.stringify({ client_id: this.captureClient, active }),
+      keepalive: !active,
+    }).then(async (response) => {
+      if (!response.ok && active)
+        throw new Error(
+          (await response.json()).detail || 'The app is not accepting recordings or uploads.',
+        );
+    });
+  }
+  get updateBusy() {
+    return ['checking', 'downloading', 'handoff', 'waiting', 'installing', 'restarting'].includes(
+      this.update.phase,
+    );
+  }
+  get canInstallUpdate() {
+    return (
+      this.update.phase === 'ready' &&
+      this.update.install_allowed !== false &&
+      !this.busy &&
+      !this.recording &&
+      !this.requestingMic &&
+      !this.choosingFolder
+    );
+  }
+  async refreshUpdates() {
+    if (this.updateTimer) clearTimeout(this.updateTimer);
+    try {
+      const next = await this.api('/api/updates');
+      if (this.updateHandoff && !next.helper && next.version === this.update.available_version) {
+        window.location.reload();
+        return;
+      }
+      this.update = next;
+    } catch {
+      // A brief listener change is expected during the installer handoff.
+    } finally {
+      this.cdr.markForCheck();
+      if (!this.stopped && this.update.phase !== 'source')
+        this.updateTimer = setTimeout(
+          () => void this.refreshUpdates(),
+          this.updateBusy || this.update.phase === 'ready' ? 700 : 10000,
+        );
+    }
+  }
+  async updateAction(action: string, values: any = {}) {
+    try {
+      this.update = await this.api('/api/updates/' + action, values);
+      void this.refreshUpdates();
+    } catch (error) {
+      this.fail(error);
+    }
+  }
+  async saveUpdateAccess() {
+    try {
+      await this.updateAction('access', { token: this.updateToken });
+    } finally {
+      this.updateToken = '';
+    }
+  }
+  openUpdates() {
+    this.openDialog('storage');
+    document.getElementById('app-updates')?.setAttribute('open', '');
+  }
+  async installUpdate() {
+    if (!this.canInstallUpdate) return;
+    try {
+      this.update = await this.api('/api/updates/apply', {});
+      this.cleanup();
+      document.querySelectorAll('audio').forEach((audio) => audio.pause());
+      this.closeDialog();
+      this.updateHandoff = true;
+      this.cdr.markForCheck();
+      requestAnimationFrame(() => document.getElementById('update-heading')?.focus());
+      void this.refreshUpdates();
+    } catch (error) {
+      this.fail(error);
+    }
   }
   toggleTheme() {
     this.appearance = this.theme === 'light' ? 'dark' : 'light';
