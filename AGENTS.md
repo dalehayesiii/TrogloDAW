@@ -7,8 +7,9 @@
   `refactor`, `style`, `test`, `chore`, `revert`). Use `!` for breaking code changes.
   `docs:` may contain only documentation and cannot declare breaking changes.
 - Run the checks in `docs/development.md`, push, open the PR, and monitor Actions.
-  Fix failures until `Required checks` passes on the latest revision. Pending,
-  skipped, cancelled, or absent required checks do not count as passing.
+  Fix failures until all required jobs pass on the latest revision. Pending,
+  cancelled, failed or absent required checks do not count as passing. Only the
+  documented docs-only skips are expected; other skips must be investigated.
 - Keep the PR open unless merging is authorized. If authorized, ensure it is current
   with main and all checks pass, then squash merge with the exact validated PR title
   and preserve any `BREAKING CHANGE:` footer in the body. Never bypass protection.
@@ -44,8 +45,9 @@
 - Use synthetic audio and temporary libraries in tests. Never commit personal audio,
   catalogs, local configs, credentials, installers or caches.
 - Manage Python dependencies in pyproject.toml with uv.lock; use uv sync --locked.
-  Keep the exported requirements.txt aligned with uv.lock. Keep CI Python aligned with the
-  embedded Windows runtime. Keep release credentials out of PR jobs.
+  Do not track or ship requirements.txt exports; Windows packaging generates a temporary
+  hashed export from uv.lock. Keep CI Python aligned with the embedded Windows runtime.
+  Keep release credentials out of PR jobs.
 - Keep code under frontend/ and backend/, helper/setup scripts under scripts/,
   development configuration under config/, packaging assets under cicd/, and
   non-OpenSpec documentation under docs/. Root standard manifests/instructions
@@ -53,3 +55,8 @@
 - Run Ruff, ty and pytest for Python; ESLint, Vitest, strict Angular compilation
   and Playwright against the real backend for the frontend. Preserve the initial
   Gradio appearance and behavior; any redesign belongs in a separate PR.
+- Follow the CI order in docs/ci.md: title gate, parallel Python/Angular, integration
+  and specs, Windows build/installed tests, then main-only semantic-release.
+  Use maintained tools for generic checks and explicit released action versions.
+  Custom scripts must cover documented app-specific contracts. Do not calculate
+  release versions independently of semantic-release or rebuild checked frontend assets.

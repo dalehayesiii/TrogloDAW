@@ -13,7 +13,7 @@ in a library folder with a catalog of "recipes", so any mix can be re-rendered o
 Run **`MusicMaker-Setup.exe`**. Python is included and no admin rights are needed. It installs to
 `%LOCALAPPDATA%\MusicMaker`, adds **Music Maker** to the Desktop and Start Menu, and keeps your files in
 `Documents\MusicMaker\library` (set in `%LOCALAPPDATA%\MusicMaker\app\config.json`). The app opens in your browser
-and has no console window. Use the **Quit Music Maker** button on the Library tab to stop it. Uninstall from
+and has no console window. Use the **Quit Music Maker** button in Library inside AI Producer to stop it. Uninstall from
 Settings > Apps or the Start Menu. Your library is kept. Command line: `%LOCALAPPDATA%\MusicMaker\mm.bat <command>`.
 Windows SmartScreen may warn because the installer isn't code-signed. Click *More info > Run anyway*.
 
@@ -138,18 +138,20 @@ Each mix stores `voice_id`, `music_id`, and every setting. `remix` loads that re
 (you can even swap the voice or the music), renders a new mix, and records the `parent`. Generated beats store
 their seed, so `rerender` reproduces them exactly.
 
-## Building the Windows installer (from Linux)
+## Building the Windows installer
 
 Run `uv sync --locked`, `npm ci --ignore-scripts`, and `npm run build` first.
 `scripts/windows/build.sh` makes a self-contained `MusicMaker-Setup.exe` with embedded
 Python, locked Windows wheels, bundled ffmpeg and the compiled Angular UI. It needs
-Linux `makensis` (`apt install nsis`), `curl` and `unzip`. No Windows machine is needed to build;
-CI installs and functionally tests the result on Windows before any release.
+NSIS (`apt install nsis` on Linux or `choco install nsis --version=3.11.0` on Windows),
+Python and `curl`; Windows uses Git Bash. Linux cross-builds remain supported.
+CI builds and tests the installed EXE together on Windows before any release.
 Paths come from the `build` section of `config.local.json` (or `MM_BUILD_*` env vars):
 `venv`, `work_dir`, `cache_dir`, `output`, `parts_dir` (optional 15 MB split), `python_embed_version`.
 Installer target paths are in the `windows` section (`install_dir`, `library_dir`, as NSIS variables).
 `scripts/windows/wine_test.sh` provides the original optional Wine smoke test.
 Packaging assets are under `cicd/windows/`; installer versions come from semantic-release.
+See [CI workflow and tool rationale](docs/ci.md).
 
 ## Limitations (v1)
 

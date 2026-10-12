@@ -21,3 +21,8 @@ remaining upstream packages. Its force suggestion downgrades semantic-release to
 only GitHub assets publish. Do not describe the full audit as clean or make its
 known upstream findings an unpassable required check. Revisit when upstream fixes
 ship, with locked updates and the same build/test coverage.
+
+The 2026-10-12 CI cleanup adds the official semantic-release exec plugin and pins
+the Conventional Commits preset to 9.3.1, compatible with the release-note writer.
+Actual rendered notes are now tested. At this update the full tooling audit reports
+15 affected packages (13 high, 2 moderate); production npm audit remains clean.

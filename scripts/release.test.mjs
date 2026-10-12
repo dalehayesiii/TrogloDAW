@@ -1,33 +1,46 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { planRelease } from './release-plan.mjs';
+import { analyzeCommits } from '@semantic-release/commit-analyzer';
+import { generateNotes } from '@semantic-release/release-notes-generator';
+import { analyzerOptions, notesOptions } from '../config/release.config.mjs';
 import { assertBuild } from './release-guard.mjs';
 
-const commits = (...messages) => messages.map((message) => ({ message, hash: 'test' }));
-for (const [message, expected] of [
-  ['feat: add stems', '1.3.0'],
-  ['fix: repair playback', '1.2.4'],
-  ['perf: speed up synthesis', '1.2.4'],
-  ['feat!: replace catalog format', '2.0.0'],
-  ['fix: change output\n\nBREAKING CHANGE: output is mono', '2.0.0'],
-  ['docs: describe installation', ''],
-  ['docs!: revise the guide', ''],
-  ['docs: rewrite\n\nBREAKING CHANGE: documentation moved', ''],
-  ['chore: refresh tooling', ''],
-  ['refactor: simplify rendering', ''],
-  ['test: cover recipes', ''],
-]) {
-  test(message, async () => assert.equal(await planRelease(commits(message), '1.2.3'), expected));
-}
-test('first eligible release starts at 1.0.0', async () => {
-  assert.equal(await planRelease(commits('feat: add release tooling')), '1.0.0');
-  assert.equal(await planRelease(commits('docs: explain releases')), '');
+const logger = { log() {}, error() {} };
+const commits = (...messages) =>
+  messages.map((message, index) => ({ message, hash: String(index + 1).padStart(40, '0') }));
+test('docs never trigger a release, including breaking descriptions', async () => {
+  for (const message of [
+    'docs: explain releases',
+    'docs!: change docs',
+    'docs: guide\n\nBREAKING CHANGE: guide moved',
+  ]) {
+    assert.equal(
+      await analyzeCommits(analyzerOptions, { commits: commits(message), logger }),
+      null,
+    );
+  }
 });
 test('documentation does not suppress another pending feature', async () => {
   assert.equal(
-    await planRelease(commits('docs: guide', 'fix: repair FX', 'feat: mixer'), '1.2.3'),
-    '1.3.0',
+    await analyzeCommits(analyzerOptions, {
+      commits: commits('docs: guide', 'fix: repair FX', 'feat: mixer'),
+      logger,
+    }),
+    'minor',
   );
+});
+test('release notes cover maintenance and code changes between release tags', async () => {
+  const types = notesOptions.presetConfig.types.map(({ type }) => type);
+  const notes = await generateNotes(notesOptions, {
+    cwd: process.cwd(),
+    logger,
+    options: { repositoryUrl: 'https://github.com/dalehayesiii/music-maker' },
+    commits: commits(...types.map((type) => `${type}: change for ${type}`)),
+    lastRelease: { version: '1.2.3', gitTag: 'v1.2.3' },
+    nextRelease: { version: '1.3.0', gitTag: 'v1.3.0' },
+  });
+  for (const type of types) assert.ok(notes.includes(`change for ${type}`), type);
+  assert.ok(notes.includes('/compare/v1.2.3...v1.3.0'));
 });
 test('release guard rejects stale or substituted builds', () => {
   const manifest = { version: '1.0.0', sha: 'abc', sha256: '123' };

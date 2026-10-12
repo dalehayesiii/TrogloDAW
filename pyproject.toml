@@ -30,6 +30,8 @@ addopts = "-ra"
 [tool.ruff]
 target-version = "py312"
 line-length = 100
+extend-exclude = ["scripts/windows/work", "scripts/windows/cache"]
+force-exclude = true
 
 [tool.ruff.lint]
 # Establish correctness checks without a wholesale rewrite of the original DSP.
