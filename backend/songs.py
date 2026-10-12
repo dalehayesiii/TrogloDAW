@@ -138,7 +138,9 @@ def generation_parameters(draft: dict, sources: list[dict], seed: int):
         "steps": 32,
         "guidance": 1 + options["influence"] * 0.14,
         "shift": 1 + options["weirdness"] * 0.04,
-        "method": "sde" if options["weirdness"] > 50 else "ode",
+        # Pinned SDE renoises on unshifted time, incompatible with our shift control.
+        # Keep the supported upstream default at every exposed Weirdness value.
+        "method": "ode",
         "original_styles": styles,
         "effective_styles": effective_styles,
         "requested": options,

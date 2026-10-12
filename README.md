@@ -231,6 +231,10 @@ See [CI workflow and tool rationale](docs/ci.md).
 
 ## Current limitations
 
+If an older version made noisy audio with Weirdness above 50, see
+[generation recovery](docs/generation-recovery.md) for the sampler fix and how to
+regenerate an affected draft without changing existing songs.
+
 - Browser song generation supports 10–120 seconds with one local output running at
   a time. Lyrics, style and vocal gender are model guidance; musical quality,
   exact sung words and vocalist character are not guaranteed. Model setup needs

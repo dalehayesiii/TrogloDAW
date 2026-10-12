@@ -1,10 +1,56 @@
 import copy
+import threading
 from pathlib import Path
 
 import numpy as np
 import pytest
 
 from songs import fixed_effect, generation_parameters
+
+
+@pytest.mark.parametrize("weirdness", [0, 50, 51, 66, 90, 100])
+def test_exposed_weirdness_range_keeps_supported_sampler(weirdness):
+    parameters = generation_parameters(
+        {
+            "styles": "80s city pop",
+            "options": {"duration": 120, "weirdness": weirdness, "influence": 75},
+        },
+        [],
+        733969040,
+    )
+    assert parameters["method"] == "ode"
+    assert parameters["shift"] == pytest.approx(1 + weirdness * 0.04)
+    assert parameters["guidance"] == pytest.approx(11.5)
+
+
+def test_two_outputs_finish_and_catalog_before_next_inference(core, songs):
+    service, _ = songs
+    invoke = service.invoke
+    worker = threading.get_ident()
+    requests = []
+
+    def sequential(action, values, progress, canceled):
+        assert threading.get_ident() == worker
+        assert len([item for item in core.list_items() if item["type"] == "generated"]) == len(
+            requests
+        )
+        requests.append(copy.deepcopy(values))
+        return invoke(action, values, progress, canceled)
+
+    service.invoke = sequential
+    result = service.generate(
+        {
+            "styles": "80s city pop",
+            "count": 2,
+            "options": {"duration": 10, "weirdness": 66, "influence": 75},
+        },
+        lambda *_args, **_kwargs: None,
+        lambda: False,
+    )
+    assert [outcome["status"] for outcome in result["outcomes"]] == ["complete", "complete"]
+    assert len({request["parameters"]["seed"] for request in requests}) == 2
+    assert len({request["output"] for request in requests}) == 2
+    assert all(request["parameters"]["method"] == "ode" for request in requests)
 
 
 def test_controls_preserve_lyrics_and_have_independent_mappings():
