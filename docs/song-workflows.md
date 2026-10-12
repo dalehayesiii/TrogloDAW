@@ -12,6 +12,12 @@ TrogloDAW has three browser tabs: **Generation**, **Library** and **Vocal FX**. 
 contains the initial model setup and separate library/model locations. After setup,
 audio processing and storage work offline. See [model setup and measured limits](local-models.md).
 
+The product is designed for fully unfiltered local song creation, inspired by
+frustration with tightening restrictions in hosted song tools such as Suno.
+TrogloDAW adds no content moderation or word blacklists and passes supplied lyrics
+to the local model unchanged. Supported lengths, input-size limits, memory guards
+and the model's ability to deliver the requested words remain technical constraints.
+
 ## Generation
 
 Add multiple uploaded clips, microphone takes or Library songs. Each clip can be
