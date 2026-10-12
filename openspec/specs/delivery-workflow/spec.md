@@ -7,11 +7,11 @@ Define repository contribution, validation and semantic Windows release behavior
 
 ### Requirement: Conventional PR and documentation policy
 PRs SHALL use a maintained Conventional Commit title action as the first gate.
-Maintained changed-path filtering SHALL check old/new rename paths; docs PRs SHALL
-touch only approved documentation and SHALL not declare breaking changes. Squash
-titles SHALL supply main commit subjects. Truthful docs-only changes SHALL skip
-app checks/builds and all version/tag/release actions. Spec and release-tool
-validation SHALL still report a required gate.
+Maintained changed-path filters SHALL check both rename paths. Docs titles SHALL
+allow only approved docs, with no breaking changes. Markdown and PNG/SVG under
+docs/ SHALL qualify; frontend/runtime assets SHALL remain code. Squash titles
+SHALL supply main subjects. Truthful docs-only changes SHALL skip app checks/builds,
+versioning, tags and releases; spec and release-tool checks SHALL still report.
 
 #### Scenario: False docs claim
 - **WHEN** a docs PR modifies Python, dependencies or workflow code
@@ -21,21 +21,24 @@ validation SHALL still report a required gate.
 - **WHEN** a valid docs-only PR is squash merged to main
 - **THEN** no app build, version bump, tag or release occurs
 
+#### Scenario: Retire documentation images
+- **WHEN** a docs PR deletes PNG/SVG review assets under docs/ and updates Markdown
+- **THEN** documentation-only skips apply, but a rename from such an image into executable code fails the docs gate
+
 ### Requirement: Standard quality and installer gate
-After the title gate, Python and Angular SHALL run in parallel, followed by
-integration/spec validation, then one Windows build/installed-EXE job. Checks SHALL
-cover Ruff/ty/pytest, ESLint/Vitest, strict Angular compilation and Playwright.
-Bundle validation SHALL fail on incompatible or missing dependencies/DLLs/ffmpeg.
-Jobs SHALL use native GitHub dependencies, with owners requiring individual
-statuses for merging; no aggregate check job SHALL be used.
+After the title gate, Python and Angular SHALL run in parallel, then integration/spec checks and Windows build/installed tests. Checks SHALL cover Ruff/ty/pytest, ESLint/Vitest and strict Angular compilation. Full Playwright E2E SHALL run only in Windows build against the installed app. Bundle checks SHALL reject missing/incompatible dependencies, DLLs or ffmpeg. Native job dependencies and owner-required individual statuses SHALL gate merging without an aggregate job.
 
 #### Scenario: Embedded runtime failure
 - **WHEN** the installer builds but installed runtime cannot run its CLI, producer or UI
 - **THEN** the required build check fails and no main release may publish
 
 #### Scenario: Reuse checked frontend
-- **WHEN** integration tests and packaging need compiled frontend assets
-- **THEN** they use the Angular job's artifact without rebuilding its source
+- **WHEN** Windows packaging needs compiled frontend assets
+- **THEN** it uses the Angular job's artifact without rebuilding its source
+
+#### Scenario: One full browser gate
+- **WHEN** a code PR or main push runs CI
+- **THEN** integration checks synthetic CLI/producer flows and specs, while only Windows build runs the complete browser suite against embedded Python and the installed UI
 
 ### Requirement: Default semantic versioning with docs exception
 Official semantic-release SHALL select versions with its defaults: feat minor,
@@ -53,16 +56,15 @@ code checks and a preview build on main, but SHALL not publish a release.
 - **THEN** no version is due and main does not create a tag or release
 
 ### Requirement: Publish tested version and artifact only
-Official semantic-release SHALL run only on main after the build and its prerequisite jobs succeed.
-Its prepare hook SHALL version the installer from the checked payload and test
-that installed artifact before creating the tag. Publication SHALL include the
-installer, checksum and source/version manifest. Mismatched version/SHA/checksum
-or an advanced main SHALL abort before tagging. Only the publisher SHALL receive
-release writes; a separate custom version planner SHALL NOT be used.
+Official semantic-release SHALL run only on main after build and prerequisite jobs succeed. Its prepare hook SHALL version the checked payload and verify final installation, displayed version, API startup, static UI and uninstall without repeating full E2E. Publication SHALL include installer, checksum and source/version manifest. Version/SHA/checksum mismatch or advanced main SHALL abort before tagging. Only the publisher SHALL receive release writes; no custom version planner SHALL be used.
 
 #### Scenario: Asset mismatch
 - **WHEN** an installer manifest differs from semantic-release's version or source
 - **THEN** publication fails before creating its release tag
+
+#### Scenario: Final installer startup failure
+- **WHEN** the versioned release installer cannot start its bundled service or serve its compiled UI
+- **THEN** prepare fails before tagging or publishing, without running the full browser/audio workflows again
 
 ### Requirement: Full OpenSpec lifecycle and agent support
 The repo SHALL provide pinned OpenSpec CLI/workflows for Codex, Gemini CLI,
@@ -127,15 +129,21 @@ advance the changelog baseline.
 - **THEN** the next publisher stops for recovery instead of omitting those changes
 
 ### Requirement: Released actions and isolated environments
-Actions SHALL use explicit released version tags, with Dependabot tracking action
-updates. Each isolated job SHALL install its needed locked dependencies at most
-once, use caches where supported, and pass built artifacts between jobs. Remaining
-custom scripts SHALL implement documented app-specific contracts rather than
-duplicate generic title validation or version calculation.
+Actions SHALL use explicit released version tags and Dependabot updates. Each isolated job SHALL install needed locked dependencies at most once and use supported caches. Only Angular SHALL install frontend workspace tools; other Node jobs SHALL retain required root tools. PRs SHALL retain preview installers; only main SHALL transfer the checked release payload separately from preview assets. Custom scripts SHALL cover documented app contracts, not generic title checks or version calculation.
 
 #### Scenario: Readable action dependency
 - **WHEN** a contributor reads a workflow action reference
 - **THEN** its released version is visible without resolving an opaque commit SHA
+
+#### Scenario: Root tools remain available
+- **WHEN** integration, build or release installs npm dependencies
+- **THEN** its root checks remain available without installing the Angular workspace or omitting needed root development dependencies
+
+#### Scenario: Efficient payload transfer
+- **WHEN** a PR runs Windows build
+- **THEN** its installer/checksum/manifest remain downloadable without creating a release payload archive
+- **WHEN** main runs Windows build
+- **THEN** release downloads only the checked payload artifact and Windows artifacts use no additional upload compression
 
 ### Requirement: Branded compatible distribution
 Windows installation and release presentation SHALL use TrogloDAW with one canonical TrogloDAW-Setup.exe and no legacy installer alias. Checksums and publication validation SHALL cover that actual distributed artifact. Current TrogloDAW upgrades SHALL preserve configured user assets and preferences; migration of old product-name contracts SHALL NOT be required.

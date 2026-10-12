@@ -30,7 +30,6 @@ Install uv 0.13.0 and Node 24.15 or newer. Python 3.12 matches the Windows runti
 ```sh
 uv sync --locked
 npm ci --ignore-scripts
-uv lock --check
 uv run --locked ruff check .
 uv run --locked ruff format --check backend/app.py backend/models.py backend/storage.py backend/songs.py backend/arrangement.py backend/inference_runner.py backend/timing.py scripts backend/tests
 uv run --locked ty check
@@ -124,20 +123,23 @@ footers in the squash body. Only `docs -> false` overrides semantic-release defa
 
 The first eligible release starts at **1.0.0**, with stable vX.Y.Z tags on main.
 The original untyped commit was never a release; no fabricated historical tag is added.
-Docs PRs may change only root documentation/approved docs and OpenSpec Markdown
+Docs PRs may change only root documentation, Markdown/PNG/SVG under `docs/` and OpenSpec Markdown
 (proposal-only metadata YAML is allowed with its explicit label).
 Code, dependencies, workflows and generated agent skills are excluded. Both sides
 of renames are checked. Spec/release-tool checks always report;
 valid docs-only pushes skip app checks/builds/tags/releases and do not flush pending
 code releases from earlier failed runs.
 
-The PR-title gate precedes parallel Python and Angular jobs, followed by integration
-and specs, then one Windows EXE build/installed-app job. Angular compiles once and
+The PR-title gate precedes parallel Python and Angular jobs, followed by synthetic CLI/producer
+integration and specs, then one Windows EXE build/installed-app job with full Playwright E2E.
+Full browser tests run only in Windows build; local source E2E remains available above.
+Angular compiles once and
 its artifact is reused. Main runs the same stages. GitHub's required status checks
 enforce the five jobs directly; their needs dependencies enforce ordering. Only
 a successful build can invoke main semantic-release with contents-write. There is no custom
 version planner. If a release is due, its prepare hook versions the checked payload
-with NSIS and tests that final EXE before tagging/publishing installer, SHA256SUMS
+with NSIS and smoke-tests final installation, version, API startup, static UI and uninstall
+before tagging/publishing installer, SHA256SUMS
 and release.json. Notes include all Conventional Commit types since the previous
 published tag. Main runs are serialized; no npm package or bot comment publishes.
 See [CI design and custom-script rationale](ci.md) for tool choices, job isolation,
