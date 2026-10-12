@@ -51,12 +51,22 @@ export interface ProcessingJob {
 @Component({
   selector: 'troglodaw-job-status',
   template: `@if (job(); as j) {
-    <section class="job processing-card" [attr.aria-label]="title(j.action)">
+    <section
+      class="job processing-card"
+      [class.failed-job]="j.status === 'failed'"
+      [attr.aria-label]="title(j.action)"
+    >
       <div class="heading-row">
         <span class="section-kicker">{{ title(j.action) }}</span>
         <span class="muted">{{ j.status === 'queued' ? 'Waiting' : j.status }}</span>
       </div>
-      <p role="status">{{ j.message }}</p>
+      <p
+        [attr.role]="
+          active(j) ? 'status' : announce() ? (j.status === 'failed' ? 'alert' : 'status') : null
+        "
+      >
+        {{ j.message }}
+      </p>
       @if (active(j)) {
         @if (j.action === 'model_install') {
           <p class="setup-timing">
@@ -186,6 +196,14 @@ export interface ProcessingJob {
         <button type="button" (click)="cancelRequested.emit()" [disabled]="j.cancel_requested">
           {{ j.cancel_requested ? 'Cancellation requested…' : 'Cancel' }}
         </button>
+      } @else if (j.status === 'failed' || j.status === 'canceled') {
+        <button
+          type="button"
+          (click)="dismissRequested.emit()"
+          [attr.aria-label]="'Dismiss ' + title(j.action) + ' notice'"
+        >
+          Dismiss
+        </button>
       }
     </section>
   }`,
@@ -197,6 +215,8 @@ export class JobStatusComponent {
   readonly progressId = 'job-progress-' + nextProgressId++;
   readonly job = input.required<ProcessingJob>();
   readonly cancelRequested = output<void>();
+  readonly dismissRequested = output<void>();
+  readonly announce = input(true);
   active(job: ProcessingJob) {
     return ['queued', 'running'].includes(job.status);
   }
@@ -239,6 +259,11 @@ export class JobStatusComponent {
       (
         {
           song_generate: 'Creating songs',
+          lyrics_generate: 'Writing lyrics',
+          accept_audio: 'Adding input audio',
+          folder: 'Creating folder',
+          organize: 'Organizing song',
+          delete: 'Deleting song',
           vocal_prepare: 'Preparing voices',
           vocal_render: 'Rendering vocal edits',
           model_install: 'Model setup',

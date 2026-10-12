@@ -95,22 +95,19 @@ test('applicable audio conditioning controls persist and postmix disables adhere
   await page.getByRole('tab', { name: 'Generation', exact: true }).click();
   await page.reload();
   await expect(page.getByRole('dialog')).not.toBeVisible();
-  await expect(page.getByLabel('Notification')).toHaveCount(0);
+  await expect(page.getByLabel('Notification', { exact: true })).toHaveCount(0);
   await settings.getByText('Audio arrangement settings', { exact: true }).click();
   await expect(page.getByLabel(/^Audio adherence/)).toHaveValue('62');
+  await page.emulateMedia({ reducedMotion: 'reduce' });
   for (const mode of ['light', 'dark']) {
     if ((await page.locator('html').getAttribute('data-theme')) !== mode)
       await page
-        .getByRole('button', { name: mode === 'light' ? 'Light mode' : 'Dark mode', exact: true })
+        .getByRole('button', {
+          name: mode === 'light' ? 'Light mode' : 'Dark mode',
+          exact: true,
+        })
         .click();
-    await page.evaluate(async () => {
-      await Promise.all(
-        document
-          .getAnimations()
-          .filter((animation) => Number(animation.effect?.getTiming().iterations) !== Infinity)
-          .map((animation) => animation.finished.catch(() => undefined)),
-      );
-    });
+    await expect(page.locator('html')).toHaveAttribute('data-theme', mode);
     expect(
       (await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze())
         .violations,
@@ -229,13 +226,15 @@ test('model storage and missing-model errors use real backend without downloads'
   }
   await expect(page.getByRole('status').filter({ hasText: 'Storage updated' })).toBeVisible();
   await page.getByRole('button', { name: 'Dismiss notification', exact: true }).click();
-  await expect(page.getByLabel('Notification')).toHaveCount(0);
+  await expect(page.getByLabel('Notification', { exact: true })).toHaveCount(0);
   expect((await (await request.get('/api/library')).json()).storage.model_dir).toBe(destination);
   await page.getByRole('button', { name: 'Done', exact: true }).click();
   await page.getByLabel('Input Styles', { exact: true }).fill('folk guitar');
   await expect(page.getByRole('button', { name: 'Generate song', exact: true })).toBeDisabled();
   await expect(
-    page.getByText('Local model setup is required before generation.', { exact: false }),
+    page.getByText('Local model setup is required before generation.', {
+      exact: false,
+    }),
   ).toBeVisible();
 });
 
@@ -282,7 +281,9 @@ test('native folder choices prompt for existing library data and preserve playba
   await page.getByRole('button', { name: 'Move existing data', exact: true }).click();
   await expect(page.getByLabel('Library folder')).toHaveValue(selected);
   await expect(page.getByRole('status').filter({ hasText: 'Storage updated' })).toBeVisible();
-  await expect(page.getByLabel('Notification')).toHaveCount(0, { timeout: 12000 });
+  await expect(page.getByLabel('Notification', { exact: true })).toHaveCount(0, {
+    timeout: 12000,
+  });
   const moved = await (await request.get('/api/library')).json();
   expect(moved.items.some((item) => item.id === fixture.song.id)).toBe(true);
   expect((await request.get(token)).status()).toBe(200);
@@ -458,7 +459,9 @@ test('narrow layout and shutdown stay usable', async ({ page, request }) => {
     route.fulfill({
       status: 503,
       contentType: 'application/json',
-      body: JSON.stringify({ detail: 'Synthetic shutdown failure; retry Quit.' }),
+      body: JSON.stringify({
+        detail: 'Synthetic shutdown failure; retry Quit.',
+      }),
     }),
   );
   await page.getByRole('button', { name: 'Quit', exact: true }).click();

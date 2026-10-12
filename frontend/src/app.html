@@ -136,18 +136,60 @@
     >
     <button type="button" (click)="openDialog('storage')">View installation</button>
   </aside>
-  } @if (error && !dialogKind) {
-  <p class="error-banner" role="alert">{{error}}</p>
   } @if (status && !dialogKind) {
   <ng-container [ngTemplateOutlet]="successToast" />
-  } @if(jobs.length){
-  <aside class="job-panel" aria-label="Processing jobs">
-    @for(job of jobs;track job.id){@if(active(job) || job.status==='failed' ||
-    job.status==='canceled'){
-    <troglodaw-job-status [job]="job" (cancelRequested)="cancel(job)" />
-    }}
-  </aside>
+  } @if (!dialogKind) {
+  <ng-container [ngTemplateOutlet]="notifications" />
   }
+  <ng-template #noticeEntry let-notice>
+    <div class="notice-entry">
+      @if(notice.job){
+      <troglodaw-job-status
+        [job]="notice.job"
+        [announce]="notices.live.has(notice.id)"
+        (dismissRequested)="dismissNotice(notice)"
+      />
+      } @else {
+      <div class="error-banner persistent-error">
+        <p [attr.role]="notices.live.has(notice.id) ? 'alert' : null">{{notice.error.message}}</p>
+        <button type="button" (click)="dismissNotice(notice)" aria-label="Dismiss error">
+          Dismiss
+        </button>
+      </div>
+      }
+    </div>
+  </ng-template>
+  <ng-template #notifications>
+    @if(activeJobs.length || notificationGroups.length){
+    <aside class="job-panel" aria-label="Processing jobs">
+      @for(job of activeJobs;track job.id){
+      <troglodaw-job-status [job]="job" (cancelRequested)="cancel(job)" />
+      } @for(group of notificationGroups;track group.scope){
+      <section class="notification-group" [attr.aria-label]="group.label + ' notifications'">
+        <h2>{{group.label}}</h2>
+        <ng-container
+          [ngTemplateOutlet]="noticeEntry"
+          [ngTemplateOutletContext]="{$implicit:group.notices[0]}"
+        />
+        @if(group.notices.length > 1){
+        <details class="earlier-notices">
+          <summary>
+            {{group.notices.length - 1}} earlier {{group.label}} {{group.notices.length===2 ?
+            'notice' : 'notices'}}
+          </summary>
+          @for(notice of group.notices.slice(1);track notice.id){
+          <ng-container
+            [ngTemplateOutlet]="noticeEntry"
+            [ngTemplateOutletContext]="{$implicit:notice}"
+          />
+          }
+        </details>
+        }
+      </section>
+      }
+    </aside>
+    }
+  </ng-template>
   <div class="content flex-1">
     <section role="tabpanel" id="panel-0" aria-labelledby="tab-0" [hidden]="tab!==0">
       <div class="columns grid gap-4 md:grid-cols-2">
@@ -675,7 +717,7 @@
       >{{update.version==='0.0.0' ? 'TrogloDAW · Development/source build' : 'TrogloDAW
       v'+update.version}}</span
     >
-    <button type="button" (click)="refresh()">Refresh library</button
+    <button type="button" (click)="refreshLibrary()">Refresh library</button
     ><button type="button" class="stop" (click)="quit()" [disabled]="storageBusy || quitting">
       {{quitting ? 'Stopping…' : 'Quit'}}
     </button>
@@ -701,9 +743,9 @@
       </h2>
       <button type="button" aria-label="Close dialog" (click)="closeDialog()">×</button>
     </div>
-    @if(error){
-    <p class="error-banner" role="alert">{{error}}</p>
-    } @if(status){
+    @if(dialogKind){
+    <ng-container [ngTemplateOutlet]="notifications" />
+    } @if(status && dialogKind){
     <ng-container [ngTemplateOutlet]="successToast" />
     }
     <div class="stack">
@@ -837,9 +879,7 @@
             </button>
           </div>
         </section>
-        } @for(job of jobs;track job.id){@if(active(job) && (job.action==='model_install' ||
-        job.action==='storage')){
-        <troglodaw-job-status [job]="job" (cancelRequested)="cancel(job)" />}}
+        }
       </ng-template>
       @switch(dialogKind){ @case('setup'){
       <p>

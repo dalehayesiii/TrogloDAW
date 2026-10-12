@@ -2126,3 +2126,56 @@ nav button:not(.active) {
 nav button:not(.active):hover {
   color: var(--text);
 }
+
+/* Persistent failures have explicit acknowledgment, independent of success toasts. */
+.notification-group {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+.notification-group > h2 {
+  font-size: 16px;
+}
+.notification-group .job {
+  margin: 0;
+}
+.persistent-error {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 0;
+}
+.persistent-error p {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.persistent-error button {
+  flex-shrink: 0;
+}
+.failed-job {
+  border-left: 3px solid var(--error);
+}
+.earlier-notices {
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.earlier-notices .notice-entry {
+  margin-top: 12px;
+}
+dialog > .job-panel {
+  margin-top: 0;
+  margin-bottom: 20px;
+  border-top: 0;
+  padding-top: 0;
+}
+@media (max-width: 600px) {
+  .persistent-error {
+    flex-wrap: wrap;
+  }
+}
+
+.processing-card > button {
+  justify-self: start;
+}

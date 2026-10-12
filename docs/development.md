@@ -5,7 +5,7 @@ The monorepo has an Angular/Tailwind frontend and a local FastAPI backend.
 both call it. Audio processing is offline after explicit local model setup and has no remote
 model service or API key. The three task-focused workflows are Generation, Library
 and Vocal FX. See [workflows](song-workflows.md), [model setup](local-models.md) and
-[progress and timing](progress.md). The legacy CLI/DSP operations remain.
+[progress and timing](progress.md), and [notification policy](notifications.md). The legacy CLI/DSP operations remain.
 
 ## Layout
 | Location | Contents |
