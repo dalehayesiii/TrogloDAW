@@ -4,12 +4,39 @@ export const analyzerOptions = {
   releaseRules: [{ type: 'docs', release: false }],
 };
 
+export const notesOptions = {
+  preset: 'conventionalcommits',
+  presetConfig: {
+    types: [
+      { type: 'feat', section: 'Features' },
+      { type: 'fix', section: 'Fixes' },
+      { type: 'perf', section: 'Performance' },
+      { type: 'docs', section: 'Documentation', hidden: false },
+      { type: 'build', section: 'Build', hidden: false },
+      { type: 'ci', section: 'CI', hidden: false },
+      { type: 'refactor', section: 'Refactoring', hidden: false },
+      { type: 'style', section: 'Style', hidden: false },
+      { type: 'test', section: 'Tests', hidden: false },
+      { type: 'chore', section: 'Maintenance', hidden: false },
+      { type: 'revert', section: 'Reverts', hidden: false },
+    ],
+  },
+};
+
 export default {
   branches: ['main'],
   tagFormat: 'v${version}',
   plugins: [
     ['@semantic-release/commit-analyzer', analyzerOptions],
-    ['@semantic-release/release-notes-generator', { preset: 'conventionalcommits' }],
+    ['@semantic-release/release-notes-generator', notesOptions],
+    [
+      '@semantic-release/exec',
+      {
+        shell: process.platform === 'win32' ? 'C:/Program Files/Git/bin/bash.exe' : 'bash',
+        prepareCmd:
+          'bash scripts/windows/package.sh ${nextRelease.version} && pwsh -File scripts/windows/test_installer.ps1',
+      },
+    ],
     './scripts/release-guard.mjs',
     [
       '@semantic-release/github',

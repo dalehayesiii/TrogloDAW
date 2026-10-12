@@ -18,248 +18,279 @@ env:
   OPENSPEC_TELEMETRY: '0'
 
 jobs:
-  policy:
-    name: PR policy
+  title:
+    name: ${{ github.event_name == 'pull_request' && 'PR title and docs' || 'Docs classification' }}
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
     outputs:
-      docs_only: ${{ steps.policy.outputs.docs_only }}
+      docs_only: ${{ steps.docs.outputs.docs_only }}
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Conventional PR title
+        if: github.event_name == 'pull_request'
+        uses: amannn/action-semantic-pull-request@v6.1.1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          types: |
+            feat
+            fix
+            perf
+            docs
+            build
+            ci
+            refactor
+            style
+            test
+            chore
+            revert
+      - uses: actions/checkout@v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
-      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+      - name: Documentation paths (including both sides of renames)
+        id: paths
+        uses: dorny/paths-filter@v4.0.3
         with:
-          python-version: '3.12'
-      - id: policy
-        run: python scripts/check_policy.py
-      - run: python scripts/check_specs.py
+          base: ${{ github.ref }}
+          predicate-quantifier: every
+          filters: |
+            non_docs:
+              - '!README.md'
+              - '!AGENTS.md'
+              - '!CONTRIBUTING.md'
+              - '!docs/**/*.md'
+              - '!openspec/specs/**/*.md'
+              - '!openspec/changes/**/*.md'
+            non_proposal_docs:
+              - '!README.md'
+              - '!AGENTS.md'
+              - '!CONTRIBUTING.md'
+              - '!docs/**/*.md'
+              - '!openspec/specs/**/*.md'
+              - '!openspec/changes/**/*.md'
+              - '!openspec/changes/*/.openspec.yaml'
+      - name: Apply docs-only exception
+        id: docs
+        uses: actions/github-script@v9.0.0
+        env:
+          NON_DOCS: ${{ steps.paths.outputs.non_docs }}
+          NON_PROPOSAL_DOCS: ${{ steps.paths.outputs.non_proposal_docs }}
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            const title = (pr?.title ?? context.payload.head_commit?.message ?? '').split('\n')[0];
+            const docs = /^docs(?:\([^()]+\))?!?: /.test(title);
+            const proposal = pr?.labels.some(label => label.name === 'openspec:proposal-only');
+            const nonDocs = proposal ? process.env.NON_PROPOSAL_DOCS : process.env.NON_DOCS;
+            if (docs && (title.split(':')[0].endsWith('!') || nonDocs !== 'false')) {
+              core.setFailed('docs PRs cannot be breaking or change code, dependencies or workflows.');
+            }
+            core.setOutput('docs_only', docs && nonDocs === 'false');
 
-  tooling:
-    name: Tooling and specs
+  python:
+    name: Python checks
+    needs: title
+    if: needs.title.outputs.docs_only != 'true'
     runs-on: ubuntu-latest
-    needs: policy
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+      - uses: astral-sh/setup-uv@v10.3.0
+        with:
+          version: '0.13.0'
+          enable-cache: true
+          python-version: '3.12'
+      - run: uv sync --locked
+      - run: uv lock --check
+      - run: uv run --locked ruff check .
+      - run: uv run --locked ruff format --check backend/app.py scripts backend/tests
+      - run: uv run --locked ty check
+      - run: uv run --locked pytest
+
+  angular:
+    name: Angular checks
+    needs: title
+    if: needs.title.outputs.docs_only != 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm run format:check
+      - run: npm run lint
+      - run: npm run test:frontend
+      - run: npm run build
+      - uses: actions/upload-artifact@v7.0.2
+        with:
+          name: angular-dist
+          path: frontend/dist/browser/
+          if-no-files-found: error
+          retention-days: 7
+
+  integration:
+    name: Integration and specs
+    needs: [title, python, angular]
+    if: >-
+      always() && needs.title.result == 'success' &&
+      (needs.title.outputs.docs_only == 'true' ||
+      (needs.python.result == 'success' && needs.angular.result == 'success'))
+    runs-on: ubuntu-latest
+    env:
+      MM_LIBRARY: ${{ github.workspace }}/.tools/musicmaker-integration-library
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7.1.0
         with:
           node-version: '24'
           cache: npm
       - run: npm ci --ignore-scripts
       - run: npm test
       - run: npm run specs:check
-
-  quality:
-    name: Python (${{ matrix.os }})
-    needs: policy
-    if: needs.policy.outputs.docs_only != 'true'
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest]
-    env:
-      MM_LIBRARY: ${{ github.workspace }}/.tools/musicmaker-test-library
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: astral-sh/setup-uv@v10.3.0
         with:
-          persist-credentials: false
-      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
-        with:
+          version: '0.13.0'
+          enable-cache: true
           python-version: '3.12'
-      - run: python -m pip install uv==0.13.0
-      - run: uv sync --locked
-      - run: uv lock --check
-      - run: uv run --locked ruff check .
-      - run: uv run --locked ruff format --check backend/app.py scripts backend/tests
-      - run: uv run --locked ty check
-      - run: uv run --locked python -m pytest
-      - run: uv run --locked python backend/cli.py demo
-      - run: uv run --locked python scripts/smoke_producer.py
-
-  frontend:
-    name: Angular checks and browser parity
-    runs-on: ubuntu-latest
-    needs: policy
-    if: needs.policy.outputs.docs_only != 'true'
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - run: uv run --no-project python scripts/check_specs.py
+      - if: needs.title.outputs.docs_only != 'true'
+        run: uv sync --locked
+      - if: needs.title.outputs.docs_only != 'true'
+        uses: actions/download-artifact@v8.0.2
         with:
-          persist-credentials: false
-      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
-        with:
-          python-version: '3.12'
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
-        with:
-          node-version: '24'
-          cache: npm
-      - run: python -m pip install uv==0.13.0
-      - run: uv sync --locked
-      - run: npm ci --ignore-scripts
-      - run: npm run format:check
-      - run: npm run lint
-      - run: npm run test:frontend
-      - run: npm run build
-      - run: npx --no-install playwright install --with-deps chromium
-      - run: npm run e2e
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+          name: angular-dist
+          path: frontend/dist/browser/
+      - if: needs.title.outputs.docs_only != 'true'
+        run: uv run --locked python backend/cli.py demo
+      - if: needs.title.outputs.docs_only != 'true'
+        run: uv run --locked python scripts/smoke_producer.py
+      - if: needs.title.outputs.docs_only != 'true'
+        run: npx --no-install playwright install --with-deps chromium
+      - if: needs.title.outputs.docs_only != 'true'
+        run: npm run e2e
+      - uses: actions/upload-artifact@v7.0.2
         if: failure()
         with:
-          name: browser-failure-traces
+          name: integration-failure-traces
           path: test-results/
 
-  plan:
-    name: Release plan
-    runs-on: ubuntu-latest
-    needs: policy
-    if: needs.policy.outputs.docs_only != 'true'
-    outputs:
-      version: ${{ steps.plan.outputs.version }}
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
-        with:
-          node-version: '24'
-          cache: npm
-      - run: npm ci --ignore-scripts
-      - id: plan
-        shell: bash
-        run: |
-          if [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
-            echo 'version=0.0.0' >> "$GITHUB_OUTPUT"
-          else
-            npm run release:plan
-          fi
-
-  installer:
-    name: Windows installer
-    runs-on: ubuntu-latest
-    needs: [policy, tooling, quality, frontend, plan]
-    if: needs.policy.outputs.docs_only != 'true' && needs.plan.outputs.version != ''
+  build:
+    name: Windows build and installed app
+    needs: [title, integration]
+    if: needs.title.outputs.docs_only != 'true'
+    runs-on: windows-latest
+    timeout-minutes: 25
     env:
-      MM_VERSION: ${{ needs.plan.outputs.version }}
+      MM_VERSION: '0.0.0'
+      MM_LIBRARY: ${{ github.workspace }}/.tools/musicmaker-installed-library
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+      - uses: actions/setup-python@v7.0.0
         with:
           python-version: '3.12'
-      - run: sudo apt-get update && sudo apt-get install -y nsis
-      - name: Install build tools
-        run: |
-          python -m pip install uv==0.13.0
-          uv sync --locked
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+      - uses: astral-sh/setup-uv@v10.3.0
+        with:
+          version: '0.13.0'
+          enable-cache: true
+      - run: uv sync --locked
+      - uses: actions/setup-node@v7.1.0
         with:
           node-version: '24'
           cache: npm
       - run: npm ci --ignore-scripts
-      - run: npm run build
-      - run: bash scripts/windows/build.sh
-      - run: python scripts/build_manifest.py
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/download-artifact@v8.0.2
         with:
-          name: windows-installer
+          name: angular-dist
+          path: frontend/dist/browser/
+      - name: Install NSIS
+        run: choco install nsis --version=3.11.0 -y --no-progress
+      - name: Add NSIS to PATH
+        run: '"${env:ProgramFiles(x86)}/NSIS" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append'
+      - run: npx --no-install playwright install chromium
+      - name: Stage locked runtime and build EXE
+        shell: bash
+        run: bash scripts/windows/build.sh
+      - name: Install and test EXE
+        run: ./scripts/windows/test_installer.ps1
+      - name: Archive checked payload for release preparation
+        run: tar -czf dist/payload.tar.gz -C scripts/windows/work/stage/MusicMaker .
+      - uses: actions/upload-artifact@v7.0.2
+        with:
+          name: windows-build
           path: dist/
           if-no-files-found: error
           retention-days: 7
 
-  windows-smoke:
-    name: Windows installation smoke test
-    runs-on: windows-latest
-    needs: installer
-    timeout-minutes: 20
-    env:
-      MM_LIBRARY: ${{ github.workspace }}/.tools/musicmaker-smoke-library
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with:
-          persist-credentials: false
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
-        with:
-          name: windows-installer
-          path: dist
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
-        with:
-          node-version: '24'
-          cache: npm
-      - run: npm ci --ignore-scripts
-      - run: npx --no-install playwright install chromium
-      - name: Install and exercise embedded runtime
-        shell: pwsh
-        run: |
-          $installRoot = Join-Path $env:RUNNER_TEMP 'MusicMaker'
-          $installer = Start-Process -FilePath ./dist/MusicMaker-Setup.exe -ArgumentList @('/S', "/D=$installRoot") -Wait -PassThru -WindowStyle Hidden
-          if ($installer.ExitCode -ne 0) { throw 'Installer failed' }
-          $python = Join-Path $installRoot 'python/python.exe'
-          & $python (Join-Path $installRoot 'app/backend/cli.py') demo
-          if ($LASTEXITCODE -ne 0) { throw 'Embedded CLI demo failed' }
-          & $python scripts/smoke_producer.py
-          if ($LASTEXITCODE -ne 0) { throw 'Embedded producer failed' }
-          $env:MM_TEST_PYTHON = $python
-          $env:MM_TEST_APP = Join-Path $installRoot 'app/backend/app.py'
-          npm run e2e
-          if ($LASTEXITCODE -ne 0) { throw 'Installed Angular UI / Python service failed' }
-          $manifest = Get-Content dist/release.json -Raw | ConvertFrom-Json
-          $version = (Get-ItemProperty 'HKCU:/Software/Microsoft/Windows/CurrentVersion/Uninstall/MusicMaker').DisplayVersion
-          if ($version -ne $manifest.version) { throw 'Installed version differs from build' }
-
   gate:
     name: Required checks
-    runs-on: ubuntu-latest
-    needs: [policy, tooling, quality, frontend, plan, installer, windows-smoke]
+    needs: [title, python, angular, integration, build]
     if: always()
-    env:
-      POLICY: ${{ needs.policy.result }}
-      TOOLING: ${{ needs.tooling.result }}
-      DOCS: ${{ needs.policy.outputs.docs_only }}
-      QUALITY: ${{ needs.quality.result }}
-      FRONTEND: ${{ needs.frontend.result }}
-      PLAN: ${{ needs.plan.result }}
-      VERSION: ${{ needs.plan.outputs.version }}
-      INSTALLER: ${{ needs.installer.result }}
-      SMOKE: ${{ needs.windows-smoke.result }}
+    runs-on: ubuntu-latest
     steps:
-      - shell: bash
-        run: |
-          [[ "$POLICY" == success && "$TOOLING" == success ]] || exit 1
-          if [[ "$DOCS" == true ]]; then
-            [[ "$QUALITY" == skipped && "$FRONTEND" == skipped && "$PLAN" == skipped && "$INSTALLER" == skipped && "$SMOKE" == skipped ]] || exit 1
-          else
-            [[ "$QUALITY" == success && "$FRONTEND" == success && "$PLAN" == success ]] || exit 1
-            if [[ -n "$VERSION" ]]; then
-              [[ "$INSTALLER" == success && "$SMOKE" == success ]] || exit 1
-            else
-              [[ "$INSTALLER" == skipped && "$SMOKE" == skipped ]] || exit 1
-            fi
-          fi
+      - uses: re-actors/alls-green@v1.3.0
+        with:
+          jobs: ${{ toJSON(needs) }}
+          allowed-skips: ${{ needs.title.outputs.docs_only == 'true' && 'python,angular,build' || '' }}
 
   release:
-    name: Publish release
-    runs-on: ubuntu-latest
-    needs: [gate, plan]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.gate.result == 'success' && needs.plan.outputs.version != ''
+    name: Semantic release
+    needs: [title, gate]
+    if: >-
+      github.event_name == 'push' && github.ref == 'refs/heads/main' &&
+      needs.gate.result == 'success' && needs.title.outputs.docs_only != 'true'
+    runs-on: windows-latest
+    timeout-minutes: 20
     permissions:
       contents: write
+    env:
+      MM_LIBRARY: ${{ github.workspace }}/.tools/musicmaker-release-library
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@v7.0.1
         with:
           fetch-depth: 0
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+          persist-credentials: true
+      - uses: actions/setup-python@v7.0.0
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v7.1.0
         with:
           node-version: '24'
           cache: npm
       - run: npm ci --ignore-scripts
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+      - uses: actions/download-artifact@v8.0.2
         with:
-          name: windows-installer
-          path: dist
-      - run: npm run release
+          name: windows-build
+          path: dist/
+      - name: Restore checked payload
+        run: |
+          New-Item -ItemType Directory -Force scripts/windows/work/stage/MusicMaker | Out-Null
+          tar -xzf dist/payload.tar.gz -C scripts/windows/work/stage/MusicMaker
+          if ($LASTEXITCODE) { throw 'Payload extraction failed' }
+      - name: Require published release history
+        uses: actions/github-script@v9.0.0
+        with:
+          script: |
+            const releases = await github.paginate(github.rest.repos.listReleases, context.repo);
+            const published = new Set(releases.filter(r => !r.draft && !r.prerelease).map(r => r.tag_name));
+            const {stdout} = await exec.getExecOutput('git', ['tag', '--merged', 'HEAD', '--list', 'v*']);
+            for (const tag of stdout.trim().split('\n').filter(t => /^v\d+\.\d+\.\d+$/.test(t))) {
+              if (!published.has(tag)) core.setFailed(`Repair the unpublished ${tag} release before continuing; its commits must stay in the changelog.`);
+            }
+      - run: choco install nsis --version=3.11.0 -y --no-progress
+      - run: '"${env:ProgramFiles(x86)}/NSIS" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append'
+      - run: npx --no-install playwright install chromium
+      - name: Version, test, tag and publish with semantic-release
+        run: npm run release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

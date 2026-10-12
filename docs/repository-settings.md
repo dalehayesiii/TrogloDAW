@@ -3,7 +3,9 @@
 The contributing account has WRITE, not ADMIN, permission. An owner must configure
 these settings; workflows alone cannot prevent merging despite failed checks.
 
-1. Enable GitHub Actions and allow the pinned GitHub-owned actions in `ci.yml`.
+1. Enable GitHub Actions and allow the released actions in `ci.yml`, including
+   amannn/action-semantic-pull-request, dorny/paths-filter, astral-sh/setup-uv and
+   re-actors/alls-green. Dependabot proposes action version updates monthly.
 2. Allow only squash merges. Set the squash subject to **Pull request title** and
    body to **Pull request body** to preserve conventional titles/breaking footers.
 3. Protect main: require PRs and GitHub Actions' **Required checks**, require the

@@ -123,21 +123,24 @@ footers in the squash body. Only `docs -> false` overrides semantic-release defa
 
 The first eligible release starts at **1.0.0**, with stable vX.Y.Z tags on main.
 The original untyped commit was never a release; no fabricated historical tag is added.
-Docs PRs may change only root documentation/approved docs and OpenSpec Markdown.
+Docs PRs may change only root documentation/approved docs and OpenSpec Markdown
+(proposal-only metadata YAML is allowed with its explicit label).
 Code, dependencies, workflows and generated agent skills are excluded. Both sides
-of renames are checked. Lightweight policy/spec/release-tool tests always report;
+of renames are checked. Spec/release-tool checks always report;
 valid docs-only pushes skip app checks/builds/tags/releases and do not flush pending
 code releases from earlier failed runs.
 
-Other PRs run all Python/frontend checks, build a 0.0.0 preview installer and run
-browser parity tests against its installed embedded Python on Windows. On main,
-read-only analysis using the same semantic analyzer plans a version; no bump means
-no installer/release. Eligible versions undergo all checks/builds/installation tests.
-The aggregate Required checks gate rejects failed/cancelled/unexpectedly skipped
-prerequisites. Only its successful main run can grant the publisher contents-write
-GITHUB_TOKEN. Official semantic-release then verifies version/SHA/checksum and
-current main before tagging and publishing the tested installer, SHA256SUMS and
-release.json. Main runs are serialized. No npm package or bot comment is published.
+The PR-title gate precedes parallel Python and Angular jobs, followed by integration
+and specs, then one Windows EXE build/installed-app job. Angular compiles once and
+its artifact is reused. Main runs the same stages. Required checks uses alls-green
+to reject failed/cancelled/unexpectedly skipped jobs. Only a gated non-docs main run
+can invoke official semantic-release with contents-write. There is no custom
+version planner. If a release is due, its prepare hook versions the checked payload
+with NSIS and tests that final EXE before tagging/publishing installer, SHA256SUMS
+and release.json. Notes include all Conventional Commit types since the previous
+published tag. Main runs are serialized; no npm package or bot comment publishes.
+See [CI design and custom-script rationale](ci.md) for tool choices, job isolation,
+version tags, docs handling and recovery after interrupted publication.
 
 Re-run a failed main workflow only while its commit is still main, or merge a repair
 PR; the next eligible release includes unreleased commits. If a failure occurs
@@ -146,8 +149,10 @@ published tags just to retrigger versioning. Owner-enforced squash/check setting
 are required: [repository settings](repository-settings.md).
 
 ## Installer
-On Linux install NSIS, curl and unzip, then run setup/build commands above followed
-by `MM_VERSION=0.0.0 bash scripts/windows/build.sh`. Stable versions come from CI.
+On Linux install NSIS and curl; on Windows install NSIS and use Git Bash with Python
+on PATH. Run setup/build commands above followed by
+`MM_VERSION=0.0.0 bash scripts/windows/build.sh`. `--stage-only` checks the embedded
+payload without NSIS. Stable versions come from semantic-release in CI.
 NSIS bundles Python 3.12.10, locked runtime wheels, ffmpeg and Angular static files.
 The installed app needs neither Python, Node nor uv installed separately. Windows
 metadata/Apps & Features use the injected version; library/config locations and
