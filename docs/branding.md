@@ -13,7 +13,7 @@ choices persist in browser local storage, and Settings can return to system mode
 Browser preferences are scoped to the normal local origin; separate ports have
 independent storage. No external fonts/artwork or Node runtime are required.
 
-The single release artifact is **TrogloDAW-Setup.exe**. SHA256SUMS contains
+The single release artifact is **`TrogloDAW-Setup-<version>.exe`**. SHA256SUMS contains
 one matching entry and release.json identifies that filename, version, source
 commit and SHA-256. Semantic-release owns version/tag decisions and versions the
 already-checked frontend payload.

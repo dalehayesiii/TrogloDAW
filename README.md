@@ -52,7 +52,7 @@ Progress stays visible across workflow changes and browser reloads. See
 
 ## Easiest: Windows installer
 
-Run **`TrogloDAW-Setup.exe`**. Python is included and no admin rights are needed. It installs to
+Run **`TrogloDAW-Setup-<version>.exe`**. Python is included and no admin rights are needed. It installs to
 `%LOCALAPPDATA%\TrogloDAW`, adds **TrogloDAW** to the Desktop and Start Menu, and keeps your files in
 `Documents\TrogloDAW\library` (set in `%LOCALAPPDATA%\TrogloDAW\app\config.json`). The app opens in your browser
 and has no console window. **Quit** stops the app and replaces the page with a
@@ -61,6 +61,15 @@ model into a folder you choose; weights are not bundled. Uninstall offers remova
 of installed model assets checked by default, with an option to retain them. Uninstall from
 Settings > Apps or the Start Menu. Your library is kept. Command line: `%LOCALAPPDATA%\TrogloDAW\troglodaw.bat <command>`.
 Windows SmartScreen may warn because the installer isn't code-signed. Click *More info > Run anyway*.
+
+The version in the filename distinguishes installers kept in the same folder.
+Older apps need a one-time manual upgrade; see the
+[versioned installer transition](docs/updates.md#recovery-and-limitations).
+
+Closing the browser tab leaves the app and background work running. Launching the
+desktop shortcut again reopens that same app, including when the default port was
+occupied. Use **Quit** to stop it. Concurrent shortcut launches share one running
+service; stale launch files after a crash do not prevent restarting.
 
 First-run setup and **Settings** let you choose separate library and model folders,
 including a different drive. Windows opens a folder browser. If the current folder
@@ -220,7 +229,7 @@ repeatedly bake previous effects into the audio.
 ## Building the Windows installer
 
 Run `uv sync --locked`, `npm ci --ignore-scripts`, and `npm run build` first.
-`scripts/windows/build.sh` makes a self-contained `TrogloDAW-Setup.exe` with embedded
+`scripts/windows/build.sh` makes a self-contained `TrogloDAW-Setup-<version>.exe` with embedded
 Python, locked Windows wheels, bundled ffmpeg and the compiled Angular UI. It needs
 NSIS (`apt install nsis` on Linux or `choco install nsis --version=3.11.0` on Windows),
 Python and `curl`; Windows uses Git Bash. Linux cross-builds remain supported.
@@ -258,6 +267,6 @@ regenerate an affected draft without changing existing songs.
   Pitch correction is a gentle per-note nudge, not hard autotune. Style choice is a heuristic on energy and tempo.
 - Pitch shift and time stretch quality is good for moderate amounts (about ±5 semitones, 0.75-1.3x).
 
-The download is `TrogloDAW-Setup.exe`. Default app/library roots use TrogloDAW;
+The download is `TrogloDAW-Setup-<version>.exe`. Default app/library roots use TrogloDAW;
 the command is `troglodaw` and environment settings use `TROGLODAW_*`.
 See the [product identity audit](docs/branding.md).

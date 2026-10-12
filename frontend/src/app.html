@@ -975,8 +975,22 @@
           Installed version: {{update.version==='0.0.0' ? 'Development/source build' :
           update.version}}
         </p>
-        <p role="status">{{update.message}}</p>
-        @if(update.supported){
+        <p role="status">{{update.status_error || update.message}}</p>
+        <p>
+          <a
+            href="https://github.com/dalehayesiii/music-maker/releases/latest"
+            target="_blank"
+            rel="noopener noreferrer"
+            >Open latest release in browser</a
+          >
+        </p>
+        <p class="muted">
+          Use your browser's GitHub sign-in for a manual download. In-app downloads use separate
+          release access.
+        </p>
+        @if(update.access){
+        <p class="muted">Release access: {{update.access}}</p>
+        } @if(update.supported){
         <label class="check"
           ><input
             type="checkbox"
@@ -986,7 +1000,7 @@
         >
         <div class="actions">
           <button type="button" (click)="updateAction('check')" [disabled]="updateBusy">
-            Check for updates
+            {{update.phase==='checking' ? 'Checking for updates…' : 'Check for updates'}}
           </button>
           @if(update.available_version && ['available','failed','canceled'].includes(update.phase)){
           <button

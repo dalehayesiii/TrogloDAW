@@ -2,6 +2,11 @@
 param([switch]$ReleaseSmoke)
 
 $ErrorActionPreference = 'Stop'
+$manifest = Get-Content dist/release.json -Raw | ConvertFrom-Json
+$installerName = "TrogloDAW-Setup-$($manifest.version).exe"
+if ($manifest.version -notmatch '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$' -or $manifest.installer -cne $installerName) { throw 'Installer filename differs from build version' }
+$installerPath = (Resolve-Path -LiteralPath (Join-Path 'dist' $installerName)).Path
+if ((Get-FileHash -LiteralPath $installerPath -Algorithm SHA256).Hash.ToLowerInvariant() -cne $manifest.sha256) { throw 'Installer checksum differs from build' }
 $testWork = if ($env:RUNNER_TEMP) { $env:RUNNER_TEMP } else { [System.IO.Path]::GetTempPath() }
 $testRoot = [System.IO.Path]::GetFullPath((Join-Path $testWork ('TrogloDAW-check-' + [System.Guid]::NewGuid().ToString('N'))))
 if (-not $testRoot.StartsWith([System.IO.Path]::GetFullPath($testWork).TrimEnd('\') + '\')) { throw 'Unsafe installer test root' }
@@ -36,7 +41,7 @@ foreach ($path in $shortcutPaths) {
     }
 }
 function Install-TestApp {
-    $process = Start-Process -FilePath ./dist/TrogloDAW-Setup.exe -ArgumentList @('/S', "/D=$installRoot") -Wait -PassThru -WindowStyle Hidden
+    $process = Start-Process -FilePath $installerPath -ArgumentList @('/S', "/D=$installRoot") -Wait -PassThru -WindowStyle Hidden
     if ($process.ExitCode) { throw 'Installer failed' }
 }
 function Uninstall-TestApp($keepModels) {
@@ -58,7 +63,6 @@ try {
     & $python (Join-Path $installRoot 'app/backend/folders.py')
     if ($LASTEXITCODE) { throw 'Embedded native folder picker initialization failed' }
     $env:TROGLODAW_LIBRARY = $libraryRoot
-    $manifest = Get-Content dist/release.json -Raw | ConvertFrom-Json
     $version = (Get-ItemProperty $registryPaths[1]).DisplayVersion
     if ($version -ne $manifest.version) { throw 'Installed version differs from build' }
     $identity = Get-Content (Join-Path $installRoot 'app/version.json') -Raw | ConvertFrom-Json

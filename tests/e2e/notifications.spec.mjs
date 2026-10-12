@@ -68,6 +68,14 @@ test('persistent failures group, dismiss, survive reload and clear only on relev
     await page.emulateMedia({ colorScheme: theme, reducedMotion: 'reduce' });
     await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
     await page.setViewportSize({ width: 390, height: 844 });
+    await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
+    await dialog
+      .getByRole('button', { name: 'Dismiss Creating songs notice' })
+      .evaluate(async (button) => {
+        await Promise.all(
+          button.getAnimations().map((animation) => animation.finished.catch(() => {})),
+        );
+      });
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
       390,
     );

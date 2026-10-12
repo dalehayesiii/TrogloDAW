@@ -7,6 +7,7 @@ import os
 import re
 import shutil
 import subprocess
+from pathlib import Path
 
 TARGET = "TrogloDAW:GitHub:dalehayesiii/music-maker"
 
@@ -92,6 +93,26 @@ def remove(target=TARGET):
         raise OSError("Windows release credential could not be removed")
 
 
+def cli_locations():
+    if os.name != "nt":
+        return []
+    locations = [Path(os.environ.get("ProgramFiles", "C:/Program Files")) / "GitHub CLI/gh.exe"]
+    if local := os.environ.get("LOCALAPPDATA"):
+        locations.extend(
+            [
+                Path(local) / "Programs/GitHub CLI/gh.exe",
+                Path(local) / "Microsoft/WinGet/Links/gh.exe",
+            ]
+        )
+    return locations
+
+
+def find_cli():
+    if executable := shutil.which("gh"):
+        return executable
+    return next((str(path) for path in cli_locations() if path.is_file()), None)
+
+
 def candidates(target=TARGET):
     """Keep tokens in memory, with the user's preferred CLI identity first."""
     result = []
@@ -102,11 +123,14 @@ def candidates(target=TARGET):
         pass
     if token := os.environ.get("TROGLODAW_GITHUB_TOKEN"):
         result.append((token, "Environment"))
-    if gh := shutil.which("gh"):
-        for account in ["purpledragondude7", "s116821"]:
+    if gh := find_cli():
+        for account in ["purpledragondude7", "s116821", None]:
             try:
+                arguments = [gh, "auth", "token", "--hostname", "github.com"]
+                if account is not None:
+                    arguments.extend(["--user", account])
                 command = subprocess.run(
-                    [gh, "auth", "token", "--hostname", "github.com", "--user", account],
+                    arguments,
                     stdin=subprocess.DEVNULL,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.DEVNULL,
@@ -116,7 +140,7 @@ def candidates(target=TARGET):
                 )
                 if command.returncode == 0 and (token := command.stdout.strip()):
                     if all(token != existing for existing, _ in result):
-                        result.append((token, "GitHub CLI: " + account))
+                        result.append((token, "GitHub CLI: " + (account or "active account")))
             except (OSError, subprocess.TimeoutExpired):
                 pass
     return [*result, ("", "Public release access")]
@@ -125,7 +149,6 @@ def candidates(target=TARGET):
 if __name__ == "__main__":
     import json
     import sys
-    from pathlib import Path
 
     path = Path(sys.argv[1])
     value = {}

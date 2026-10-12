@@ -54,11 +54,19 @@ test('release guard rejects stale or substituted builds', () => {
   }
 });
 test('the canonical installer has exactly one matching published checksum', () => {
-  const manifest = { installer: 'TrogloDAW-Setup.exe' };
-  const sums = 'abc  TrogloDAW-Setup.exe\n';
+  const manifest = { version: '1.2.3', installer: 'TrogloDAW-Setup-1.2.3.exe' };
+  const sums = 'abc  TrogloDAW-Setup-1.2.3.exe\n';
   assertDistribution(manifest, 'abc', sums);
-  assertDistribution(manifest, 'abc', 'abc  TrogloDAW-Setup.exe\r\n');
+  assertDistribution(manifest, 'abc', 'abc  TrogloDAW-Setup-1.2.3.exe\r\n');
   assert.throws(() => assertDistribution({ installer: 'substituted.exe' }, 'abc', sums));
   assert.throws(() => assertDistribution(manifest, 'different', sums));
   assert.throws(() => assertDistribution(manifest, 'abc', sums + sums));
+  assert.throws(() => assertDistribution({ ...manifest, version: '1.2.4' }, 'abc', sums));
+  assert.throws(() =>
+    assertDistribution({ ...manifest, installer: 'TrogloDAW-Setup.exe' }, 'abc', sums),
+  );
+  assert.throws(() => assertDistribution(manifest, 'abc', sums, []));
+  assert.throws(() =>
+    assertDistribution(manifest, 'abc', sums, [manifest.installer, 'TrogloDAW-Setup-0.0.0.exe']),
+  );
 });

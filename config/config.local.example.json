@@ -8,7 +8,7 @@
     "venv": "/path/to/a/venv-with-uv-pefile-packaging-pillow",
     "work_dir": "/path/to/build-work-dir",
     "cache_dir": "/path/to/download-cache",
-    "output": "/path/to/output/TrogloDAW-Setup.exe",
+    "output": "/path/to/output/TrogloDAW-Setup-0.0.0.exe",
     "parts_dir": "",
     "python_embed_version": "3.12.10",
     "wine_prefix": "/path/to/wineprefix",

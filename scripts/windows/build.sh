@@ -14,11 +14,11 @@ cfg() { "$PYTHON" "$HERE/cfg.py" "$REPO" "$1" "$2" "$3"; }
 VENV="$(cfg build.venv TROGLODAW_BUILD_VENV "$REPO/.venv")"
 WORK="$(cfg build.work_dir TROGLODAW_BUILD_WORK_DIR "$HERE/work")"
 CACHE="$(cfg build.cache_dir TROGLODAW_BUILD_CACHE_DIR "$HERE/cache")"
-OUT="$(cfg build.output TROGLODAW_BUILD_OUTPUT "$REPO/dist/TrogloDAW-Setup.exe")"
 PARTS="$(cfg build.parts_dir TROGLODAW_BUILD_PARTS_DIR "")"
 PYV="$(cfg build.python_embed_version TROGLODAW_PYTHON_EMBED_VERSION "3.12.10")"
 VERSION="${TROGLODAW_VERSION:-0.0.0}"
 [[ "$VERSION" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] || { echo "TROGLODAW_VERSION must be a stable semantic version"; exit 1; }
+OUT="$(cfg build.output TROGLODAW_BUILD_OUTPUT "$REPO/dist/TrogloDAW-Setup-$VERSION.exe")"
 PY="$VENV/bin/python"; UV="$VENV/bin/uv"
 if [[ -f "$VENV/Scripts/python.exe" ]]; then
     PY="$VENV/Scripts/python.exe"; UV="$VENV/Scripts/uv.exe"
@@ -45,7 +45,7 @@ rm -rf "$SP/bin"; find "$SP/numpy" "$SP/scipy" -type d -name tests -prune -exec 
 cp "$SP"/numpy.libs/msvcp140-*.dll "$S/python/msvcp140.dll"
 
 mkdir -p "$S/app/backend"
-cp "$REPO/backend"/{troglocore.py,cli.py,app.py,storage.py,models.py,songs.py,arrangement.py,inference_runner.py,timing.py,folders.py,updates.py,credentials.py} "$S/app/backend/"
+cp "$REPO/backend"/{troglocore.py,cli.py,app.py,storage.py,models.py,songs.py,arrangement.py,inference_runner.py,timing.py,folders.py,updates.py,credentials.py,instance.py} "$S/app/backend/"
 mkdir -p "$S/app/scripts/windows"
 cp "$REPO/scripts/windows/app_update.ps1" "$S/app/scripts/windows/"
 mkdir -p "$S/app/config"

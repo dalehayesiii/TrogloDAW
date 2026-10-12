@@ -138,7 +138,14 @@ class Updates:
             if self.busy():
                 raise ValueError("An update operation is already running")
             self.cancel_event.clear()
-            self.set_state(phase=phase)
+            if phase == "checking":
+                self.set_state(
+                    phase=phase,
+                    message="Checking for the latest release…",
+                    available_version=None,
+                )
+            else:
+                self.set_state(phase=phase)
             self.thread = threading.Thread(target=target, daemon=True, name="troglodaw-updates")
             self.thread.start()
         return self.snapshot()
@@ -211,7 +218,10 @@ class Updates:
                 )
                 return
             assets = {}
-            for name in [INSTALLER, "release.json", "SHA256SUMS"]:
+            installer = f"TrogloDAW-Setup-{available}.exe"
+            if not any(asset.get("name") == installer for asset in release.get("assets", [])):
+                installer = INSTALLER
+            for name in [installer, "release.json", "SHA256SUMS"]:
                 matches = [
                     asset for asset in release.get("assets", []) if asset.get("name") == name
                 ]
@@ -229,7 +239,7 @@ class Updates:
                     "size": asset["size"],
                     "digest": asset.get("digest"),
                 }
-            self.release = {"version": available, "assets": assets}
+            self.release = {"version": available, "installer": installer, "assets": assets}
             self.set_state(
                 phase="available",
                 available_version=available,
@@ -285,6 +295,7 @@ class Updates:
             release = self.release
             if release is None:
                 raise ValueError("Release selection is unavailable")
+            installer = release["installer"]
             manifest = json.loads(
                 self.metadata(release["assets"]["release.json"]["url"], binary=True)
             )
@@ -293,12 +304,12 @@ class Updates:
             )
             if (
                 manifest.get("version") != release["version"]
-                or manifest.get("installer") != INSTALLER
+                or manifest.get("installer") != installer
                 or not re.fullmatch(r"[0-9a-f]{40}", manifest.get("sha", ""))
                 or not re.fullmatch(r"[0-9a-f]{64}", manifest.get("sha256", ""))
             ):
                 raise ValueError("Release source/version manifest does not match")
-            if checksum.strip() != manifest["sha256"] + "  " + INSTALLER:
+            if checksum.strip() != manifest["sha256"] + "  " + installer:
                 raise ValueError("Release checksum entry does not match")
             tag = json.loads(self.metadata(API + "/git/ref/tags/v" + release["version"]))["object"]
             for _ in range(2):
@@ -311,11 +322,11 @@ class Updates:
                 tag = json.loads(self.metadata(API + "/git/tags/" + tag["sha"]))["object"]
             if tag.get("type") != "commit" or tag.get("sha") != manifest["sha"]:
                 raise ValueError("Release source commit does not match its tag")
-            asset = release["assets"][INSTALLER]
+            asset = release["assets"][installer]
             if asset["digest"] and asset["digest"] != "sha256:" + manifest["sha256"]:
                 raise ValueError("Published asset digest does not match")
             directory = self.update_directory()
-            target = safe_file(directory, release["version"] + "-" + INSTALLER)
+            target = safe_file(directory, f"TrogloDAW-Setup-{release['version']}.exe")
             partial = safe_file(directory, target.name + ".partial")
             done, started = 0, time.monotonic()
             self.set_state(

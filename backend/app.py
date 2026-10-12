@@ -5,7 +5,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import socket
 import sys
 import tempfile
 import threading
@@ -31,6 +30,7 @@ from storage import Storage
 from timing import History, Tracking
 from updates import Updates
 import credentials
+from instance import Instance, listening_socket
 
 FRONTEND = Path(__file__).resolve().parents[1] / "frontend" / "dist" / "browser"
 VOICE_T, MUSIC_T, ANY_T = "voice", "music,generated,mix", "voice,music,generated,mix"
@@ -546,7 +546,12 @@ class MusicService:
 
 
 def create_app(
-    core=troglodaw, frontend=FRONTEND, quit_callback=None, folder_picker=None, updates_factory=None
+    core=troglodaw,
+    frontend=FRONTEND,
+    quit_callback=None,
+    folder_picker=None,
+    updates_factory=None,
+    instance_id=None,
 ):
     service = MusicService(core, updates_factory or Updates)
 
@@ -858,17 +863,12 @@ def create_app(
             "frontend": (Path(frontend) / "index.html").is_file(),
             "version": service.updates.identity["version"],
             "sha": service.updates.identity["sha"],
+            "instance_id": instance_id,
         }
 
     if Path(frontend).is_dir():
         api.mount("/", StaticFiles(directory=frontend, html=True), name="frontend")
     return api
-
-
-def _port_in_use(host, port):
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as connection:
-        connection.settimeout(0.5)
-        return connection.connect_ex((host, port)) == 0
 
 
 def main():
@@ -885,33 +885,39 @@ def main():
         parser.exit(
             1, "Frontend missing. Run npm ci --ignore-scripts && npm run build, then start again.\n"
         )
-    if args.port is None and _port_in_use("127.0.0.1", 7860):
-        import urllib.request
+    instance = Instance(troglodaw.CONFIG_DIR, args.host)
+    listener = None
+    try:
+        if url := instance.claim_or_reopen():
+            if not args.no_browser:
+                webbrowser.open(url)
+            return
+        listener, port = listening_socket(args.host, args.port)
+        url = instance.publish(args.host, port)
 
-        try:
-            data = json.load(urllib.request.urlopen("http://127.0.0.1:7860/api/health", timeout=3))
-            if data.get("application") == "troglodaw":
-                if not args.no_browser:
-                    webbrowser.open("http://127.0.0.1:7860/")
-                return
-        except Exception:
-            pass
-    port = args.port or 7860
-    if args.port is None:
-        while _port_in_use(args.host, port):
-            port += 1
-    if not args.no_browser:
+        def stop_server():
+            server.should_exit = True
 
-        def open_when_ready():
-            for _ in range(100):
-                if _port_in_use(args.host, port):
-                    webbrowser.open(f"http://{args.host}:{port}/")
-                    return
-                time.sleep(0.1)
+        api = create_app(quit_callback=stop_server, instance_id=instance.id)
+        server = uvicorn.Server(uvicorn.Config(api, host=args.host, port=port, log_config=None))
+        if not args.no_browser:
 
-        threading.Thread(target=open_when_ready, daemon=True).start()
-    print(f"troglodaw {time.strftime('%Y-%m-%d %H:%M:%S')} library: {troglodaw.LIB}")
-    uvicorn.run(create_app(), host=args.host, port=port, log_config=None)
+            def open_when_ready():
+                for _ in range(200):
+                    if server.should_exit:
+                        return
+                    if server.started:
+                        webbrowser.open(url)
+                        return
+                    time.sleep(0.1)
+
+            threading.Thread(target=open_when_ready, daemon=True).start()
+        print(f"troglodaw {time.strftime('%Y-%m-%d %H:%M:%S')} library: {troglodaw.LIB}")
+        server.run(sockets=[listener])
+    finally:
+        if listener is not None:
+            listener.close()
+        instance.close()
 
 
 if __name__ == "__main__":

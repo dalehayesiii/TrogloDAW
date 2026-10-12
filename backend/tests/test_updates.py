@@ -41,14 +41,15 @@ def test_update_preserves_legacy_library_inside_program_files(core, tmp_path):
 
 
 class ReleaseFixture:
-    def __init__(self):
+    def __init__(self, *, historical=False):
+        self.installer_name = INSTALLER if historical else "TrogloDAW-Setup-2.0.0.exe"
         self.installer = b"MZ" + b"synthetic Windows installer" * 100
         self.sha = "a" * 40
         self.manifest = {
             "version": "2.0.0",
             "sha": self.sha,
             "sha256": hashlib.sha256(self.installer).hexdigest(),
-            "installer": INSTALLER,
+            "installer": self.installer_name,
         }
         self.release = {
             "tag_name": "v2.0.0",
@@ -56,7 +57,7 @@ class ReleaseFixture:
             "prerelease": False,
             "assets": [
                 {
-                    "name": INSTALLER,
+                    "name": self.installer_name,
                     "id": 1,
                     "state": "uploaded",
                     "size": len(self.installer),
@@ -84,7 +85,7 @@ class ReleaseFixture:
         elif url.endswith("/assets/2"):
             data = json.dumps(self.manifest).encode()
         elif url.endswith("/assets/3"):
-            data = (self.manifest["sha256"] + "  " + INSTALLER + "\n").encode()
+            data = (self.manifest["sha256"] + "  " + self.installer_name + "\n").encode()
         elif "/git/ref/tags/" in url:
             data = json.dumps({"object": {"type": "commit", "sha": self.sha}}).encode()
         else:
@@ -130,6 +131,8 @@ def test_check_runs_asynchronously_and_can_be_disabled(update_manager):
     fixture.block = threading.Event()
     manager.startup()
     assert manager.snapshot()["phase"] == "checking"
+    assert manager.snapshot()["message"] == "Checking for the latest release…"
+    assert manager.snapshot()["available_version"] is None
     fixture.block.set()
     manager.thread.join(3)
     assert manager.snapshot()["phase"] == "available"
@@ -220,10 +223,40 @@ def test_download_verifies_source_version_checksum_size_and_ownership(update_man
     state = complete(manager, "download")
     assert state["phase"] == "ready" and state["bytes_done"] == state["bytes_total"]
     assert manager.ready_path.read_bytes() == fixture.installer
+    assert manager.ready_path.name == "TrogloDAW-Setup-2.0.0.exe"
     assert manager.ready_path.is_relative_to(manager.storage.models)
     assert not list(manager.ready_path.parent.glob("*.partial"))
     remove_owned_models(manager.storage.config_path)
     assert not manager.ready_path.exists() and unrelated.read_text() == "preserve"
+
+
+def test_historical_fixed_name_release_remains_verifiable(update_manager):
+    manager, _ = update_manager
+    fixture = ReleaseFixture(historical=True)
+    manager.opener = fixture
+    assert complete(manager, "check")["phase"] == "available"
+    assert manager.release["installer"] == INSTALLER
+    assert complete(manager, "download")["phase"] == "ready"
+    assert manager.ready_path.read_bytes() == fixture.installer
+
+
+def test_versioned_asset_is_preferred_without_verification_fallback(update_manager):
+    manager, fixture = update_manager
+    historical = dict(fixture.release["assets"][0], name=INSTALLER, id=4)
+    fixture.release["assets"].append(historical)
+    assert complete(manager, "check")["phase"] == "available"
+    assert manager.release["installer"] == fixture.installer_name
+    fixture.manifest["installer"] = INSTALLER
+    assert complete(manager, "download")["phase"] == "failed"
+    assert manager.ready_path is None
+    assert not any(request.full_url.endswith("/assets/4") for request in fixture.requests)
+
+
+def test_wrong_version_asset_name_is_rejected(update_manager):
+    manager, fixture = update_manager
+    fixture.release["assets"][0]["name"] = "TrogloDAW-Setup-3.0.0.exe"
+    assert complete(manager, "check")["phase"] == "failed"
+    assert manager.release is None
 
 
 @pytest.mark.parametrize(

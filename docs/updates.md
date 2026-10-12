@@ -4,6 +4,18 @@ Installed Windows builds check the latest stable GitHub release in the backgroun
 
 Open **Settings → App updates** to check manually or turn startup checks off. An available-version notice opens these controls. **Download** is explicit and shows actual bytes and a transfer estimate; you can cancel and retry. The app verifies the canonical installer against its release manifest, checksum, source tag and asset size before offering **Install update and restart**.
 
+**Open latest release in browser** uses your normal browser login for manual
+downloads. It needs no CLI or separately entered token when that browser already
+has repository access. The app's background Python requests cannot reuse browser
+login cookies, so verified in-app checking/downloading still needs release access
+for a private repository. Successful checks show the access source in Settings.
+Checks discover releases; downloading and installing remain explicit actions.
+
+Clicking **Check for updates** immediately shows **Checking for updates…** while
+credentials and release access are pending, then reports a newer release, an
+up-to-date result or an access error. A failed status read appears in Settings and
+clears when polling recovers; expected installer handoff interruptions stay quiet.
+
 Installation waits for processing, uploads, folder selection and recording in every app tab to finish. The update helper acknowledges its plan before TrogloDAW stops, runs the verified installer against the existing installation, and restarts the app on the same localhost port. A status page replaces the controls during installation; it returns to the app after restart. Models, library folders and installation preferences—including completed or deferred initial setup—are reused.
 
 ![App update controls in centered Settings](assets/updates-dark.png)
@@ -14,7 +26,29 @@ Interface example captured from the real app against synthetic release/installer
 
 This repository currently has private releases. The app can reuse an existing GitHub CLI login (purpledragondude7 first, then s116821), an explicit `TROGLODAW_GITHUB_TOKEN`, or a token you save through **Private release access**. GitHub CLI is optional. A fine-grained token needs read access to repository **Contents**. Save tokens only through the password field; they are stored in Windows Credential Manager for this installation, never in JSON preferences or song recipes. Uninstall removes this installation's saved access even when models are retained. Credentials are stripped from redirects to other approved download hosts.
 
+After the preferred accounts, the CLI's active account is also tried. Windows
+checks look in standard GitHub CLI and WinGet installation locations if the
+desktop process inherited a PATH from before the CLI was installed. Source builds
+show their development status and use Git/rebuild or manual browser downloads;
+in-app installation applies only to installed Windows releases.
+
 ## Recovery and limitations
+
+New releases download as `TrogloDAW-Setup-<version>.exe` (for example,
+`TrogloDAW-Setup-2.4.0.exe`) so several installers can be kept together. The updater
+prefers the exact versioned asset and still verifies historical releases that
+only contain `TrogloDAW-Setup.exe`.
+
+Apps released before this filename change only recognize `TrogloDAW-Setup.exe`.
+For the first upgrade, download the versioned installer, SHA256SUMS and
+release.json from the same [stable release](https://github.com/dalehayesiii/music-maker/releases/latest).
+Verify its SHA-256 with `Get-FileHash -Algorithm SHA256` against the matching
+SHA256SUMS entry and confirm release.json names the same file/version. Finish
+active work, close TrogloDAW, then run that installer against the existing app
+location. Keep your configured library/model folders. Confirm the new version in
+Settings; later releases use in-app updates normally. If repair or rollback is
+needed, retain the downloaded verified installer and follow
+[installation and data recovery](installation-recovery.md).
 
 Download, verification or helper launch failures leave the current app running. Retry the operation after resolving connection, disk-space or access issues. Downloads/helpers use the selected model drive; a controlled sibling cache is used if that location is inside the installation directory.
 

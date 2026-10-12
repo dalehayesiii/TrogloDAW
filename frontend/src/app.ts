@@ -156,7 +156,12 @@ export class AppComponent {
   private statusTimer?: ReturnType<typeof setTimeout>;
   stopped = false;
   quitting = false;
-  update: any = { phase: 'idle', version: '0.0.0', supported: false };
+  update: any = {
+    phase: 'idle',
+    version: '0.0.0',
+    supported: false,
+    message: 'Loading update status…',
+  };
   updateToken = '';
   updateHandoff = false;
   private updateTimer?: ReturnType<typeof setTimeout>;
@@ -1034,7 +1039,13 @@ export class AppComponent {
       }
       this.update = next;
     } catch {
-      // A brief listener change is expected during the installer handoff.
+      // A brief listener change is expected during the explicit installer handoff.
+      if (!this.updateHandoff && !this.stopped)
+        this.update = {
+          ...this.update,
+          status_error:
+            'Could not read update status. Reopen the app or use the browser release link if this continues.',
+        };
     } finally {
       this.cdr.markForCheck();
       if (!this.stopped && this.update.phase !== 'source')
@@ -1046,11 +1057,30 @@ export class AppComponent {
   }
   async updateAction(action: string, values: any = {}) {
     this.beginWorkflow('updates');
+    if (action === 'check') {
+      this.update = {
+        ...this.update,
+        phase: 'checking',
+        message: 'Checking for the latest release…',
+        status_error: undefined,
+        available_version: null,
+      };
+      this.cdr.markForCheck();
+    }
     try {
       this.update = await this.api('/api/updates/' + action, values);
       void this.refreshUpdates();
     } catch (error) {
+      if (action === 'check')
+        this.update = {
+          ...this.update,
+          phase: 'failed',
+          message:
+            'Could not start the update check. Retry or open the latest release in your browser.',
+        };
       this.fail(error, 'updates');
+    } finally {
+      this.cdr.markForCheck();
     }
   }
   async saveUpdateAccess() {
