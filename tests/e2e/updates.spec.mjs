@@ -35,8 +35,14 @@ test('first-run background setup and verified update recovery use the real servi
     },
   );
   const headers = { 'X-TrogloDAW-Request': '1' };
-  const post = (path, data = {}) => page.request.post(base + path, { headers, data });
+  const post = async (path, data = {}) => {
+    const response = await page.request.post(base + path, { headers, data });
+    expect(response.status()).toBe(200);
+    return response;
+  };
   try {
+    if (process.env.TROGLODAW_SCREENSHOT_DIR)
+      await page.addInitScript(() => localStorage.setItem('troglodaw-theme', 'dark'));
     await expect
       .poll(async () => {
         try {
@@ -55,6 +61,8 @@ test('first-run background setup and verified update recovery use the real servi
     });
     expect(centered).toBe(true);
     await expect(dialog.getByText('App updates', { exact: true })).toHaveCount(0);
+    if (process.env.TROGLODAW_SCREENSHOT_DIR)
+      await page.screenshot({ path: join(process.env.TROGLODAW_SCREENSHOT_DIR, 'setup-dark.png') });
     await post('/api/fixture/setup');
     await page
       .getByRole('button', { name: 'Install / verify selected model', exact: true })
@@ -72,6 +80,10 @@ test('first-run background setup and verified update recovery use the real servi
     await expect(page.getByLabel('Processing jobs')).toContainText('Download + installation');
     await expect(page.getByLabel('Processing jobs')).toContainText('Overall download');
     await expect(page.getByLabel('Processing jobs')).not.toContainText('Whole request');
+    if (process.env.TROGLODAW_SCREENSHOT_DIR)
+      await page.screenshot({
+        path: join(process.env.TROGLODAW_SCREENSHOT_DIR, 'setup-background-dark.png'),
+      });
     await page
       .getByLabel('Processing jobs')
       .getByRole('button', { name: 'Cancel', exact: true })
@@ -81,6 +93,10 @@ test('first-run background setup and verified update recovery use the real servi
     await expect(dialog).toContainText('Settings and storage');
     await dialog.getByText('App updates', { exact: true }).click();
     await expect(dialog).toContainText('2.0.0');
+    if (process.env.TROGLODAW_SCREENSHOT_DIR)
+      await page.screenshot({
+        path: join(process.env.TROGLODAW_SCREENSHOT_DIR, 'updates-dark.png'),
+      });
     for (const mode of ['dark', 'light']) {
       await page.evaluate((mode) => (document.documentElement.dataset.theme = mode), mode);
       expect(

@@ -40,10 +40,13 @@ and clear all time-remaining ranges.
 ## Model setup
 
 Setup shows the destination, elapsed time, current file and resumed bytes, all
-model-file bytes present and file-verification count. During transfer, **All model
-files download** estimates the remaining known model-file bytes using current
-transfer speed. The separate stage range covers the current file. Already present
-files and owned partial downloads reduce the transfer budget.
+model-file bytes present and file-verification count. One top line gives the local
+start time and combined download/installation remaining range. Overall/current-stage
+bars initially describe **Download**, using actual bytes and measured transfer speed.
+Already present files and owned partial downloads reduce the transfer budget.
+Once those bytes are present, both scopes switch to **Installation**. Its overall bar
+counts completed asset-verification and runtime checkpoints; it is a work count,
+not an elapsed-time percentage. Its current-stage bar follows actual work units.
 
 Hash verification is a separate byte-counted stage and does not reset downloaded
 bytes. Code extraction, dependency/runtime installation and the offline readiness

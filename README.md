@@ -59,7 +59,7 @@ of installed model assets checked by default, with an option to retain them. Uni
 Settings > Apps or the Start Menu. Your library is kept. Command line: `%LOCALAPPDATA%\TrogloDAW\troglodaw.bat <command>`.
 Windows SmartScreen may warn because the installer isn't code-signed. Click *More info > Run anyway*.
 
-Open **Settings** before model setup to choose separate library and model folders,
+First-run setup and **Settings** let you choose separate library and model folders,
 including a different drive. Windows opens a folder browser. If the current folder
 contains data, choose whether to move it, use the new folder without moving, or cancel.
 The default model folder is `Documents\TrogloDAW\models`.
@@ -67,6 +67,10 @@ Generation uses the verified ACE-Step 1.5 Base model and currently requires a su
 NVIDIA GPU with 5.5 GiB free VRAM and 12 GiB available RAM. Allow about 19 GB for
 model assets, inference wheels and caches; see the model guide for measured limits.
 After setup, generation, vocal extraction and editing run locally offline.
+Choose **Continue in background** after starting installation to explore while it runs.
+Installed builds check stable releases on startup; **Settings → App updates** offers
+verified download and idle-only installation/restart. Setup and selected folders survive
+updates. Fresh reinstall and retained-data instructions are in the recovery guide above.
 
 ## Run from source
 

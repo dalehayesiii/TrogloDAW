@@ -671,6 +671,7 @@
   </footer>
   <dialog
     #dialog
+    [class.setup-dialog]="dialogKind==='setup'"
     (cancel)="$event.preventDefault(); closeDialog()"
     aria-labelledby="dialog-heading"
   >
@@ -688,11 +689,13 @@
     }
     <div class="stack">
       <ng-template #storageControls>
+        @if(dialogKind==='storage'){
         <p>
           {{library.models.ready ? 'The selected model is ready for local generation.' : 'Install a
           local model once. Generation then works offline. You can use the app and return to setup
           later.'}}
         </p>
+        }
         <div class="group">
           <h3>Model setup</h3>
           <label for="model-choice">Music model</label
@@ -818,20 +821,22 @@
         Choose where your music and local model live. Existing compatible files are verified and
         reused; only missing assets need downloading.
       </p>
-      <ng-container [ngTemplateOutlet]="storageControls" />
-      <p class="notice" role="status">
-        {{installingModel ? 'Installation continues safely in the background when you close this
-        setup dialog. Keep TrogloDAW running.' : 'You can explore now and return to Settings for
-        model installation.'}}
-      </p>
       <p class="muted">
         Available now: write lyrics/styles, import or record clips, browse your library and play
         audio. New song generation and fresh voice extraction require a ready local model.
       </p>
-      <button type="button" class="primary" (click)="closeDialog()">
-        {{installingModel ? 'Continue in background' : library.models.ready ? 'Start creating' :
-        'Set up later'}}
-      </button>
+      <ng-container [ngTemplateOutlet]="storageControls" />
+      <div class="setup-actions">
+        <p class="notice" role="status">
+          {{installingModel ? 'Installation continues safely in the background when you close this
+          setup dialog. Keep TrogloDAW running.' : 'You can explore now and return to Settings for
+          model installation.'}}
+        </p>
+        <button type="button" class="primary" (click)="closeDialog()">
+          {{installingModel ? 'Continue in background' : library.models.ready ? 'Start creating' :
+          'Set up later'}}
+        </button>
+      </div>
       } @case('storage'){
 
       <div class="appearance-choice">

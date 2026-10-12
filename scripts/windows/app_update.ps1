@@ -5,6 +5,12 @@ $listener = $null
 $installerProcess = $null
 $settings = $null
 $state = $null
+function Get-InstallerHash([string]$path) {
+    $stream=[System.IO.File]::OpenRead($path)
+    $hash=[System.Security.Cryptography.SHA256]::Create()
+    try { return [BitConverter]::ToString($hash.ComputeHash($stream)).Replace('-','').ToLowerInvariant() }
+    finally { $stream.Dispose(); $hash.Dispose() }
+}
 function Write-UpdateState([string]$phase, [string]$message) {
     $script:state = @{phase=$phase; message=$message; available_version=$settings.version; version=$settings.version; helper=$true}
     $temporary = $settings.status + '.tmp'
@@ -61,7 +67,7 @@ try {
         $settings.host -notin @('127.0.0.1','localhost','::1') -or
         [int]$settings.port -lt 1 -or [int]$settings.port -gt 65535 -or
         [int]$settings.pid -le 0) { throw 'Invalid update plan' }
-    if ((Get-FileHash -LiteralPath $installer -Algorithm SHA256).Hash.ToLower() -ne $settings.sha256) { throw 'Installer verification failed' }
+    if ((Get-InstallerHash $installer) -ne $settings.sha256) { throw 'Installer verification failed' }
     if (-not (Test-Path -LiteralPath (Join-Path $installRoot 'python/python.exe'))) { throw 'Installed Python is missing' }
     $original = Get-Process -Id $settings.pid -ErrorAction Stop
     if (-not $original.Path.StartsWith($installRoot+'\',[System.StringComparison]::OrdinalIgnoreCase)) { throw 'Running app is outside the installation' }
@@ -78,7 +84,7 @@ try {
     $address = if ($settings.host -eq '::1') {[System.Net.IPAddress]::IPv6Loopback} else {[System.Net.IPAddress]::Loopback}
     $listener = [System.Net.Sockets.TcpListener]::new($address,[int]$settings.port)
     $listener.Start()
-    if ((Get-FileHash -LiteralPath $installer -Algorithm SHA256).Hash.ToLower() -ne $settings.sha256) { throw 'Installer changed before launch' }
+    if ((Get-InstallerHash $installer) -ne $settings.sha256) { throw 'Installer changed before launch' }
     Write-UpdateState 'installing' 'Installing the verified update. Your library and models are kept.'
     $installerProcess = Start-Process -FilePath $installer -ArgumentList @('/S',"/D=$installRoot") -PassThru -WindowStyle Hidden
     while (-not $installerProcess.HasExited) {
@@ -97,9 +103,10 @@ try {
     $listener = $null
     Start-Process -FilePath $python -ArgumentList @("`"$app`"", '--host', $settings.host, '--port', $settings.port, '--no-browser') -WindowStyle Hidden | Out-Null
 } catch {
+    $failure = $_.Exception.Message
     if ($settings) {
         try {
-            Write-UpdateState 'failed' ("Update could not finish. Your library/models are kept. Verified installer: $installer")
+            Write-UpdateState 'failed' ("Update could not finish: $failure. Your library/models are kept. Verified installer: $installer")
             if ($listener) {
                 $deadline = [DateTime]::UtcNow.AddMinutes(10)
                 while ([DateTime]::UtcNow -lt $deadline) { Serve-UpdateStatus; Start-Sleep -Milliseconds 100 }

@@ -56,7 +56,7 @@ try {
         if (Test-Path -LiteralPath $statusPath) {
             $status=Get-Content -LiteralPath $statusPath -Raw | ConvertFrom-Json
             if ($status.phase -eq 'waiting') { $acknowledged=$true; break }
-            if ($status.phase -eq 'failed') { throw 'Native helper failed before acknowledgment' }
+            if ($status.phase -eq 'failed') { throw ("Native helper failed before acknowledgment: " + $status.message) }
         }
         Start-Sleep -Milliseconds 100
     }

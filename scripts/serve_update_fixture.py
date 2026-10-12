@@ -155,4 +155,6 @@ def stop():
     return {"message": "Fixture stopping"}
 
 
+# create_app mounts the UI last. Newly added fixture routes must precede that mount.
+api.router.routes.sort(key=lambda route: getattr(route, "name", None) == "frontend")
 uvicorn.run(api, host="127.0.0.1", port=args.port, log_config=None)

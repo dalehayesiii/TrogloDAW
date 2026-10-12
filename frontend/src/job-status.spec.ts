@@ -26,10 +26,16 @@ describe('honest processing status', () => {
       download_remaining: { low: 300, high: 420, samples: 4, basis: 'live_units' },
       assets_complete: 2,
       assets_total: 24,
+      started_at: new Date('2026-10-12T12:00:00Z').getTime() / 1000,
     };
     fixture.componentRef.setInput('job', transfer);
     await fixture.whenStable();
     expect(fixture.nativeElement.textContent).toContain('Overall download');
+    expect(fixture.nativeElement.textContent).toContain(
+      'Started ' + fixture.componentInstance.started(transfer.started_at),
+    );
+    expect(fixture.nativeElement.querySelectorAll('progress')).toHaveLength(2);
+    expect(fixture.nativeElement.querySelector('progress').value).toBeCloseTo(1 / 6);
     expect(fixture.nativeElement.textContent).toContain('5m 0s–7m 0s remaining');
     expect(fixture.nativeElement.textContent).toContain('D:/models');
     expect(fixture.nativeElement.textContent).toContain('1.00 GiB / 6.00 GiB');
@@ -48,6 +54,8 @@ describe('honest processing status', () => {
     expect(fixture.nativeElement.textContent).not.toContain('Overall download');
     expect(fixture.nativeElement.textContent).toContain('Overall installation');
     expect(fixture.nativeElement.textContent).toContain('24 of 29');
+    expect(fixture.nativeElement.querySelector('progress').value).toBeCloseTo(24 / 29);
+    expect(fixture.nativeElement.querySelectorAll('progress')[1].hasAttribute('value')).toBe(false);
     expect(fixture.nativeElement.textContent).not.toContain('Whole request');
     expect(fixture.nativeElement.textContent).toContain('Estimating…');
   });

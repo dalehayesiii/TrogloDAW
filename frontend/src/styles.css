@@ -1741,6 +1741,20 @@ dialog::backdrop {
 troglodaw-job-status {
   display: block;
 }
+.setup-dialog {
+  width: min(760px, calc(100% - 32px));
+}
+.setup-actions {
+  position: sticky;
+  bottom: 0;
+  padding: 12px 0;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  z-index: 1;
+}
+.setup-actions button {
+  width: 100%;
+}
 .job-panel {
   margin-bottom: 24px;
 }
