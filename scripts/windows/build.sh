@@ -47,6 +47,8 @@ cp "$REPO"/{README.md,requirements.txt} "$S/app/"
 [[ -f "$REPO/frontend/dist/browser/index.html" ]] || { echo "Build the Angular frontend with npm run build first"; exit 1; }
 mkdir -p "$S/app/frontend/dist"
 cp -r "$REPO/frontend/dist/browser" "$S/app/frontend/dist/"
+mkdir -p "$S/app/docs"
+cp -r "$REPO/docs/licenses" "$S/app/docs/licenses"
 cp "$REPO"/cicd/windows/launchers/* "$S/"
 "$PY" "$HERE/make_icon.py" "$S/musicmaker.ico"
 "$PY" "$HERE/validate.py" "$S"
