@@ -34,8 +34,10 @@ appearance are available too.
 
 ![Vocal FX: voice groups, effects and a fixed song timeline](docs/assets/vocal-fx-dark.png)
 
-Input audio is sampled from audible, varied regions, transformed individually and
-arranged across the song before the Base model generates around it. Expand **Audio
+Input audio yields varied phrase, motif and accent cuts; eligible short clips can also
+contribute a whole-clip sample. Each cut receives bounded statement/response/fill
+variations, with section dynamics, musical gaps and capped spaced returns before the
+Base model generates around the full-song guide. These are local audio heuristics. Expand **Audio
 arrangement settings** inside Input Audio to set **Audio adherence**, or enable
 **Mix samples after generation** for independent music generation followed by a
 sample overlay. The model can reinterpret samples; originals and the complete

@@ -17,7 +17,14 @@ from pathlib import Path
 import numpy as np
 import soundfile as sf
 
-from arrangement import phase_safe_audio, positions, sample_transform, select_regions
+from arrangement import (
+    PLANNER_VERSION,
+    VARIANTS_PER_REGION,
+    phase_safe_audio,
+    plan_events,
+    sample_transform,
+    select_regions,
+)
 from models import CREATE_FLAGS, ROOT, Canceled, cache_environment, runtime_signature
 from storage import atomic_json, digest, safe_file, writable_root
 
@@ -326,11 +333,19 @@ class Songs:
             )
         return sources
 
-    def arrange(self, sources, directory, parameters, progress, canceled=lambda: False):
+    def arrange(
+        self,
+        sources,
+        directory,
+        parameters,
+        progress,
+        canceled=lambda: False,
+        reused_source_ids=frozenset(),
+    ):
         layer = np.zeros((round(parameters["duration"] * self.core.SR), 2), np.float32)
         assets, placements, analyses = [], [], []
         rng = random.Random(parameters["seed"])
-        source_samples, tempos = [], []
+        sample_audio, descriptors, tempos = {}, [], []
         for source_index, source in enumerate(sources):
             if canceled():
                 raise Canceled("Sample analysis canceled")
@@ -345,97 +360,138 @@ class Songs:
             input_file.parent.mkdir(parents=True, exist_ok=True)
             sf.write(input_file, audio, self.core.SR, subtype="FLOAT")
             source["file"] = self.relative(input_file)
+            if source["id"] in reused_source_ids:
+                analyses.append(
+                    {
+                        "source_id": source["id"],
+                        "selection": {"method": "saved-arrangement"},
+                        "arrangement": {"method": "saved-arrangement"},
+                    }
+                )
+                continue
             progress(
                 "Analyzing input audio",
                 0,
                 stage="analyzing",
                 units_complete=0,
                 units_total=1,
+                timing_profile={"sample_planner": PLANNER_VERSION},
                 timing_stage_profile={
                     "source_index": source_index,
                     "source_seconds": source["duration"],
+                    "planner": PLANNER_VERSION,
                 },
             )
             audio, channel_strategy = phase_safe_audio(audio)
             analysis = self.core.analyze_vocal(audio)
-            regions, budget = select_regions(audio, self.core.SR, source["settings"], analysis)
+            regions, budget = select_regions(
+                audio,
+                self.core.SR,
+                source["settings"],
+                analysis,
+                rng,
+                parameters["duration"] / max(1, len(sources)),
+            )
             progress("Analyzed input audio", 1, stage="analyzing", units_complete=1, units_total=1)
             analyses.append({"source_id": source["id"], "analysis": analysis, "selection": budget})
             analyses[-1]["channel_strategy"] = channel_strategy
             if analysis.get("tempo_confidence", 0) >= 0.25 and analysis.get("tempo_raw"):
                 tempos.append(float(analysis["tempo_raw"]))
-            transformed_samples = []
+            sample_bpm = min(180, max(60, float(analysis.get("tempo_raw") or 90)))
+            total = len(regions) * VARIANTS_PER_REGION
             progress(
                 "Transforming source samples",
                 0,
                 stage="sampling",
                 units_complete=0,
-                units_total=len(regions),
-                timing_stage_profile={"source_index": source_index, "sample_budget": len(regions)},
+                units_total=total,
+                timing_stage_profile={
+                    "source_index": source_index,
+                    "sample_budget": len(regions),
+                    "variants": VARIANTS_PER_REGION,
+                    "planner": PLANNER_VERSION,
+                },
             )
             for index, region in enumerate(regions):
-                if canceled():
-                    raise Canceled("Sample transformation canceled")
-                fragment = audio[region["start"] : region["end"]].copy()
-                fx = sample_transform(source["settings"], region, index, rng)
-                transformed = self.core.fade(self.core.apply_fx(fragment, fx), 0.01, 0.03)
-                filename = directory / "samples" / f"{source_index}-{index}.wav"
-                filename.parent.mkdir(exist_ok=True)
-                sf.write(filename, transformed, self.core.SR, subtype="FLOAT")
-                identifier = f"s{source_index}-{index}"
-                assets.append(
-                    {
+                family = f"s{source_index}-{index}"
+                for variant in range(VARIANTS_PER_REGION):
+                    if canceled():
+                        raise Canceled("Sample transformation canceled")
+                    fragment = audio[region["start"] : region["end"]].copy()
+                    fx = sample_transform(
+                        source["settings"], region, index, rng, variant, sample_bpm, analysis
+                    )
+                    transformed = self.core.apply_fx(fragment, fx)
+                    tail = min(0.25, 30 / sample_bpm) if fx["delay"] else 0
+                    end = round(
+                        (len(fragment) / self.core.SR / fx["stretch"] + tail) * self.core.SR
+                    )
+                    transformed = self.core.fade(transformed[:end], 0.01, 0.04)
+                    peak = float(np.max(np.abs(transformed), initial=0))
+                    headroom = min(1, 0.8 / peak) if peak else 1
+                    transformed *= headroom
+                    identifier = f"{family}-v{variant}"
+                    filename = directory / "samples" / (identifier + ".wav")
+                    filename.parent.mkdir(exist_ok=True)
+                    sf.write(filename, transformed, self.core.SR, subtype="FLOAT")
+                    descriptor = {
                         "id": identifier,
-                        "source_id": source["id"],
-                        "file": self.relative(filename),
-                        "source_start": region["start"],
-                        "source_end": region["end"],
-                        "selection": region,
-                        "transformation": fx,
+                        "family_id": family,
+                        "variant": variant,
+                        "source_index": source_index,
+                        "kind": region["kind"],
+                        "role": ("statement", "response", "fill")[variant],
+                        "length_samples": len(transformed),
                     }
-                )
-                transformed_samples.append((identifier, transformed))
-                progress(
-                    "Transforming source samples",
-                    (index + 1) / len(regions),
-                    stage="sampling",
-                    source=source_index + 1,
-                    sources_total=len(sources),
-                    units_complete=index + 1,
-                    units_total=len(regions),
-                )
-            source_samples.append(transformed_samples)
+                    assets.append(
+                        {
+                            **descriptor,
+                            "source_id": source["id"],
+                            "file": self.relative(filename),
+                            "source_start": region["start"],
+                            "source_end": region["end"],
+                            "selection": region,
+                            "transformation": fx,
+                            "headroom_gain": headroom,
+                        }
+                    )
+                    descriptors.append(descriptor)
+                    sample_audio[identifier] = transformed
+                    complete = index * VARIANTS_PER_REGION + variant + 1
+                    progress(
+                        "Transforming source samples",
+                        complete / total,
+                        stage="sampling",
+                        source=source_index + 1,
+                        sources_total=len(sources),
+                        units_complete=complete,
+                        units_total=total,
+                    )
         bpm = min(180, max(60, float(np.median(tempos)) if tempos else 90))
+        if canceled():
+            raise Canceled("Sample arrangement canceled")
+        placements, plan = plan_events(descriptors, len(layer), self.core.SR, bpm, rng)
         progress(
             "Arranging transformed samples",
             0,
             stage="planning",
             units_complete=0,
-            units_total=len(source_samples),
+            units_total=len(placements),
+            timing_stage_profile={"planner": PLANNER_VERSION},
         )
-        for source_index, transformed_samples in enumerate(source_samples):
-            for index, position, gain in positions(
-                len(transformed_samples), source_index, len(sources), len(layer), self.core.SR, bpm
-            ):
-                if canceled():
-                    raise Canceled("Sample arrangement canceled")
-                identifier, transformed = transformed_samples[index]
-                length = min(len(layer) - position, len(transformed))
-                layer[position : position + length] += transformed[:length] * gain
-                placements.append(
-                    {
-                        "sample_id": identifier,
-                        "offset_samples": position,
-                        "length_samples": length,
-                        "gain": gain,
-                    }
-                )
+        for index, placement in enumerate(placements):
+            if canceled():
+                raise Canceled("Sample arrangement canceled")
+            position, length = placement["offset_samples"], placement["length_samples"]
+            layer[position : position + length] += (
+                sample_audio[placement["sample_id"]][:length] * placement["gain"]
+            )
             progress(
                 "Arranging transformed samples",
-                (source_index + 1) / len(source_samples),
+                (index + 1) / len(placements),
                 stage="planning",
-                units_complete=source_index + 1,
-                units_total=len(source_samples),
+                units_complete=index + 1,
+                units_total=len(placements),
             )
         peak = float(np.max(np.abs(layer), initial=0))
         if peak > 0.8:
@@ -444,8 +500,10 @@ class Songs:
             for placement in placements:
                 placement["gain"] *= gain
         for analysis in analyses:
+            if analysis["selection"]["method"] == "saved-arrangement":
+                continue
             analysis["arrangement"] = {
-                "method": "shared-grid-recurring-motifs-v1",
+                **plan,
                 "bpm": bpm,
                 "tempo_source": "detected" if tempos else "fallback",
             }
@@ -461,9 +519,19 @@ class Songs:
         estimate = count * (
             sum(
                 source["duration"]
-                + min(source["duration"], float(source["settings"]["sample_seconds"]))
+                + (
+                    min(
+                        source["duration"],
+                        max(
+                            float(source["settings"]["sample_seconds"]) * 2,
+                            source["duration"] if source["duration"] <= 8 else 0,
+                        ),
+                    )
+                    * 2
+                    + 0.25
+                )
                 * int(source["settings"]["samples"])
-                * 2
+                * VARIANTS_PER_REGION
                 for source in sources
             )
             * self.core.SR
@@ -499,7 +567,12 @@ class Songs:
 
             try:
                 layer, samples, placements, analyses = self.arrange(
-                    current_sources, directory, parameters, item_progress, canceled
+                    current_sources,
+                    directory,
+                    parameters,
+                    item_progress,
+                    canceled,
+                    {s["source_id"] for s in (draft.get("arrangement") or {}).get("samples", [])},
                 )
                 if draft.get("arrangement"):
                     imported = draft["arrangement"]
@@ -550,6 +623,12 @@ class Songs:
                             "gain", 1
                         )
                         placements.append({**old_placement, "sample_id": sample["id"]})
+                peak = float(np.max(np.abs(layer), initial=0))
+                if peak > 0.8:
+                    gain = 0.8 / peak
+                    layer *= gain
+                    for placement in placements:
+                        placement["gain"] = placement.get("gain", 1) * gain
                 mode = generation_mode(draft, self.models, bool(samples))
                 parameters.update(mode)
                 arrangement_file = directory / "sample-arrangement.wav"

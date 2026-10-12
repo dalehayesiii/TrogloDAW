@@ -88,6 +88,7 @@ troglodaw.part*
 winetricks
 !docs/ui-parity/**/*.png
 !docs/assets/*.png
+!docs/notification-evidence/*.png
 
 # ---- editors / OS ----
 .vscode/
