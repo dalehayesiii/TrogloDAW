@@ -98,6 +98,14 @@ test('applicable audio conditioning controls persist and postmix disables adhere
       await page
         .getByRole('button', { name: mode === 'light' ? 'Light mode' : 'Dark mode', exact: true })
         .click();
+    await page.evaluate(async () => {
+      await Promise.all(
+        document
+          .getAnimations()
+          .filter((animation) => Number(animation.effect?.getTiming().iterations) !== Infinity)
+          .map((animation) => animation.finished.catch(() => undefined)),
+      );
+    });
     expect(
       (await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze())
         .violations,

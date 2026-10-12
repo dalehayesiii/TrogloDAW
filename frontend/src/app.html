@@ -140,7 +140,7 @@
             @if(draft.clips.length){
             <details class="audio-arrangement-settings">
               <summary>Audio arrangement settings</summary>
-              <label for="postmix-mode"
+              <label for="postmix-mode" class="check-label"
                 ><input
                   id="postmix-mode"
                   type="checkbox"
@@ -164,15 +164,19 @@
                 around that audio. It can change the samples' sound.
               </p>
               <label for="audio-adherence">Audio adherence ({{draft.audio_adherence}}%)</label>
-              <input
-                id="audio-adherence"
-                type="range"
-                min="0"
-                max="100"
-                step="1"
-                [(ngModel)]="draft.audio_adherence"
-                (ngModelChange)="saveDraft()"
-              />
+              <div class="range-row">
+                <span>0</span
+                ><input
+                  id="audio-adherence"
+                  type="range"
+                  min="0"
+                  max="100"
+                  step="1"
+                  [(ngModel)]="draft.audio_adherence"
+                  (ngModelChange)="saveDraft()"
+                  [style.--fill]="draft.audio_adherence + '%'"
+                /><span>100</span>
+              </div>
               <p class="muted">
                 Higher values follow the arrangement more closely (whole steps out of 32); zero uses
                 text guidance only. Separate from Style Influence.

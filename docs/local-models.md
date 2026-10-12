@@ -110,7 +110,8 @@ compatibility mapping remain active.
 Offline embedded-Python RTX 3070 tests used fixed seed 42, CFG 8 and 32 steps with
 known synthetic/generated input assets. A full-duration arrangement at 0%, 75% and
 100% adherence succeeded. The 75%-versus-zero waveform difference RMS was 0.2163;
-changing the arrangement at the same 75% strength also changed the generated audio.
+changing the arrangement at the same 75% strength changed the output by RMS 0.1709.
+The 75%-versus-100% adherence difference was RMS 0.0764.
 These differences demonstrate active conditioning, not a perceptual quality score.
 
 | Arrangement/output duration | Total time | Inference time | Peak process RSS | Peak CUDA allocation |
