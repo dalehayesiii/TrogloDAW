@@ -418,8 +418,16 @@ class Songs:
             raise ValueError("Number of Generations must be an integer between 1 and 32")
         sources = self.collect_sources(draft)
         estimate = count * (
-            max((source["duration"] for source in sources), default=0) * self.core.SR * 8
-            + 120 * self.core.SR * 24
+            sum(
+                source["duration"]
+                + min(source["duration"], float(source["settings"]["sample_seconds"]))
+                * int(source["settings"]["samples"])
+                * 2
+                for source in sources
+            )
+            * self.core.SR
+            * 8
+            + 120 * self.core.SR * 32
         )
         writable_root(str(self.core.LIB), int(estimate) + 64 * 1024 * 1024)
         outcomes = []
