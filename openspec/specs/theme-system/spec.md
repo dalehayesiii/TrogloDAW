@@ -45,3 +45,10 @@ The app/header/browser title, Windows installer/assets/shortcut/uninstall metada
 #### Scenario: Fresh complete identity
 - **WHEN** TrogloDAW is installed and its current repository assets are inspected
 - **THEN** installer/launch/icon/payload/default paths and current product names consistently use TrogloDAW without previous-name aliases
+
+### Requirement: Recognizable local browser-tab icon
+The browser document SHALL declare a locally served TrogloDAW cave-logo favicon. The same recognizable purple/pink stone, dark cave and lime waveform SHALL remain visible on light and dark browser chrome in supported browsers, including the packaged app, without an external asset request.
+
+#### Scenario: Identify the app tab
+- **WHEN** the source or installed app opens in a supported browser
+- **THEN** the browser document references the bundled logo favicon and its asset is served locally with the SVG image content type
