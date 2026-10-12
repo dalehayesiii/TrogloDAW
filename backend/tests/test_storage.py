@@ -11,6 +11,39 @@ from types import SimpleNamespace
 import storage as storage_module
 
 
+def test_parallel_setup_and_audio_cache_ownership_retains_both_records(core, tmp_path, monkeypatch):
+    import threading
+    import time
+    from concurrent.futures import ThreadPoolExecutor
+
+    storage = Storage(core)
+    root = tmp_path / "shared-model-cache"
+    root.mkdir()
+    first, second = root / "setup.bin", root / "audio.bin"
+    first.write_bytes(b"synthetic setup")
+    second.write_bytes(b"synthetic audio cache")
+    entered, released = threading.Event(), threading.Event()
+    original = storage_module.digest
+
+    def digest(path):
+        if path == first:
+            entered.set()
+            assert released.wait(3)
+        return original(path)
+
+    monkeypatch.setattr(storage_module, "digest", digest)
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        one = pool.submit(storage.owned, root, [first])
+        assert entered.wait(2)
+        two = pool.submit(storage.owned, root, [second])
+        time.sleep(0.05)
+        released.set()
+        one.result(timeout=3)
+        two.result(timeout=3)
+    marker = root / ".troglodaw" / (storage.preferences["installation_id"] + ".json")
+    assert set(json.loads(marker.read_text())["files"]) == {"setup.bin", "audio.bin"}
+
+
 def test_setup_history_belongs_to_installation_preferences_not_retained_assets(core):
     storage = Storage(core)
     assert storage.describe()["setup_seen"] is False

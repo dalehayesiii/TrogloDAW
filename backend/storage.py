@@ -180,6 +180,7 @@ class Storage:
     def __init__(self, core):
         self.core = core
         self.persist_lock = threading.RLock()
+        self.ownership_lock = threading.RLock()
         self.config_path = core.CONFIG_DIR / "config.local.json"
         self.preferences = core._read_json(self.config_path)
         # Preserve setup history for upgrades of installations created before this flag.
@@ -472,6 +473,10 @@ class Storage:
         return retained
 
     def owned(self, root: Path, files: list[Path], progress=None):
+        with self.ownership_lock:
+            self._owned(root, files, progress)
+
+    def _owned(self, root: Path, files: list[Path], progress=None):
         path = root / ".troglodaw" / (self.preferences["installation_id"] + ".json")
         existing = json.loads(path.read_text()) if path.exists() else {"files": {}}
         reported = time.monotonic()
@@ -492,6 +497,10 @@ class Storage:
 
     def reference(self, root: Path, files: list[Path]):
         """Co-reference app-owned assets; externally supplied files remain unowned."""
+        with self.ownership_lock:
+            self._reference(root, files)
+
+    def _reference(self, root: Path, files: list[Path]):
         known = {}
         directory = root / ".troglodaw"
         if directory.exists():

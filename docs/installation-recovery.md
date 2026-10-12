@@ -18,6 +18,8 @@ Selecting a folder does not itself start a download. Setup can be deferred; impo
 
 Keep user libraries/models outside the installed `app` and `python` directories; upgrades replace those directories. New selections reject those locations. If an older installation has data there, uninstall stops before deleting it. Open **Settings**, select an empty safe folder, and choose **Move existing data**. The app copies and verifies managed data before switching preferences and removes only safe originals; shared, changed or unrelated files remain. Preserve any remaining unrelated files yourself before removing the app.
 
+Relocate unsafe legacy storage before running a newer installer manually. In-app update handoff checks these locations and refuses unsafe upgrades; a manual installer cannot recover data placed inside program directories that it replaces.
+
 An empty historical storage folder containing only ownership metadata does not block uninstall after a completed move. A historical reserved folder still containing assets remains a recovery concern and is preserved.
 
 ## Uninstall after canceled setup on 2.0.0
