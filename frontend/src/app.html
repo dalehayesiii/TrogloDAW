@@ -1,10 +1,48 @@
 <main class="flex min-h-screen flex-col" (input)="saveDraft()">
   <header class="app-header">
+    <svg class="cave-mural" viewBox="0 0 460 180" aria-hidden="true" focusable="false">
+      <path
+        class="mural-contour"
+        d="M40 190 57 86 110 27 197 8 279 26 333 81 350 190M80 190 93 105 133 60 197 43 257 60 291 103 309 190M126 190 134 128 157 95 198 80 238 97 260 130 269 190"
+      />
+      <path
+        class="mural-rhythm"
+        d="m158 147 1 14m17-33 1 50m18-69 1 65m18-47 1 32m18-18 1 22M370 87l9-18m5 25 9-18m5 26 9-19m5 27 9-19m-60 4 67 13"
+      />
+      <g class="mural-mammoth" transform="rotate(-4 70 119)">
+        <path class="mammoth-far-legs" d="m41 129 2 19 8 1 3-19m24-2 1 19 8 1 3-23" />
+        <path
+          class="mammoth-body"
+          d="M23 131c-5-13 0-25 12-31 9-5 17-3 25-8l8-5 9 1 7 6c10-1 19 7 20 17l1 19c0 7 3 12 8 12 5 0 8-4 8-9 0-3 4-4 4 0 1 10-5 16-13 16-11 0-17-9-18-20l-4-8-5 4-8 2-3 23-10 1-2-21-5 2-5-2-5 2-6-2-6 20-10-1-1-21-5-5Z"
+        />
+        <path
+          class="mammoth-detail"
+          d="M25 111c-5 1-8 7-8 13m64-23c-8-1-9 12-1 16l6-4-1-10m-47 4-2 5m10-7-2 6m10-9-2 7m10-9-2 6"
+        />
+        <path
+          class="mammoth-tusks"
+          d="M96 118c11 13 29 14 35-2-1 19-25 23-37 6m3-2c9 15 31 19 40 0"
+        />
+        <circle class="mammoth-eye" cx="97" cy="108" r="1.4" />
+      </g>
+      <path class="mural-sparks" d="m354 33 8 9-11 9m54 91 11 5-5 11M108 22l5-10m213 116 8-5" />
+    </svg>
     <div>
-      <h1>🎛️ musicmaker</h1>
-      <p>Create a song · organize your library · shape each voice</p>
+      <div class="identity">
+        <svg class="brand-mark" viewBox="0 0 64 64" aria-hidden="true" focusable="false">
+          <path class="brand-stone" d="M8 53 5 32 13 12 31 5 51 12 59 34 55 54 40 59 22 57Z" />
+          <path class="brand-cave" d="M18 49V34C18 15 47 15 47 34V49Z" />
+          <path class="brand-wave" d="M23 35V42M29 29V47M35 33V44M41 36V41" />
+        </svg>
+        <div>
+          <span class="brand-eyebrow">A little primitive. A lot of possibility.</span>
+          <h1>Troglo<span>DAW</span></h1>
+          <p>Make a song. Keep the good bits.</p>
+        </div>
+      </div>
     </div>
-    <div class="actions">
+    <div class="actions header-actions">
+      <span class="local-stamp"><span aria-hidden="true"></span> Your local sound cave</span>
       <button type="button" (click)="openDialog('storage')">Settings</button
       ><button type="button" (click)="toggleTheme()">
         {{theme === 'light' ? 'Dark mode' : 'Light mode'}}
@@ -23,7 +61,20 @@
       (click)="changeTab($index)"
       (keydown)="tabKey($event,$index)"
     >
-      {{label}}</button
+      <svg class="tab-glyph" viewBox="0 0 28 28" aria-hidden="true" focusable="false">
+        @switch ($index) { @case (0) {
+        <path d="m5 22 1-12 7-6 9 4 2 12M10 21v-7l4-3 4 3v7M12 18v3m4-5v5" />
+        } @case (1) {
+        <path d="m5 7 18-2-1 5-17 2Zm1 7 16-1 1 5-17 1Zm0 8 16-1M10 7l1 3m5 5v3" />
+        } @default {
+        <path d="m4 12 1 5m5-12 1 18m5-15 1 13m5-9 1 5M3 25l22-1" />
+        } }</svg
+      ><span>{{label}}</span
+      ><span
+        class="tab-tally"
+        aria-hidden="true"
+        [attr.data-tally]="['I','II','III'][$index]"
+      ></span></button
     >}
   </nav>
   @if (error && !dialogKind) {
@@ -35,7 +86,13 @@
     <section role="tabpanel" id="panel-0" aria-labelledby="tab-0" [hidden]="tab!==0">
       <div class="columns grid gap-4 md:grid-cols-2">
         <div class="stack">
-          <div class="group">
+          <div class="group input-stone">
+            <div class="section-kicker">
+              <span>01 / Gather</span
+              ><svg viewBox="0 0 54 20" aria-hidden="true">
+                <path d="m2 10 5 6 7-13 7 14 8-12 7 11 7-10 8 5" />
+              </svg>
+            </div>
             <div class="heading-row">
               <h3>Input Audio</h3>
               <div class="input-help">
@@ -98,9 +155,13 @@
                   Retake</button
                 >}<button type="button" (click)="removeClip(index)">Remove clip</button>
               </div>
-              <details>
-                <summary>Sample transformation</summary>
-                <div class="stack">
+              <details class="clip-adjustments">
+                <summary>Clip adjustments</summary>
+                <div class="stack options">
+                  <p class="muted">
+                    Adjust this input clip’s pitch, speed and volume before it is arranged in the
+                    song.
+                  </p>
                   <label [for]="'replace-clip-'+index">Replace this clip with a file</label>
                   <input
                     [id]="'replace-clip-'+index"
@@ -109,8 +170,8 @@
                     (change)="replaceFile($event,index)"
                     [disabled]="busy"
                   />
-                  <label [for]="'clip-pitch-'+index">Sample pitch (semitones)</label
-                  ><input
+                  <label [for]="'clip-pitch-'+index">Pitch (semitones)</label>
+                  <input
                     [id]="'clip-pitch-'+index"
                     type="number"
                     min="-12"
@@ -118,8 +179,9 @@
                     step=".5"
                     [(ngModel)]="clip.settings['pitch']"
                     placeholder="0"
-                  /><label [for]="'clip-stretch-'+index">Sample stretch</label
-                  ><input
+                  />
+                  <label [for]="'clip-stretch-'+index">Playback speed</label>
+                  <input
                     [id]="'clip-stretch-'+index"
                     type="number"
                     min=".5"
@@ -127,8 +189,13 @@
                     step=".05"
                     [(ngModel)]="clip.settings['stretch']"
                     placeholder="1"
-                  /><label [for]="'clip-gain-'+index">Sample gain (dB)</label
-                  ><input
+                    [attr.aria-describedby]="'clip-speed-help-'+index"
+                  />
+                  <p class="muted" [id]="'clip-speed-help-'+index">
+                    1× is the original speed. Higher values make the clip faster and shorter.
+                  </p>
+                  <label [for]="'clip-gain-'+index">Volume (dB)</label>
+                  <input
                     [id]="'clip-gain-'+index"
                     type="number"
                     min="-30"
@@ -147,7 +214,10 @@
             </article>
             }
           </div>
-          <div class="group">
+          <div class="group words-stone">
+            <div class="section-kicker">
+              <span>02 / Inscribe</span><span aria-hidden="true" class="scratch-marks">╱╱╱</span>
+            </div>
             <label for="lyrics">Input Lyrics</label
             ><textarea
               id="lyrics"
@@ -167,7 +237,13 @@
           </div>
         </div>
         <div class="stack">
-          <div class="group">
+          <div class="group creation-stone">
+            <div class="section-kicker">
+              <span>03 / Make some noise</span
+              ><svg viewBox="0 0 54 20" aria-hidden="true">
+                <path d="m3 17 9-14 11 14ZM30 17 39 3l12 14ZM8 17h37" />
+              </svg>
+            </div>
             <h3>Make this song</h3>
             <button type="button" (click)="openDialog('reference-picker')">
               Prior Song Reference
@@ -212,11 +288,14 @@
             >}
             <button
               type="button"
-              class="primary"
+              class="primary generate-button"
               [disabled]="busy || recording"
               (click)="generate()"
             >
-              Generate song{{draft.count>1 ? 's' : ''}}
+              <svg viewBox="0 0 28 28" aria-hidden="true">
+                <path d="m5 21 3-9 7-7 7 4-4 10-8 4ZM11 18l7-9M8 12l10 7" />
+              </svg>
+              Generate song{{draft.count>1 ? 's' : ''}}<span aria-hidden="true">↗</span>
             </button>
             @if (!library.models.ready) {
             <p class="muted">
@@ -253,7 +332,10 @@
     <section role="tabpanel" id="panel-1" aria-labelledby="tab-1" [hidden]="tab!==1">
       <div class="columns grid gap-4 md:grid-cols-2">
         <div class="stack">
-          <div class="group">
+          <div class="group library-stone">
+            <div class="section-kicker">
+              <span>The collection</span><span aria-hidden="true" class="scratch-marks">╱╱╱╱</span>
+            </div>
             <h3>Your songs</h3>
             <label for="song-search">Search songs</label
             ><input id="song-search" [(ngModel)]="search" /><label for="folder-filter">Folder</label
@@ -288,6 +370,7 @@
                 type="button"
                 class="song-row"
                 [class.selected]="selectedSong===song.id"
+                [attr.aria-pressed]="selectedSong===song.id"
                 (click)="selectSong(song)"
               >
                 <strong>{{song.name}}</strong
@@ -299,7 +382,10 @@
         </div>
         <div class="stack">
           @if(selected;as song){
-          <div class="group">
+          <div class="group playback-stone">
+            <div class="section-kicker">
+              <span>Unearthed from your library</span><span aria-hidden="true">↗</span>
+            </div>
             <h3>{{song.name}}</h3>
             <mm-audio [label]="song.name" [media]="libraryAudio" /><button
               type="button"
@@ -346,7 +432,10 @@
     </section>
     <section role="tabpanel" id="panel-2" aria-labelledby="tab-2" [hidden]="tab!==2">
       @if(!fx){
-      <div class="group">
+      <div class="group fx-empty-stone">
+        <div class="section-kicker">
+          <span>The voice workshop</span><span aria-hidden="true">╱╱╱</span>
+        </div>
         <h3>Choose a song to shape its voices</h3>
         <p>
           Select a generated song or FX version. Its vocal stems and candidate voice groups will be
@@ -357,7 +446,10 @@
       } @if(fx){
       <div class="columns grid gap-4 md:grid-cols-2">
         <div class="stack">
-          <div class="group">
+          <div class="group voice-stone">
+            <div class="section-kicker">
+              <span>01 / Find the voice</span><span aria-hidden="true">╱╱</span>
+            </div>
             <h3>{{fx.song.name}}</h3>
             <p class="muted">
               {{fx.cache_hit ? 'Source stems and analysis reused.' : 'Source stems and analysis
@@ -393,7 +485,10 @@
           </details>
         </div>
         <div class="stack">
-          <div class="group">
+          <div class="group effects-stone">
+            <div class="section-kicker">
+              <span>02 / Shape the sound</span><span aria-hidden="true">╱╱╱</span>
+            </div>
             <h3>Effects for {{currentGroup?.name}}</h3>
             <p class="muted">
               Only the selected group changes. Stretch and trim keep fixed timeline slots; tails end
@@ -446,6 +541,7 @@
   </aside>
   }
   <footer>
+    <span class="footer-mark"><span aria-hidden="true">◈</span> Made here. Kept here.</span>
     <button type="button" (click)="refresh()">Refresh library</button
     ><button type="button" class="stop" (click)="quit()" [disabled]="busy">Quit</button>
   </footer>
@@ -464,6 +560,12 @@
     }
     <div class="stack">
       @switch(dialogKind){ @case('storage'){
+      <div class="appearance-choice">
+        <span>Appearance: {{theme}} {{appearance==='system' ? '(system)' : '(saved choice)'}}</span
+        ><button type="button" (click)="useSystemTheme()" [disabled]="appearance==='system'">
+          Use system theme
+        </button>
+      </div>
       <p>
         {{library.models.ready ? 'The selected model is ready for local generation.' : 'Install a
         local model once. Generation then works offline. You can use the app and return to setup

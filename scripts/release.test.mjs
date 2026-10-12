@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import { analyzeCommits } from '@semantic-release/commit-analyzer';
 import { generateNotes } from '@semantic-release/release-notes-generator';
 import { analyzerOptions, notesOptions } from '../config/release.config.mjs';
-import { assertBuild } from './release-guard.mjs';
+import { assertBuild, assertAliases } from './release-guard.mjs';
 
 const logger = { log() {}, error() {} };
 const commits = (...messages) =>
@@ -52,4 +52,10 @@ test('release guard rejects stale or substituted builds', () => {
   ]) {
     assert.throws(() => assertBuild(manifest, ...args));
   }
+});
+test('branded installer and legacy alias must share the published checksum', () => {
+  const sums = 'abc  TrogloDAW-Setup.exe\nabc  MusicMaker-Setup.exe\n';
+  assertAliases('abc', 'abc', sums);
+  assert.throws(() => assertAliases('abc', 'different', sums));
+  assert.throws(() => assertAliases('abc', 'abc', 'abc  MusicMaker-Setup.exe\n'));
 });

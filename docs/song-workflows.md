@@ -1,6 +1,6 @@
-# Song workflows
+# TrogloDAW Song workflows
 
-The browser has three tabs: **Generation**, **Library** and **Vocal FX**. Settings
+TrogloDAW has three browser tabs: **Generation**, **Library** and **Vocal FX**. Settings
 contains the initial model setup and separate library/model locations. After setup,
 audio processing and storage work offline. See [model setup and measured limits](local-models.md).
 
@@ -20,6 +20,11 @@ Every selected input is analyzed, sliced, transformed and placed in the song;
 none is silently ignored. Original input copies, transformed sample WAVs and
 placements are saved independently from generated musical parts. The generated
 model audio is mixed with these arranged samples, then mastered. Selecting a
+clip's initially closed **Clip adjustments** dropdown inside Input Audio exposes
+replacement, pitch, playback speed and volume. These changes affect that input
+clip before arrangement and apply to uploaded, recorded and prior-song clips;
+they do not change newly generated vocals. Playback speed above one makes a clip
+faster/shorter. Selecting a
 finished song as Input Audio samples its rendered mix. Recommended prior-song
 settings affect only that clip: eight one-second slices, +2 semitones, 1.1x stretch
 and -12 dB gain. Apply or keep settings explicitly. The decision/version stays with

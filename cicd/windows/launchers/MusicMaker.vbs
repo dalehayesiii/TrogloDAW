@@ -1,4 +1,4 @@
-' Launch Music Maker without a console window
+' Launch TrogloDAW without a console window (compatible file name retained)
 Set fso = CreateObject("Scripting.FileSystemObject")
 d = fso.GetParentFolderName(WScript.ScriptFullName)
 Set sh = CreateObject("WScript.Shell")

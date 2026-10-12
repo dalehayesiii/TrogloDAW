@@ -14,7 +14,7 @@ cfg() { "$PYTHON" "$HERE/cfg.py" "$REPO" "$1" "$2" "$3"; }
 VENV="$(cfg build.venv MM_BUILD_VENV "$REPO/.venv")"
 WORK="$(cfg build.work_dir MM_BUILD_WORK_DIR "$HERE/work")"
 CACHE="$(cfg build.cache_dir MM_BUILD_CACHE_DIR "$HERE/cache")"
-OUT="$(cfg build.output MM_BUILD_OUTPUT "$REPO/dist/MusicMaker-Setup.exe")"
+OUT="$(cfg build.output MM_BUILD_OUTPUT "$REPO/dist/TrogloDAW-Setup.exe")"
 PARTS="$(cfg build.parts_dir MM_BUILD_PARTS_DIR "")"
 PYV="$(cfg build.python_embed_version MM_PYTHON_EMBED_VERSION "3.12.10")"
 VERSION="${MM_VERSION:-0.0.0}"

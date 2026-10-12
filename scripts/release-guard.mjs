@@ -10,6 +10,14 @@ export function assertBuild(manifest, version, sha, checksum) {
   }
 }
 
+export function assertAliases(checksum, legacyChecksum, sums) {
+  if (legacyChecksum !== checksum)
+    throw new Error('Legacy installer alias differs from TrogloDAW installer.');
+  if (sums.trim() !== `${checksum}  TrogloDAW-Setup.exe\n${checksum}  MusicMaker-Setup.exe`) {
+    throw new Error('Published checksum file differs from the installer aliases.');
+  }
+}
+
 // semantic-release runs prepare BEFORE creating its tag or publishing its release.
 export async function prepare(_config, { nextRelease }) {
   const sha = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
@@ -22,11 +30,12 @@ export async function prepare(_config, { nextRelease }) {
   if (latest !== sha)
     throw new Error('main advanced during the build; release the newer tested commit instead.');
   const checksum = createHash('sha256')
-    .update(readFileSync('dist/MusicMaker-Setup.exe'))
+    .update(readFileSync('dist/TrogloDAW-Setup.exe'))
     .digest('hex');
   const manifest = JSON.parse(readFileSync('dist/release.json', 'utf8'));
   assertBuild(manifest, nextRelease.version, sha, checksum);
-  if (readFileSync('dist/SHA256SUMS', 'utf8').trim() !== `${checksum}  MusicMaker-Setup.exe`) {
-    throw new Error('Published checksum file differs from the installer.');
-  }
+  const legacyChecksum = createHash('sha256')
+    .update(readFileSync('dist/MusicMaker-Setup.exe'))
+    .digest('hex');
+  assertAliases(checksum, legacyChecksum, readFileSync('dist/SHA256SUMS', 'utf8'));
 }

@@ -1,4 +1,4 @@
-# Dependency audit baseline (2026-10-11)
+# TrogloDAW Dependency audit baseline (2026-10-11)
 
 Python is locked through uv; Node tooling and the frontend through npm workspaces.
 PostCSS is pinned/overridden to 8.5.29 after the initial audit found advisories in

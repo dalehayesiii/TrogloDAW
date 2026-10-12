@@ -120,17 +120,18 @@ def test_validation_messages_and_production(core, monkeypatch):
 
 
 def test_static_service_and_mutation_boundary(core, tmp_path):
-    (tmp_path / "index.html").write_text("<title>musicmaker</title>")
+    (tmp_path / "index.html").write_text("<title>TrogloDAW</title>")
     stopped = threading.Event()
     with TestClient(create_app(core, tmp_path, stopped.set)) as client:
-        assert client.get("/").text == "<title>musicmaker</title>"
+        assert client.get("/").text == "<title>TrogloDAW</title>"
         assert client.get("/api/health").json()["frontend"] is True
+        assert client.get("/api/health").json()["product"] == "TrogloDAW"
         assert client.post("/api/shutdown").status_code == 403
         assert (
             client.post("/api/jobs", json={"action": "unknown"}, headers=HEADERS).status_code == 422
         )
         assert (
             client.post("/api/shutdown", headers=HEADERS).json()["message"]
-            == "Music Maker has stopped. You can close this browser tab."
+            == "TrogloDAW has stopped. You can close this browser tab."
         )
         assert stopped.wait(2)

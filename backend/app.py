@@ -457,11 +457,15 @@ def create_app(core=mm, frontend=FRONTEND, quit_callback=None):
             event.set()
         callback = quit_callback or (lambda: os._exit(0))
         threading.Timer(0.8, callback).start()
-        return {"message": "Music Maker has stopped. You can close this browser tab."}
+        return {"message": "TrogloDAW has stopped. You can close this browser tab."}
 
     @api.get("/api/health")
     def health():
-        return {"application": "musicmaker", "frontend": (Path(frontend) / "index.html").is_file()}
+        return {
+            "application": "musicmaker",
+            "product": "TrogloDAW",
+            "frontend": (Path(frontend) / "index.html").is_file(),
+        }
 
     if Path(frontend).is_dir():
         api.mount("/", StaticFiles(directory=frontend, html=True), name="frontend")

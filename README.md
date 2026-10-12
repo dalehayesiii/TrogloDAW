@@ -1,4 +1,4 @@
-# musicmaker v1
+# TrogloDAW
 
 Developer workflow, CI, OpenSpec and automated Windows releases:
 [Development guide](docs/development.md). Repository owners should complete
@@ -11,14 +11,21 @@ and [model setup, hardware measurements and limits](docs/local-models.md).
 
 ## Easiest: Windows installer
 
-Run **`MusicMaker-Setup.exe`**. Python is included and no admin rights are needed. It installs to
-`%LOCALAPPDATA%\MusicMaker`, adds **Music Maker** to the Desktop and Start Menu, and keeps your files in
+Run **`TrogloDAW-Setup.exe`**. Python is included and no admin rights are needed. It installs to
+`%LOCALAPPDATA%\MusicMaker`, adds **TrogloDAW** to the Desktop and Start Menu, and keeps your files in
 `Documents\MusicMaker\library` (set in `%LOCALAPPDATA%\MusicMaker\app\config.json`). The app opens in your browser
 and has no console window. Use the **Quit** button to stop it. Initial setup installs the recommended
 model into a folder you choose; weights are not bundled. Uninstall offers removal
 of installed model assets checked by default, with an option to retain them. Uninstall from
 Settings > Apps or the Start Menu. Your library is kept. Command line: `%LOCALAPPDATA%\MusicMaker\mm.bat <command>`.
 Windows SmartScreen may warn because the installer isn't code-signed. Click *More info > Run anyway*.
+
+Open **Settings** before model setup to choose separate library and model folders,
+including a different drive. The default model folder is `Documents\MusicMaker\models`.
+Generation uses the verified ACE-Step 1.5 Base model and currently requires a supported
+NVIDIA GPU with 5.5 GiB free VRAM and 12 GiB available RAM. Allow about 19 GB for
+model assets, inference wheels and caches; see the model guide for measured limits.
+After setup, generation, vocal extraction and editing run locally offline.
 
 ## Run from source
 
@@ -30,9 +37,9 @@ Windows: run **`scripts\launchers\start.bat`**. macOS/Linux: run
 `bash scripts/launchers/start.sh` (or double-click `scripts/launchers/start.command`
 on macOS). The launcher runs `uv sync --locked`, builds the Angular frontend if
 missing, then starts FastAPI and opens **http://127.0.0.1:7860** (or the next free port).
-The first setup needs internet. Leave the terminal open or use **Quit Music Maker**.
+The first setup needs internet. Leave the terminal open or use **Quit**.
 After frontend source changes, run `npm run build` before relaunching.
-The Windows installer includes the compiled UI, Python and its own setup tool;
+The TrogloDAW Windows installer includes the compiled UI, Python and its own setup tool;
 it needs no separately installed uv or Node. Generation needs verified initial
 model setup and the supported hardware described in the model guide.
 
@@ -40,15 +47,19 @@ You don't need to install ffmpeg separately. A copy comes with the `imageio-ffmp
 
 ## Where your files live
 
-By default everything goes in a `library` folder next to the app:
+Source defaults to `library` next to the app; the installer defaults to
+`Documents\MusicMaker\library`. Settings can open an existing library or copy and
+verify the current library at a new location, retaining the original recovery copy.
+Keep the complete library together so saved recipes and audio remain portable:
 
 ```
 library/
   voices/      imported voice recordings + FX'd versions (wav)
   music/       imported music tracks (wav)
-  generated/   beats made by the generator (wav)
+  generated/   legacy procedural beats (wav)
   mixes/       mixes and remixes (wav + mp3)
-  inbox/       drop recordings here, then click "Import everything in inbox/" (or `mm import --inbox`)
+  assets/      original inputs, samples, generated music and cached/edited vocals
+  inbox/       recordings for the CLI command `mm import --inbox`
   catalog.json id, name, type, duration, source, created, tags, recipe (paths relative to library/)
 ```
 
@@ -65,6 +76,10 @@ Settings are looked up in this order: **environment variables > `config.local.js
 
 `config.local.json` is for machine-specific values (library location, port, build paths) and is gitignored.
 Copy `config/config.local.example.json` to root `config.local.json`. `MM_CONFIG_DIR` changes where both config files are read from.
+The browser Settings dialog manages library/model paths and verified model selection
+without manual config edits. An explicit `MM_LIBRARY` override takes precedence and
+must be removed before changing the library through Settings. Appearance follows
+the system by default; light/dark overrides persist and **Use system theme** resets them.
 When you update the app, keep your library folder (or point `library_dir` at it).
 
 ## AI Producer (one vocal in, finished song out)
@@ -100,6 +115,8 @@ choices and seed. `mm remix <song> --music-vol -8` changes the balance and keeps
 
 - **Generation**: multiple vocal uploads/recordings and prior-song samples, lyrics,
   styles, selective prior-recipe ingredients, title and independent output count.
+  Each input's closed **Clip adjustments** dropdown changes only that clip's
+  pitch, playback speed and volume before arrangement.
   More Options contains only Gender, Duration, Weirdness, Style Influence and Variety.
 - **Library**: play/search/rename songs, folders, recipe/audio-asset inspection, and
   direct actions to use rendered audio, reuse ingredients or edit voices.
@@ -142,14 +159,19 @@ On Windows cmd, write JSON with escaped quotes: `--voice-fx "{\"pitch\":-2}"`.
 
 ## How recipes work
 
-Each mix stores `voice_id`, `music_id`, and every setting. `remix` loads that recipe, applies your overrides
+Legacy mixes store `voice_id`, `music_id`, and every setting. `remix` loads that recipe, applies your overrides
 (you can even swap the voice or the music), renders a new mix, and records the `parent`. Generated beats store
-their seed, so `rerender` reproduces them exactly.
+their seed, so `rerender` reproduces them exactly. Browser-generated songs instead
+retain the actual generated WAV, original inputs, transformed samples, timeline
+placements, options and model identity. Rerendering uses saved assets offline;
+running model inference again with the same seed does not promise identical audio.
+Vocal FX recipes retain their source and cached unprocessed vocals so edits do not
+repeatedly bake previous effects into the audio.
 
 ## Building the Windows installer
 
 Run `uv sync --locked`, `npm ci --ignore-scripts`, and `npm run build` first.
-`scripts/windows/build.sh` makes a self-contained `MusicMaker-Setup.exe` with embedded
+`scripts/windows/build.sh` makes a self-contained `TrogloDAW-Setup.exe` with embedded
 Python, locked Windows wheels, bundled ffmpeg and the compiled Angular UI. It needs
 NSIS (`apt install nsis` on Linux or `choco install nsis --version=3.11.0` on Windows),
 Python and `curl`; Windows uses Git Bash. Linux cross-builds remain supported.
@@ -161,13 +183,28 @@ Installer target paths are in the `windows` section (`install_dir`, `library_dir
 Packaging assets are under `cicd/windows/`; installer versions come from semantic-release.
 See [CI workflow and tool rationale](docs/ci.md).
 
-## Limitations (v1)
+## Current limitations
 
-- The generator is simple pattern-based synthesis (no MIDI export, no melody line, no separate stems).
+- Browser song generation supports 10–120 seconds with one local output running at
+  a time. Lyrics, style and vocal gender are model guidance; musical quality,
+  exact sung words and vocalist character are not guaranteed. Model setup needs
+  internet and disk space; CPU song generation is not a validated fallback.
+- Vocal candidates are uncertain time groups, not guaranteed distinct singers.
+  Overlapping singers can remain together; corrections change grouping rather
+  than physically separating them. Review solo and remix previews before saving.
+- Browser Generation arranges multiple selected audio inputs alongside model audio.
+  It does not yet extract reusable drums/bass/instrument stems from every song,
+  provide MIDI export or automatically match inputs to the generated tempo/key.
+- The retained CLI generator uses simple pattern-based synthesis. Legacy CLI mixes
+  accept one voice and one music track; stack more by mixing a mix with another voice.
 - The "robot" effect is a zero-phase robotizer, not a true carrier/modulator vocoder.
 - There is no automatic tempo/key matching between a vocal and a track. Use offset, stretch and pitch by hand.
-- One voice + one music track per mix. To stack more, mix a mix with another voice.
 - AI Producer: it can't tell where words or beats fall, so phrases are placed by silence gaps. Free-tempo speech is placed line by line,
   not re-timed to the groove. Key detection on speech is unreliable, so spoken vocals get a beat rooted on the speaker's median pitch.
   Pitch correction is a gentle per-note nudge, not hard autotune. Style choice is a heuristic on energy and tempo.
 - Pitch shift and time stretch quality is good for moderate amounts (about ±5 semitones, 0.75-1.3x).
+
+The canonical download is `TrogloDAW-Setup.exe`; `MusicMaker-Setup.exe` remains a
+byte-identical compatibility alias. Existing `%LOCALAPPDATA%\MusicMaker`,
+`Documents\MusicMaker`, `mm` and `MM_*` contracts are retained for upgrades.
+See the [branding and compatibility audit](docs/branding.md).

@@ -41,7 +41,8 @@ export default {
       '@semantic-release/github',
       {
         assets: [
-          { path: 'dist/MusicMaker-Setup.exe', label: 'Windows x64 installer' },
+          { path: 'dist/TrogloDAW-Setup.exe', label: 'TrogloDAW Windows x64 installer' },
+          { path: 'dist/MusicMaker-Setup.exe', label: 'Compatibility installer alias (identical)' },
           { path: 'dist/SHA256SUMS', label: 'Installer SHA-256 checksum' },
           { path: 'dist/release.json', label: 'Build version and source commit' },
         ],

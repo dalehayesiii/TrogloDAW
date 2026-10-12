@@ -1,4 +1,4 @@
-# Development and delivery
+# TrogloDAW Development and delivery
 
 The monorepo has an Angular/Tailwind frontend and a local FastAPI backend.
 `backend/mmcore.py` remains the shared DSP/catalog engine; the CLI and HTTP service

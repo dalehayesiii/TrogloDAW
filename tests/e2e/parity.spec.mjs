@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import AxeBuilder from '@axe-core/playwright';
 import { execFileSync } from 'node:child_process';
 
 const headers = { 'X-MusicMaker-Request': '1' };
@@ -82,7 +83,14 @@ test('multiple real uploads, folders, prior-song choices and cached FX saves', a
     { name: 'two.wav', mimeType: 'audio/wav', buffer: wave() },
   ]);
   await expect(page.locator('.clip-card')).toHaveCount(2);
-  await page.getByText('Sample transformation', { exact: true }).first().click();
+  const uploadedAdjustments = page.locator('.input-stone .clip-card .clip-adjustments');
+  await expect(uploadedAdjustments).toHaveCount(2);
+  await expect(uploadedAdjustments.first()).not.toHaveAttribute('open');
+  await expect(uploadedAdjustments.last()).not.toHaveAttribute('open');
+  await page.getByText('Clip adjustments', { exact: true }).first().click();
+  await expect(uploadedAdjustments.first().getByLabel('Pitch (semitones)')).toBeEnabled();
+  await expect(uploadedAdjustments.first().getByLabel('Playback speed')).toBeEnabled();
+  await expect(uploadedAdjustments.first().getByLabel('Volume (dB)')).toBeEnabled();
   await page
     .getByLabel('Replace this clip with a file')
     .first()
@@ -107,6 +115,13 @@ test('multiple real uploads, folders, prior-song choices and cached FX saves', a
   await expect(page.getByRole('dialog')).toContainText('eight short one-second samples');
   await page.getByRole('button', { name: 'Keep current settings', exact: true }).click();
   await expect(page.locator('.clip-card')).toHaveCount(3);
+  const priorAdjustments = page
+    .locator('.input-stone .clip-card')
+    .last()
+    .locator('.clip-adjustments');
+  await expect(priorAdjustments).not.toHaveAttribute('open');
+  await priorAdjustments.getByText('Clip adjustments', { exact: true }).click();
+  await expect(priorAdjustments.getByLabel('Playback speed')).toBeEnabled();
   await page.getByRole('tab', { name: 'Library', exact: true }).click();
   await page.getByRole('button', { name: 'Use as Input Audio', exact: true }).click();
   await expect(page.getByRole('dialog')).not.toBeVisible();
@@ -211,6 +226,10 @@ test('real browser recording supports keep, discard and individual retakes', asy
   await page.getByRole('button', { name: 'Stop recording', exact: true }).click();
   await page.getByRole('button', { name: 'Keep this take', exact: true }).click();
   await expect(page.locator('.clip-card')).toHaveCount(1);
+  const recordedAdjustments = page.locator('.input-stone .clip-card .clip-adjustments');
+  await expect(recordedAdjustments).not.toHaveAttribute('open');
+  await recordedAdjustments.getByText('Clip adjustments', { exact: true }).click();
+  await expect(recordedAdjustments.getByLabel('Playback speed')).toBeEnabled();
   const label = await page.getByLabel('Clip label').inputValue();
   await page.getByRole('button', { name: 'Retake', exact: true }).click();
   await page.waitForTimeout(900);
@@ -223,6 +242,68 @@ test('real browser recording supports keep, discard and individual retakes', asy
   await page.getByRole('button', { name: 'Keep this take', exact: true }).click();
   await expect(page.locator('.clip-card')).toHaveCount(1);
   await context.close();
+});
+
+test('system appearance, saved override, waveform repaint and accessible themed workflows', async ({
+  page,
+  request,
+}) => {
+  await seed(request);
+  await page.emulateMedia({ colorScheme: 'dark' });
+  await open(page);
+  await expect(page).toHaveTitle('TrogloDAW');
+  await expect(page.getByRole('heading', { name: 'TrogloDAW', exact: true })).toBeVisible();
+  await expect(page.locator('html')).toHaveClass(/dark/);
+  await page.getByLabel('Input Styles', { exact: true }).fill('Keep this theme-test draft');
+  await page.getByRole('button', { name: 'Light mode', exact: true }).click();
+  await page.reload();
+  await page.getByRole('button', { name: 'Set up later', exact: true }).click();
+  await expect(page.locator('html')).not.toHaveClass(/dark/);
+  await expect(page.getByLabel('Input Styles', { exact: true })).toHaveValue(
+    'Keep this theme-test draft',
+  );
+  await page.emulateMedia({ colorScheme: 'light' });
+  await page.emulateMedia({ colorScheme: 'dark' });
+  await expect(page.locator('html')).not.toHaveClass(/dark/);
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await page.getByRole('button', { name: 'Use system theme', exact: true }).click();
+  await expect(page.locator('html')).toHaveClass(/dark/);
+  await page.getByRole('button', { name: 'Set up later', exact: true }).click();
+  await page.emulateMedia({ colorScheme: 'light' });
+  await expect(page.locator('html')).not.toHaveClass(/dark/);
+  const audit = async () => {
+    const result = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21aa'])
+      .analyze();
+    expect(
+      result.violations.map((v) => ({ id: v.id, nodes: v.nodes.map((n) => n.target) })),
+    ).toEqual([]);
+  };
+  for (const theme of ['light', 'dark']) {
+    if (theme === 'dark')
+      await page.getByRole('button', { name: 'Dark mode', exact: true }).click();
+    await page.getByRole('tab', { name: 'Generation', exact: true }).click();
+    await audit();
+    await page.getByRole('button', { name: 'Settings', exact: true }).click();
+    await audit();
+    await page.getByRole('button', { name: 'Set up later', exact: true }).click();
+    await page.getByRole('tab', { name: 'Library', exact: true }).click();
+    await page
+      .getByRole('button', { name: /Synthetic browser song/ })
+      .first()
+      .click();
+    await audit();
+    await page.getByRole('button', { name: 'Edit Vocal FX', exact: true }).click();
+    await expect(page.getByLabel('Voice group', { exact: true })).toBeVisible();
+    await audit();
+  }
+  const canvas = page.locator('#panel-2 canvas').first();
+  const darkImage = await canvas.evaluate((el) => el.toDataURL());
+  await page.getByRole('button', { name: 'Light mode', exact: true }).click();
+  await expect.poll(() => canvas.evaluate((el) => el.toDataURL())).not.toBe(darkImage);
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+  await audit();
 });
 
 test('narrow layout and shutdown stay usable', async ({ page, request }) => {

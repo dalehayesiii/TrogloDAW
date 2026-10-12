@@ -1,20 +1,21 @@
 # frontend-service Specification
 
 ## Purpose
-Define the Angular/Tailwind and FastAPI monorepo migration while preserving the initial offline music app's UI and audio behavior.
+
+Define TrogloDAW's compiled Angular/Tailwind interface and responsive local FastAPI service, preserving portable audio behavior and task-focused workflows.
 
 ## Requirements
 
 ### Requirement: Preserve initial visual and control contracts
-The frontend SHALL expose exactly Generation, Library and Vocal FX as primary tabs. It SHALL retain the baseline visual vocabulary until the separate theme change. Generation SHALL use concise requested inputs and collapsed More Options; detailed clip, reference, FX and storage/model controls SHALL use progressive disclosure. Drafts and selections SHALL survive navigation.
+The frontend SHALL expose exactly Generation, Library and Vocal FX with TrogloDAW branding and coherent accessible light/dark themes. Generation SHALL keep concise requested inputs and collapsed More Options; detailed clip, reference, FX and storage/model controls SHALL use progressive disclosure. Drafts and selections SHALL survive navigation, with field semantics unchanged.
 
 #### Scenario: Defaults on first load
 - **WHEN** a user opens Generation
 - **THEN** Number of Generations is one, More Options is collapsed and only the requested generation controls are available
 
 #### Scenario: Visual evidence
-- **WHEN** the workflow change is reviewed
-- **THEN** screenshots at representative desktop/narrow viewports cover all three tabs, expanded settings, results, references and error states
+- **WHEN** the theme change is reviewed
+- **THEN** paired light/dark desktop/narrow screenshots cover all workflows, expanded settings, results, references and key error/setup/save states
 
 ### Requirement: Browser functional parity
 The browser SHALL provide uploads/recordings, local library organization/playback,
@@ -82,3 +83,14 @@ Each primary tab SHALL have a clear current task/selection and primary action. E
 #### Scenario: First-use task
 - **WHEN** a user records/uploads clips, generates, organizes/reuses a song, edits a vocal group or chooses storage
 - **THEN** they can complete the flow through labeled controls without developer documentation or manual config editing
+
+### Requirement: Nested input clip adjustments
+Input Audio SHALL contain an initially collapsed, clearly named Clip adjustments disclosure for each selected clip. It SHALL explain and expose existing pitch, speed/stretch, volume and replacement choices within the Input Audio widget rather than adding a separate task panel. Adjustments SHALL remain available to uploaded, recorded and prior-song clips because they affect every input source. Existing draft/recipe settings and explicit prior-song preset decisions SHALL be preserved.
+
+#### Scenario: Adjust a recorded clip
+- **WHEN** a recording is accepted and Clip adjustments is expanded
+- **THEN** the user can change that clip's existing pitch, speed and volume before arrangement without adding a new workflow or changing other clips
+
+#### Scenario: Default input disclosure
+- **WHEN** a clip is added to Input Audio
+- **THEN** its audio preview/actions are visible and Clip adjustments is closed until requested

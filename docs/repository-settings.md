@@ -1,4 +1,4 @@
-# Owner setup for merge enforcement
+# TrogloDAW Owner setup for merge enforcement
 
 The contributing account has WRITE, not ADMIN, permission. An owner must configure
 these settings; workflows alone cannot prevent merging despite failed checks.

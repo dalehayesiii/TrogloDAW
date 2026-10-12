@@ -1,7 +1,8 @@
 # local-library Specification
 
 ## Purpose
-Describe the initial local configuration, portable audio catalog and library management contracts shared by the UI and CLI.
+
+Describe TrogloDAW's local configuration, portable catalog, song organization and recoverable library selection shared by the UI and CLI.
 
 ## Requirements
 
