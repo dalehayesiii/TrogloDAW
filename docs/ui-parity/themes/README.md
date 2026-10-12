@@ -1,17 +1,33 @@
 # TrogloDAW light/dark review evidence
 
 Reference: [WRK-5 palette attachment](https://linear.app/magentumdragon/issue/WRK-5/pr-2-brand-troglodaw-across-the-app-and-docs-add-caveman-lightdark).
-The provided purple/lavender and pale lime image informed the stone/cave waveform
-mark and semantic palette. Text/control derivatives are tuned for contrast.
+The provided pink-purple/lavender and pale lime image informed the cave-wall mural,
+hand stencil, carved workflow glyphs, stone strata and rhythm marks. Purple-family
+accents predominate with deliberate lime playback/waveform/selection/setup accents.
+Text/control derivatives are tuned for contrast.
 These captures use the actual compiled frontend/FastAPI and explicitly synthetic
 cached voice groups. Result captures use the real RTX 3070 model outputs from WRK-4.
 No personal audio or model weights are committed.
+
+## Before and after
+
+The before captures are the three-workflow app from merged PR #3, before this
+branding PR. The after captures show the final expressive design in this PR.
+Fixture clip labels/selection vary; the workflow and controls are comparable.
+
+| Workflow | Before branding | After: light | After: dark |
+| --- | --- | --- | --- |
+| Generation | ![Before Generation](../workflows/generation.png) | ![After light Generation](light-generation.png) | ![After dark Generation](dark-generation.png) |
+| Library | ![Before Library](../workflows/library.png) | ![After light Library](light-library.png) | ![After dark Library](dark-library.png) |
+| Vocal FX | ![Before Vocal FX](../workflows/vocal-fx.png) | ![After light Vocal FX](light-vocal-fx.png) | ![After dark Vocal FX](dark-vocal-fx.png) |
+
+## Complete state gallery
 
 | State | Light | Dark |
 | --- | --- | --- |
 | Initial setup | [light](light-setup.png) | [dark](dark-setup.png) |
 | Generation default | [light](light-generation.png) | [dark](dark-generation.png) |
-| Expanded options/sample settings | [light](light-generation-expanded.png) | [dark](dark-generation-expanded.png) |
+| Expanded options/Clip adjustments | [light](light-generation-expanded.png) | [dark](dark-generation-expanded.png) |
 | Real model results | [light](light-results.png) | [dark](dark-results.png) |
 | Library selection/player | [light](light-library.png) | [dark](dark-library.png) |
 | Prior-song preset | [light](light-preset.png) | [dark](dark-preset.png) |

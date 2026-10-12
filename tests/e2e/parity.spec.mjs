@@ -83,7 +83,14 @@ test('multiple real uploads, folders, prior-song choices and cached FX saves', a
     { name: 'two.wav', mimeType: 'audio/wav', buffer: wave() },
   ]);
   await expect(page.locator('.clip-card')).toHaveCount(2);
-  await page.getByText('Sample transformation', { exact: true }).first().click();
+  const uploadedAdjustments = page.locator('.input-stone .clip-card .clip-adjustments');
+  await expect(uploadedAdjustments).toHaveCount(2);
+  await expect(uploadedAdjustments.first()).not.toHaveAttribute('open');
+  await expect(uploadedAdjustments.last()).not.toHaveAttribute('open');
+  await page.getByText('Clip adjustments', { exact: true }).first().click();
+  await expect(uploadedAdjustments.first().getByLabel('Pitch (semitones)')).toBeEnabled();
+  await expect(uploadedAdjustments.first().getByLabel('Playback speed')).toBeEnabled();
+  await expect(uploadedAdjustments.first().getByLabel('Volume (dB)')).toBeEnabled();
   await page
     .getByLabel('Replace this clip with a file')
     .first()
@@ -108,6 +115,13 @@ test('multiple real uploads, folders, prior-song choices and cached FX saves', a
   await expect(page.getByRole('dialog')).toContainText('eight short one-second samples');
   await page.getByRole('button', { name: 'Keep current settings', exact: true }).click();
   await expect(page.locator('.clip-card')).toHaveCount(3);
+  const priorAdjustments = page
+    .locator('.input-stone .clip-card')
+    .last()
+    .locator('.clip-adjustments');
+  await expect(priorAdjustments).not.toHaveAttribute('open');
+  await priorAdjustments.getByText('Clip adjustments', { exact: true }).click();
+  await expect(priorAdjustments.getByLabel('Playback speed')).toBeEnabled();
   await page.getByRole('tab', { name: 'Library', exact: true }).click();
   await page.getByRole('button', { name: 'Use as Input Audio', exact: true }).click();
   await expect(page.getByRole('dialog')).not.toBeVisible();
@@ -212,6 +226,10 @@ test('real browser recording supports keep, discard and individual retakes', asy
   await page.getByRole('button', { name: 'Stop recording', exact: true }).click();
   await page.getByRole('button', { name: 'Keep this take', exact: true }).click();
   await expect(page.locator('.clip-card')).toHaveCount(1);
+  const recordedAdjustments = page.locator('.input-stone .clip-card .clip-adjustments');
+  await expect(recordedAdjustments).not.toHaveAttribute('open');
+  await recordedAdjustments.getByText('Clip adjustments', { exact: true }).click();
+  await expect(recordedAdjustments.getByLabel('Playback speed')).toBeEnabled();
   const label = await page.getByLabel('Clip label').inputValue();
   await page.getByRole('button', { name: 'Retake', exact: true }).click();
   await page.waitForTimeout(900);

@@ -2,16 +2,20 @@
 
 ## Purpose
 
-Define TrogloDAW's consistent accessible purple/lavender and pale lime appearance, restrained cave identity and persistent system/light/dark preferences.
+Define TrogloDAW's consistent accessible pink-purple/lavender and pale lime appearance, expressive cave identity and persistent system/light/dark preferences.
 
 ## Requirements
 
 ### Requirement: Semantic complete themes
-The app SHALL provide coherent light/dark themes using purple/lavender and pale lime relationships, semantic surface/text/border/focus/status/disabled tokens and restrained cave/stone artwork. Every workflow, player, waveform, native control, overlay and job/error/empty/save state SHALL follow the active theme.
+The app SHALL provide coherent light/dark themes using purple/pink/lavender and pale lime relationships, semantic surface/text/border/focus/status/disabled tokens and expressive cave/stone/rhythm artwork. Purple-family accents SHALL predominate with deliberate pale lime accents approximately one quarter of the accent design. Every workflow, player, waveform, native control, overlay and job/error/empty/save state SHALL follow the active theme without sacrificing readable labels or focus.
 
 #### Scenario: Theme a picker and player
 - **WHEN** appearance changes while a song picker or audio player is visible
 - **THEN** surfaces, labels, native controls and waveform colors update consistently without changing audio or draft values
+
+#### Scenario: Recognizable cave identity
+- **WHEN** Generation, Library or Vocal FX is opened in either theme
+- **THEN** the header, navigation and task panels share recognizable cave/stone/rhythm motifs and useful purple/lime accents while retaining direct functional labels
 
 ### Requirement: System preference and persistent choice
 First use SHALL follow system appearance. Users SHALL explicitly choose light/dark and retain that override across reloads and normal app restarts on the same local origin. Returning to system preference SHALL remove the override; live system changes SHALL apply only in system mode. Initial page paint SHALL use the selected appearance.
