@@ -1,7 +1,7 @@
 ## MODIFIED Requirements
 
 ### Requirement: Persistent recoverable library selection
-Initial setup and Settings SHALL use a native Windows folder picker, display/persist the complete library location and prompt to move detected current/default managed data or use the destination without moving. Selection SHALL validate write access, storage and destination conflicts without silent fallback. Moves SHALL verify managed catalog/audio/recipe assets before committing preferences and removing unchanged originals. Portable references and existing registered media SHALL remain playable after the move; changed/unrelated originals SHALL be retained.
+Initial setup and Settings SHALL offer a native Windows folder picker and show/persist the complete library location. Selection SHALL validate access, space and conflicts without silent fallback, prompting to move detected data, reuse the destination or cancel. Moves SHALL verify managed assets before committing preferences and deleting unchanged originals, retaining changed/unrelated files. Portable recipes and existing registered media SHALL remain playable.
 
 #### Scenario: Interrupted relocation
 - **WHEN** copying fails or a drive disappears before verification

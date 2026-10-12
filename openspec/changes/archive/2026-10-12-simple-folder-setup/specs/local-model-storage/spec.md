@@ -12,7 +12,7 @@ Settings SHALL show and persist a separate model-storage folder. Initial setup a
 - **THEN** the selected location and existing data remain unchanged and model installation does not start
 
 ### Requirement: Compatible model reuse
-Settings SHALL allow installing/selecting supported compatible models and reusing verified local assets. Choosing another location with existing current/default model data SHALL prompt for a verified move, destination reuse without moving or cancellation. Moves SHALL verify managed data before committing preferences and remove only unchanged unshared originals, preserving unrelated or externally changed files and other installations' references. Installation/verification SHALL remain separate from folder selection.
+Settings SHALL allow installing/selecting supported compatible models and reusing verified local assets. Location changes SHALL offer verified moves, destination reuse or cancellation when current/default data exists. Moves SHALL verify managed data before committing preferences and retain shared, changed and unrelated originals. Model/version references SHALL persist without unnecessary downloads. Installation/verification SHALL remain separate from folder selection.
 
 #### Scenario: Reuse an existing installation
 - **WHEN** a folder containing verified compatible assets is selected
