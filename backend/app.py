@@ -23,6 +23,9 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 import mmcore as mm
+from models import Canceled, Models
+from songs import Songs, song_item
+from storage import Storage
 
 FRONTEND = Path(__file__).resolve().parents[1] / "frontend" / "dist" / "browser"
 VOICE_T, MUSIC_T, ANY_T = "voice", "music,generated,mix", "voice,music,generated,mix"
@@ -44,6 +47,10 @@ class MusicService:
         self.media = {}
         self.uploads = {}
         self.lock = threading.RLock()
+        self.storage = Storage(core)
+        self.models = Models(self.storage)
+        self.songs = Songs(core, self.models, self.file)
+        self.cancel_events = {}
 
     def close(self):
         self.pool.shutdown(wait=True)
@@ -59,11 +66,16 @@ class MusicService:
 
     def library(self):
         items = list(reversed(self.core.list_items()))
+        with self.core._locked_catalog() as catalog:
+            folders = catalog.get("folders", [])
         return {
             "items": items,
             "styles": list(self.core.DRUM_STYLES),
             "library": str(self.core.LIB),
             "inbox": str(self.core.INBOX),
+            "folders": folders,
+            "storage": self.storage.describe(),
+            "models": self.models.describe(),
         }
 
     def result(self, message="", item=None, audio=None, mp3=None, **extra):
@@ -75,7 +87,25 @@ class MusicService:
         }
 
     def submit(self, action, values):
-        if action not in {"import", "inbox", "delete", "tags", "fx", "generate", "mix", "produce"}:
+        if action not in {
+            "import",
+            "inbox",
+            "delete",
+            "tags",
+            "fx",
+            "generate",
+            "mix",
+            "produce",
+            "accept_audio",
+            "song_generate",
+            "vocal_prepare",
+            "vocal_render",
+            "folder",
+            "organize",
+            "storage",
+            "model_install",
+            "rerender_song",
+        }:
             raise HTTPException(422, "Unknown operation")
         jid = uuid.uuid4().hex
         with self.lock:
@@ -84,27 +114,115 @@ class MusicService:
                 "progress": 0,
                 "message": "Queued",
                 "result": None,
+                "id": jid,
+                "action": action,
+                "created_at": time.time(),
+                "song_id": values.get("song_id"),
             }
+            self.cancel_events[jid] = threading.Event()
         self.pool.submit(self._work, jid, action, values)
         return {"id": jid}
 
     def _work(self, jid, action, values):
-        def progress(message, fraction=0.5):
+        cancel = self.cancel_events[jid]
+
+        def progress(message, fraction=0, **details):
             with self.lock:
-                self.jobs[jid].update(status="running", progress=fraction, message=message)
+                self.jobs[jid].update(
+                    status="running",
+                    progress=min(0.99, fraction),
+                    message=message,
+                    **{k: v for k, v in details.items() if k != "diagnostic"},
+                )
 
         progress("Processing...", 0.05)
         try:
-            result = self.execute(action, values, progress)
+            if cancel.is_set():
+                raise Canceled("Canceled before processing")
+            result = self.execute(action, values, progress, cancel.is_set)
             with self.lock:
                 self.jobs[jid].update(status="complete", progress=1, result=result)
+        except Canceled as exc:
+            with self.lock:
+                self.jobs[jid].update(
+                    status="canceled", message=str(exc), result=exc.result or self.result(str(exc))
+                )
         except Exception as exc:
             message = f"Produce failed: {exc}" if action == "produce" else str(exc)
             with self.lock:
                 self.jobs[jid].update(status="failed", message=message, result=self.result(message))
 
-    def execute(self, action, v, progress):
+    def execute(self, action, v, progress, canceled=lambda: False):
         core = self.core
+        if action == "accept_audio":
+            accepted = []
+            for token in v.get("uploads", []):
+                upload = self.uploads[token]
+                audio = core.decode_any(upload["path"])
+                if not len(audio) or float(abs(audio).max()) < 1e-5:
+                    raise ValueError(
+                        "This take has no audible audio. Record again or choose another file"
+                    )
+                item = core._new_entry(
+                    "voice",
+                    v.get("name") or Path(upload["name"]).stem,
+                    audio,
+                    "import:" + upload["name"],
+                    recipe={"op": "import", "original": upload["name"], "normalized": False},
+                )
+                item = core.update_item(
+                    item["id"],
+                    source_type="microphone" if v.get("source_type") == "microphone" else "upload",
+                )
+                accepted.append({"item": item, "audio": self.file(item["path"])})
+            return self.result("Audio added", accepted=accepted)
+        if action == "song_generate":
+            return self.songs.generate(v, progress, canceled)
+        if action == "vocal_prepare":
+            return self.songs.prepare_fx(v["song_id"], progress, canceled, v.get("segments"))
+        if action == "vocal_render":
+            return self.songs.render_fx(v, progress, canceled)
+        if action == "rerender_song":
+            return self.result("Rerendered arrangement", self.songs.rerender(v["song_id"]))
+        if action == "model_install":
+            return self.result(
+                "Model setup complete", models=self.models.install(v["model"], progress, canceled)
+            )
+        if action == "storage":
+            changed = self.storage.change(v["kind"], v["path"], v.get("mode", "open"), progress)
+            # Previously registered tokens remain valid against the retained original copy.
+            return self.result(
+                "Storage updated; the original remains as a recovery copy"
+                if changed.get("recovery_copy")
+                else "Storage updated",
+                storage=changed,
+            )
+        if action == "folder":
+            name = str(v.get("name", "")).strip()
+            if not name or len(name) > 120:
+                raise ValueError("Choose a folder name between 1 and 120 characters")
+            with core._locked_catalog(write=True) as catalog:
+                folders = catalog.setdefault("folders", [])
+                if name not in folders:
+                    folders.append(name)
+            return self.result("Folder created")
+        if action == "organize":
+            item = core.get_item(v["id"])
+            if not song_item(item):
+                raise ValueError("Choose a library song")
+            fields = {}
+            if "name" in v:
+                name = str(v["name"]).strip()
+                if not name or len(name) > 120:
+                    raise ValueError("Choose a song name between 1 and 120 characters")
+                fields["name"] = name
+            if "folder" in v:
+                with core._locked_catalog() as catalog:
+                    if v["folder"] and v["folder"] not in catalog.get("folders", []):
+                        raise ValueError("Choose an existing folder")
+                fields["folder"] = v["folder"]
+            core.update_item(item["id"], **fields)
+            return self.result("Song updated")
         if action == "import":
             if not v.get("uploads"):
                 return self.result("No files.")
@@ -236,7 +354,29 @@ def create_app(core=mm, frontend=FRONTEND, quit_callback=None):
             entry = core.get_item(iid)
         except KeyError as exc:
             raise HTTPException(404, str(exc)) from exc
-        return {"item": entry, "audio": service.file(entry["path"])}
+        rec = entry.get("recipe") or {}
+        rec = rec.get("creation_recipe", rec)
+        references = [("Generated musical parts", rec.get("musical_file"))]
+        references.extend(
+            ("Original input: " + value.get("label", value["id"]), value.get("file"))
+            for value in rec.get("sources", [])
+        )
+        references.extend(
+            ("Transformed sample: " + value["id"], value.get("file"))
+            for value in rec.get("samples", [])
+        )
+        assets = []
+        for label, relative in references:
+            if not relative:
+                continue
+            try:
+                path = service.songs.asset(relative)
+                assets.append(
+                    {"label": label, "media": service.file(path) if path.is_file() else None}
+                )
+            except ValueError:
+                assets.append({"label": label, "media": None})
+        return {"item": entry, "audio": service.file(entry["path"]), "assets": assets}
 
     @api.get("/api/recipes/{iid}")
     def recipe(iid: str):
@@ -273,6 +413,26 @@ def create_app(core=mm, frontend=FRONTEND, quit_callback=None):
     def jobs(action: Action):
         return service.submit(action.action, action.values)
 
+    @api.get("/api/jobs")
+    def active_jobs():
+        with service.lock:
+            return {"jobs": [dict(job) for job in service.jobs.values()]}
+
+    @api.post("/api/jobs/{jid}/cancel")
+    def cancel_job(jid: str):
+        with service.lock:
+            if jid not in service.jobs:
+                raise HTTPException(404, "Unknown job")
+            service.cancel_events[jid].set()
+        return {"message": "Cancellation requested"}
+
+    @api.get("/api/ingredients/{iid}")
+    def ingredients(iid: str):
+        try:
+            return service.songs.ingredients(iid)
+        except (KeyError, ValueError) as exc:
+            raise HTTPException(404, str(exc)) from exc
+
     @api.get("/api/jobs/{jid}")
     def job(jid: str):
         with service.lock:
@@ -293,6 +453,8 @@ def create_app(core=mm, frontend=FRONTEND, quit_callback=None):
 
     @api.post("/api/shutdown")
     def shutdown():
+        for event in service.cancel_events.values():
+            event.set()
         callback = quit_callback or (lambda: os._exit(0))
         threading.Timer(0.8, callback).start()
         return {"message": "Music Maker has stopped. You can close this browser tab."}

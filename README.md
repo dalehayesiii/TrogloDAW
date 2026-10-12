@@ -4,16 +4,19 @@ Developer workflow, CI, OpenSpec and automated Windows releases:
 [Development guide](docs/development.md). Repository owners should complete
 [merge enforcement setup](docs/repository-settings.md).
 
-A personal music maker: import voice recordings, tweak vocals, generate original beats,
-mix any voice over any track, and remix saved mixes later. Everything is stored on disk
-in a library folder with a catalog of "recipes", so any mix can be re-rendered or remixed.
+A local music maker: arrange uploaded/recorded samples with generated music and
+lyrics, organize songs, and edit candidate voice groups. Portable recipes retain
+original/generated/sample assets and arrangements. See [song workflows](docs/song-workflows.md)
+and [model setup, hardware measurements and limits](docs/local-models.md).
 
 ## Easiest: Windows installer
 
 Run **`MusicMaker-Setup.exe`**. Python is included and no admin rights are needed. It installs to
 `%LOCALAPPDATA%\MusicMaker`, adds **Music Maker** to the Desktop and Start Menu, and keeps your files in
 `Documents\MusicMaker\library` (set in `%LOCALAPPDATA%\MusicMaker\app\config.json`). The app opens in your browser
-and has no console window. Use the **Quit Music Maker** button in Library inside AI Producer to stop it. Uninstall from
+and has no console window. Use the **Quit** button to stop it. Initial setup installs the recommended
+model into a folder you choose; weights are not bundled. Uninstall offers removal
+of installed model assets checked by default, with an option to retain them. Uninstall from
 Settings > Apps or the Start Menu. Your library is kept. Command line: `%LOCALAPPDATA%\MusicMaker\mm.bat <command>`.
 Windows SmartScreen may warn because the installer isn't code-signed. Click *More info > Run anyway*.
 
@@ -29,7 +32,9 @@ on macOS). The launcher runs `uv sync --locked`, builds the Angular frontend if
 missing, then starts FastAPI and opens **http://127.0.0.1:7860** (or the next free port).
 The first setup needs internet. Leave the terminal open or use **Quit Music Maker**.
 After frontend source changes, run `npm run build` before relaunching.
-The Windows installer includes the compiled UI and Python; it needs neither uv nor Node.
+The Windows installer includes the compiled UI, Python and its own setup tool;
+it needs no separately installed uv or Node. Generation needs verified initial
+model setup and the supported hardware described in the model guide.
 
 You don't need to install ffmpeg separately. A copy comes with the `imageio-ffmpeg` package.
 
@@ -64,7 +69,7 @@ When you update the app, keep your library folder (or point `library_dir` at it)
 
 ## AI Producer (one vocal in, finished song out)
 
-Open the **AI Producer** tab, pick a voice (or drop a recording) and click **PRODUCE MY SONG**, or on the command line:
+The retained procedural producer is available on the command line:
 
 ```
 mm produce user_vocal_1                      # everything automatic
@@ -93,14 +98,17 @@ choices and seed. `mm remix <song> --music-vol -8` changes the balance and keeps
 
 ## The web UI
 
-- **Library (inside AI Producer)**: upload any audio (mp3, m4a, wav, ogg, opus, flac, webm, video files...), play items,
-  tag/rename/delete, and view each item's catalog entry and recipe.
-- **Voice FX**: pitch (semitones), time stretch, gain, low/high cut EQ, compression, chorus, robot,
-  echo, reverb, trim silence, normalize. Use Preview, or save the result as a new voice.
-- **Generator**: drums (boombap, hiphop, trap, house, rock, lofi), bassline and chord pad. Set the key
-  (`A minor`, `C major`, `F#m`, `D dorian`), a roman-numeral progression (`i-VI-III-VII`), BPM, bars, swing and seed.
-- **Mixer / Remix**: pick any voice and any music (imported, generated, or a previous mix). Set voice and music volume,
-  offset, ducking, fades, looping, and optional render-time voice FX. Load a saved mix to change it and render a remix.
+- **Generation**: multiple vocal uploads/recordings and prior-song samples, lyrics,
+  styles, selective prior-recipe ingredients, title and independent output count.
+  More Options contains only Gender, Duration, Weirdness, Style Influence and Variety.
+- **Library**: play/search/rename songs, folders, recipe/audio-asset inspection, and
+  direct actions to use rendered audio, reuse ingredients or edit voices.
+- **Vocal FX**: local vocal extraction, uncertain candidate groups with correction,
+  per-group effects and fixed-timeline remixing. Save a new FX derivative or update
+  an existing one while preserving its source song and cached source stems.
+
+[Detailed workflows and limits](docs/song-workflows.md). The original procedural
+producer/generator/mixer remain available through the CLI for legacy recipes.
 
 ## Command line
 

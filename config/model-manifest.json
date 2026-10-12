@@ -1,0 +1,341 @@
+{
+  "runtime_revision": "ca1e85fe9430179831e6bc6be790c332190a3866",
+  "models": {
+    "acestep-v15-base": {
+      "name": "ACE-Step 1.5 Base",
+      "assets": [
+        {
+          "path": "checkpoints/Qwen3-Embedding-0.6B/added_tokens.json",
+          "url": "https://huggingface.co/ACE-Step/Ace-Step1.5/resolve/19671f406d603126926c1b7e2adc169acbcade22/Qwen3-Embedding-0.6B/added_tokens.json?download=true",
+          "bytes": 707,
+          "sha256": "c0284b582e14987fbd3d5a2cb2bd139084371ed9acbae488829a1c900833c680",
+          "revision": "19671f406d603126926c1b7e2adc169acbcade22",
+          "repo": "ACE-Step/Ace-Step1.5"
+        },
+        {
+          "path": "checkpoints/Qwen3-Embedding-0.6B/chat_template.jinja",
+          "url": "https://huggingface.co/ACE-Step/Ace-Step1.5/resolve/19671f406d603126926c1b7e2adc169acbcade22/Qwen3-Embedding-0.6B/chat_template.jinja?download=true",
+          "bytes": 4116,
+          "sha256": "87a2728cb8dc9fe424d624542f6060ec05a1d285ebbec578bb078900e33396b5",
+          "revision": "19671f406d603126926c1b7e2adc169acbcade22",
+          "repo": "ACE-Step/Ace-Step1.5"
+        },
+        {
+          "path": "checkpoints/Qwen3-Embedding-0.6B/config.json",
+          "url": "https://huggingface.co/ACE-Step/Ace-Step1.5/resolve/19671f406d603126926c1b7e2adc169acbcade22/Qwen3-Embedding-0.6B/config.json?download=true",
+          "bytes": 1359,
+          "sha256": "bb23c1607cfe059a58d8f0196cf1cebb52082b1056b8e358a579da80a5759420",
+          "revision": "19671f406d603126926c1b7e2adc169acbcade22",
+          "repo": "ACE-Step/Ace-Step1.5"
+        },
+        {
+          "path": "checkpoints/Qwen3-Embedding-0.6B/merges.txt",
+          "url": "https://huggingface.co/ACE-Step/Ace-Step1.5/resolve/19671f406d603126926c1b7e2adc169acbcade22/Qwen3-Embedding-0.6B/merges.txt?download=true",
+          "bytes": 1671853,
+          "sha256": "8831e4f1a044471340f7c0a83d7bd71306a5b867e95fd870f74d0c5308a904d5",
+          "revision": "19671f406d603126926c1b7e2adc169acbcade22",
+          "repo": "ACE-Step/Ace-Step1.5"
+        },
+        {
+          "path": "checkpoints/Qwen3-Embedding-0.6B/model.safetensors",
+          "url": "https://huggingface.co/ACE-Step/Ace-Step1.5/resolve/19671f406d603126926c1b7e2adc169acbcade22/Qwen3-Embedding-0.6B/model.safetensors?download=true",
+          "bytes": 1191586416,
+          "sha256": "0437e45c94563b09e13cb7a64478fc406947a93cb34a7e05870fc8dcd48e23fd",
+          "revision": "19671f406d603126926c1b7e2adc169acbcade22",
+          "repo": "ACE-Step/Ace-Step1.5"
+        },
+        {
+          "path": "checkpoints/Qwen3-Embedding-0.6B/special_tokens_map.json",
+          "url": "https://huggingface.co/ACE-Step/Ace-Step1.5/resolve/19671f406d603126926c1b7e2adc169acbcade22/Qwen3-Embedding-0.6B/special_tokens_map.json?download=true",
+          "bytes": 613,
+          "sha256": "76862e765266b85aa9459767e33cbaf13970f327a0e88d1c65846c2ddd3a1ecd",
+          "revision": "19671f406d603126926c1b7e2adc169acbcade22",
+          "repo": "ACE-Step/Ace-Step1.5"
+        },
+        {
+          "path": "checkpoints/Qwen3-Embedding-0.6B/tokenizer.json",
+          "url": "https://huggingface.co/ACE-Step/Ace-Step1.5/resolve/19671f406d603126926c1b7e2adc169acbcade22/Qwen3-Embedding-0.6B/tokenizer.json?download=true",
+          "bytes": 11423705,
+          "sha256": "def76fb086971c7867b829c23a26261e38d9d74e02139253b38aeb9df8b4b50a",
+          "revision": "19671f406d603126926c1b7e2adc169acbcade22",
+          "repo": "ACE-Step/Ace-Step1.5"
+        },
+        {
+          "path": "checkpoints/Qwen3-Embedding-0.6B/tokenizer_config.json",
+          "url": "https://huggingface.co/ACE-Step/Ace-Step1.5/resolve/19671f406d603126926c1b7e2adc169acbcade22/Qwen3-Embedding-0.6B/tokenizer_config.json?download=true",
+          "bytes": 5404,
+          "sha256": "443bfa629eb16387a12edbf92a76f6a6f10b2af3b53d87ba1550adfcf45f7fa0",
+          "revision": "19671f406d603126926c1b7e2adc169acbcade22",
+          "repo": "ACE-Step/Ace-Step1.5"
+        },
+        {
+          "path": "checkpoints/Qwen3-Embedding-0.6B/vocab.json",
+          "url": "https://huggingface.co/ACE-Step/Ace-Step1.5/resolve/19671f406d603126926c1b7e2adc169acbcade22/Qwen3-Embedding-0.6B/vocab.json?download=true",
+          "bytes": 2776833,
+          "sha256": "ca10d7e9fb3ed18575dd1e277a2579c16d108e32f27439684afa0e10b1440910",
+          "revision": "19671f406d603126926c1b7e2adc169acbcade22",
+          "repo": "ACE-Step/Ace-Step1.5"
+        },
+        {
+          "path": "checkpoints/vae/config.json",
+          "url": "https://huggingface.co/ACE-Step/Ace-Step1.5/resolve/19671f406d603126926c1b7e2adc169acbcade22/vae/config.json?download=true",
+          "bytes": 425,
+          "sha256": "14e019904df567f26df750317a70e2bd08f9f8f3c40ff4a24c97d1cd3f20ccd2",
+          "revision": "19671f406d603126926c1b7e2adc169acbcade22",
+          "repo": "ACE-Step/Ace-Step1.5"
+        },
+        {
+          "path": "checkpoints/vae/diffusion_pytorch_model.safetensors",
+          "url": "https://huggingface.co/ACE-Step/Ace-Step1.5/resolve/19671f406d603126926c1b7e2adc169acbcade22/vae/diffusion_pytorch_model.safetensors?download=true",
+          "bytes": 337431388,
+          "sha256": "da17edb604c40deaf09e9b24974e590d1ca83a374070e5d0884cfa4bed9a99b0",
+          "revision": "19671f406d603126926c1b7e2adc169acbcade22",
+          "repo": "ACE-Step/Ace-Step1.5"
+        },
+        {
+          "path": "checkpoints/acestep-v15-base/apg_guidance.py",
+          "url": "https://huggingface.co/ACE-Step/acestep-v15-base/resolve/e432212fec32b8965a14ffa57ae653438d6abd14/apg_guidance.py?download=true",
+          "bytes": 7956,
+          "sha256": "0c0ce9755952c99307ecad2fac67863d43258e34541cd37ce2f2221f59e76b15",
+          "revision": "e432212fec32b8965a14ffa57ae653438d6abd14",
+          "repo": "ACE-Step/acestep-v15-base"
+        },
+        {
+          "path": "checkpoints/acestep-v15-base/config.json",
+          "url": "https://huggingface.co/ACE-Step/acestep-v15-base/resolve/e432212fec32b8965a14ffa57ae653438d6abd14/config.json?download=true",
+          "bytes": 1940,
+          "sha256": "9bb4f832f2e5e6c8bf7bddab3c6a6da1b13c01d072efbf0ed3c830536c473359",
+          "revision": "e432212fec32b8965a14ffa57ae653438d6abd14",
+          "repo": "ACE-Step/acestep-v15-base"
+        },
+        {
+          "path": "checkpoints/acestep-v15-base/configuration_acestep_v15.py",
+          "url": "https://huggingface.co/ACE-Step/acestep-v15-base/resolve/e432212fec32b8965a14ffa57ae653438d6abd14/configuration_acestep_v15.py?download=true",
+          "bytes": 13130,
+          "sha256": "b89870c5c7a7ce060eb0bcdbb5ffc86b0b1a324ca325a26be552ea1b42496dc5",
+          "revision": "e432212fec32b8965a14ffa57ae653438d6abd14",
+          "repo": "ACE-Step/acestep-v15-base"
+        },
+        {
+          "path": "checkpoints/acestep-v15-base/model.safetensors",
+          "url": "https://huggingface.co/ACE-Step/acestep-v15-base/resolve/e432212fec32b8965a14ffa57ae653438d6abd14/model.safetensors?download=true",
+          "bytes": 4787825604,
+          "sha256": "4177f600501a6d4bd81cadaa0abac557ffd15c54e5c8cb52053cdb24a0844d6b",
+          "revision": "e432212fec32b8965a14ffa57ae653438d6abd14",
+          "repo": "ACE-Step/acestep-v15-base"
+        },
+        {
+          "path": "checkpoints/acestep-v15-base/modeling_acestep_v15_base.py",
+          "url": "https://huggingface.co/ACE-Step/acestep-v15-base/resolve/e432212fec32b8965a14ffa57ae653438d6abd14/modeling_acestep_v15_base.py?download=true",
+          "bytes": 95545,
+          "sha256": "d5f67ca269f8b854a86e203b843534ab62728193e45277115f667b00ab5aa2b6",
+          "revision": "e432212fec32b8965a14ffa57ae653438d6abd14",
+          "repo": "ACE-Step/acestep-v15-base"
+        },
+        {
+          "path": "checkpoints/acestep-v15-base/silence_latent.pt",
+          "url": "https://huggingface.co/ACE-Step/acestep-v15-base/resolve/e432212fec32b8965a14ffa57ae653438d6abd14/silence_latent.pt?download=true",
+          "bytes": 3841215,
+          "sha256": "a778e9dd942f5e8b2c09c55370782d318834432b03dabbcdf70e6ed49ad6358b",
+          "revision": "e432212fec32b8965a14ffa57ae653438d6abd14",
+          "repo": "ACE-Step/acestep-v15-base"
+        }
+      ]
+    },
+    "acestep-v15-sft": {
+      "name": "ACE-Step 1.5 SFT",
+      "assets": [
+        {
+          "path": "checkpoints/Qwen3-Embedding-0.6B/added_tokens.json",
+          "url": "https://huggingface.co/ACE-Step/Ace-Step1.5/resolve/19671f406d603126926c1b7e2adc169acbcade22/Qwen3-Embedding-0.6B/added_tokens.json?download=true",
+          "bytes": 707,
+          "sha256": "c0284b582e14987fbd3d5a2cb2bd139084371ed9acbae488829a1c900833c680",
+          "revision": "19671f406d603126926c1b7e2adc169acbcade22",
+          "repo": "ACE-Step/Ace-Step1.5"
+        },
+        {
+          "path": "checkpoints/Qwen3-Embedding-0.6B/chat_template.jinja",
+          "url": "https://huggingface.co/ACE-Step/Ace-Step1.5/resolve/19671f406d603126926c1b7e2adc169acbcade22/Qwen3-Embedding-0.6B/chat_template.jinja?download=true",
+          "bytes": 4116,
+          "sha256": "87a2728cb8dc9fe424d624542f6060ec05a1d285ebbec578bb078900e33396b5",
+          "revision": "19671f406d603126926c1b7e2adc169acbcade22",
+          "repo": "ACE-Step/Ace-Step1.5"
+        },
+        {
+          "path": "checkpoints/Qwen3-Embedding-0.6B/config.json",
+          "url": "https://huggingface.co/ACE-Step/Ace-Step1.5/resolve/19671f406d603126926c1b7e2adc169acbcade22/Qwen3-Embedding-0.6B/config.json?download=true",
+          "bytes": 1359,
+          "sha256": "bb23c1607cfe059a58d8f0196cf1cebb52082b1056b8e358a579da80a5759420",
+          "revision": "19671f406d603126926c1b7e2adc169acbcade22",
+          "repo": "ACE-Step/Ace-Step1.5"
+        },
+        {
+          "path": "checkpoints/Qwen3-Embedding-0.6B/merges.txt",
+          "url": "https://huggingface.co/ACE-Step/Ace-Step1.5/resolve/19671f406d603126926c1b7e2adc169acbcade22/Qwen3-Embedding-0.6B/merges.txt?download=true",
+          "bytes": 1671853,
+          "sha256": "8831e4f1a044471340f7c0a83d7bd71306a5b867e95fd870f74d0c5308a904d5",
+          "revision": "19671f406d603126926c1b7e2adc169acbcade22",
+          "repo": "ACE-Step/Ace-Step1.5"
+        },
+        {
+          "path": "checkpoints/Qwen3-Embedding-0.6B/model.safetensors",
+          "url": "https://huggingface.co/ACE-Step/Ace-Step1.5/resolve/19671f406d603126926c1b7e2adc169acbcade22/Qwen3-Embedding-0.6B/model.safetensors?download=true",
+          "bytes": 1191586416,
+          "sha256": "0437e45c94563b09e13cb7a64478fc406947a93cb34a7e05870fc8dcd48e23fd",
+          "revision": "19671f406d603126926c1b7e2adc169acbcade22",
+          "repo": "ACE-Step/Ace-Step1.5"
+        },
+        {
+          "path": "checkpoints/Qwen3-Embedding-0.6B/special_tokens_map.json",
+          "url": "https://huggingface.co/ACE-Step/Ace-Step1.5/resolve/19671f406d603126926c1b7e2adc169acbcade22/Qwen3-Embedding-0.6B/special_tokens_map.json?download=true",
+          "bytes": 613,
+          "sha256": "76862e765266b85aa9459767e33cbaf13970f327a0e88d1c65846c2ddd3a1ecd",
+          "revision": "19671f406d603126926c1b7e2adc169acbcade22",
+          "repo": "ACE-Step/Ace-Step1.5"
+        },
+        {
+          "path": "checkpoints/Qwen3-Embedding-0.6B/tokenizer.json",
+          "url": "https://huggingface.co/ACE-Step/Ace-Step1.5/resolve/19671f406d603126926c1b7e2adc169acbcade22/Qwen3-Embedding-0.6B/tokenizer.json?download=true",
+          "bytes": 11423705,
+          "sha256": "def76fb086971c7867b829c23a26261e38d9d74e02139253b38aeb9df8b4b50a",
+          "revision": "19671f406d603126926c1b7e2adc169acbcade22",
+          "repo": "ACE-Step/Ace-Step1.5"
+        },
+        {
+          "path": "checkpoints/Qwen3-Embedding-0.6B/tokenizer_config.json",
+          "url": "https://huggingface.co/ACE-Step/Ace-Step1.5/resolve/19671f406d603126926c1b7e2adc169acbcade22/Qwen3-Embedding-0.6B/tokenizer_config.json?download=true",
+          "bytes": 5404,
+          "sha256": "443bfa629eb16387a12edbf92a76f6a6f10b2af3b53d87ba1550adfcf45f7fa0",
+          "revision": "19671f406d603126926c1b7e2adc169acbcade22",
+          "repo": "ACE-Step/Ace-Step1.5"
+        },
+        {
+          "path": "checkpoints/Qwen3-Embedding-0.6B/vocab.json",
+          "url": "https://huggingface.co/ACE-Step/Ace-Step1.5/resolve/19671f406d603126926c1b7e2adc169acbcade22/Qwen3-Embedding-0.6B/vocab.json?download=true",
+          "bytes": 2776833,
+          "sha256": "ca10d7e9fb3ed18575dd1e277a2579c16d108e32f27439684afa0e10b1440910",
+          "revision": "19671f406d603126926c1b7e2adc169acbcade22",
+          "repo": "ACE-Step/Ace-Step1.5"
+        },
+        {
+          "path": "checkpoints/vae/config.json",
+          "url": "https://huggingface.co/ACE-Step/Ace-Step1.5/resolve/19671f406d603126926c1b7e2adc169acbcade22/vae/config.json?download=true",
+          "bytes": 425,
+          "sha256": "14e019904df567f26df750317a70e2bd08f9f8f3c40ff4a24c97d1cd3f20ccd2",
+          "revision": "19671f406d603126926c1b7e2adc169acbcade22",
+          "repo": "ACE-Step/Ace-Step1.5"
+        },
+        {
+          "path": "checkpoints/vae/diffusion_pytorch_model.safetensors",
+          "url": "https://huggingface.co/ACE-Step/Ace-Step1.5/resolve/19671f406d603126926c1b7e2adc169acbcade22/vae/diffusion_pytorch_model.safetensors?download=true",
+          "bytes": 337431388,
+          "sha256": "da17edb604c40deaf09e9b24974e590d1ca83a374070e5d0884cfa4bed9a99b0",
+          "revision": "19671f406d603126926c1b7e2adc169acbcade22",
+          "repo": "ACE-Step/Ace-Step1.5"
+        },
+        {
+          "path": "checkpoints/acestep-v15-sft/apg_guidance.py",
+          "url": "https://huggingface.co/ACE-Step/acestep-v15-sft/resolve/c410d249e71ea9385a7b586865e65b1473e1098d/apg_guidance.py?download=true",
+          "bytes": 7956,
+          "sha256": "0c0ce9755952c99307ecad2fac67863d43258e34541cd37ce2f2221f59e76b15",
+          "revision": "c410d249e71ea9385a7b586865e65b1473e1098d",
+          "repo": "ACE-Step/acestep-v15-sft"
+        },
+        {
+          "path": "checkpoints/acestep-v15-sft/config.json",
+          "url": "https://huggingface.co/ACE-Step/acestep-v15-sft/resolve/c410d249e71ea9385a7b586865e65b1473e1098d/config.json?download=true",
+          "bytes": 1940,
+          "sha256": "9bb4f832f2e5e6c8bf7bddab3c6a6da1b13c01d072efbf0ed3c830536c473359",
+          "revision": "c410d249e71ea9385a7b586865e65b1473e1098d",
+          "repo": "ACE-Step/acestep-v15-sft"
+        },
+        {
+          "path": "checkpoints/acestep-v15-sft/configuration_acestep_v15.py",
+          "url": "https://huggingface.co/ACE-Step/acestep-v15-sft/resolve/c410d249e71ea9385a7b586865e65b1473e1098d/configuration_acestep_v15.py?download=true",
+          "bytes": 13130,
+          "sha256": "b89870c5c7a7ce060eb0bcdbb5ffc86b0b1a324ca325a26be552ea1b42496dc5",
+          "revision": "c410d249e71ea9385a7b586865e65b1473e1098d",
+          "repo": "ACE-Step/acestep-v15-sft"
+        },
+        {
+          "path": "checkpoints/acestep-v15-sft/model.safetensors",
+          "url": "https://huggingface.co/ACE-Step/acestep-v15-sft/resolve/c410d249e71ea9385a7b586865e65b1473e1098d/model.safetensors?download=true",
+          "bytes": 4787825604,
+          "sha256": "d4dd3a93870f06720027965b90771f529ab02094b3d29e2518f1d5e097e1af7e",
+          "revision": "c410d249e71ea9385a7b586865e65b1473e1098d",
+          "repo": "ACE-Step/acestep-v15-sft"
+        },
+        {
+          "path": "checkpoints/acestep-v15-sft/modeling_acestep_v15_base.py",
+          "url": "https://huggingface.co/ACE-Step/acestep-v15-sft/resolve/c410d249e71ea9385a7b586865e65b1473e1098d/modeling_acestep_v15_base.py?download=true",
+          "bytes": 95910,
+          "sha256": "5e3b475d46965dcd5b0d037e53a9af359305a7dbd78e2ee08b39e94c4b02ca48",
+          "revision": "c410d249e71ea9385a7b586865e65b1473e1098d",
+          "repo": "ACE-Step/acestep-v15-sft"
+        },
+        {
+          "path": "checkpoints/acestep-v15-sft/silence_latent.pt",
+          "url": "https://huggingface.co/ACE-Step/acestep-v15-sft/resolve/c410d249e71ea9385a7b586865e65b1473e1098d/silence_latent.pt?download=true",
+          "bytes": 3841215,
+          "sha256": "a778e9dd942f5e8b2c09c55370782d318834432b03dabbcdf70e6ed49ad6358b",
+          "revision": "c410d249e71ea9385a7b586865e65b1473e1098d",
+          "repo": "ACE-Step/acestep-v15-sft"
+        }
+      ]
+    }
+  },
+  "runtime": {
+    "url": "https://codeload.github.com/ACE-Step/ACE-Step-1.5/zip/ca1e85fe9430179831e6bc6be790c332190a3866",
+    "bytes": 9148700,
+    "sha256": "108e45dffc7eb62af98d781c4159aa63a2b7a241186734e3e065279da7fc198d",
+    "path": "runtime.zip"
+  },
+  "auxiliary_assets": [
+    {
+      "path": "speaker/classifier.ckpt",
+      "url": "https://huggingface.co/speechbrain/spkrec-ecapa-voxceleb/resolve/0f99f2d0ebe89ac095bcc5903c4dd8f72b367286/classifier.ckpt?download=true",
+      "bytes": 5534328,
+      "sha256": "fd9e3634fe68bd0a427c95e354c0c677374f62b3f434e45b78599950d860d535",
+      "repo": "speechbrain/spkrec-ecapa-voxceleb",
+      "revision": "0f99f2d0ebe89ac095bcc5903c4dd8f72b367286"
+    },
+    {
+      "path": "speaker/embedding_model.ckpt",
+      "url": "https://huggingface.co/speechbrain/spkrec-ecapa-voxceleb/resolve/0f99f2d0ebe89ac095bcc5903c4dd8f72b367286/embedding_model.ckpt?download=true",
+      "bytes": 83316686,
+      "sha256": "0575cb64845e6b9a10db9bcb74d5ac32b326b8dc90352671d345e2ee3d0126a2",
+      "repo": "speechbrain/spkrec-ecapa-voxceleb",
+      "revision": "0f99f2d0ebe89ac095bcc5903c4dd8f72b367286"
+    },
+    {
+      "path": "speaker/hyperparams.yaml",
+      "url": "https://huggingface.co/speechbrain/spkrec-ecapa-voxceleb/resolve/0f99f2d0ebe89ac095bcc5903c4dd8f72b367286/hyperparams.yaml?download=true",
+      "bytes": 1919,
+      "sha256": "6f78854fa04ba59e761437b76a2575d3aba5e5016de3e9b69f0c9a5077fb1a41",
+      "repo": "speechbrain/spkrec-ecapa-voxceleb",
+      "revision": "0f99f2d0ebe89ac095bcc5903c4dd8f72b367286"
+    },
+    {
+      "path": "speaker/label_encoder.txt",
+      "url": "https://huggingface.co/speechbrain/spkrec-ecapa-voxceleb/resolve/0f99f2d0ebe89ac095bcc5903c4dd8f72b367286/label_encoder.txt?download=true",
+      "bytes": 128619,
+      "sha256": "e13c3a167bb4112685670ee896d20e2b565af16b3a4ceeaa8689fa4d22adb8b9",
+      "repo": "speechbrain/spkrec-ecapa-voxceleb",
+      "revision": "0f99f2d0ebe89ac095bcc5903c4dd8f72b367286"
+    },
+    {
+      "path": "speaker/mean_var_norm_emb.ckpt",
+      "url": "https://huggingface.co/speechbrain/spkrec-ecapa-voxceleb/resolve/0f99f2d0ebe89ac095bcc5903c4dd8f72b367286/mean_var_norm_emb.ckpt?download=true",
+      "bytes": 1921,
+      "sha256": "cd70225b05b37be64fc5a95e24395d804231d43f74b2e1e5a513db7b69b34c33",
+      "repo": "speechbrain/spkrec-ecapa-voxceleb",
+      "revision": "0f99f2d0ebe89ac095bcc5903c4dd8f72b367286"
+    },
+    {
+      "path": "separation/hdemucs_high_trained.pt",
+      "url": "https://download.pytorch.org/torchaudio/models/hdemucs_high_trained.pt",
+      "bytes": 334697255,
+      "sha256": "a004b2790d73ffeaa535db458a1a79b539dfdbafbccc31f275d07e632ebd7816"
+    }
+  ]
+}

@@ -1,0 +1,763 @@
+import {
+  ChangeDetectorRef,
+  Component,
+  ElementRef,
+  HostListener,
+  ViewChild,
+  inject,
+} from '@angular/core';
+import { FormsModule } from '@angular/forms';
+import { AudioComponent, DownloadComponent, Field, FieldComponent, Media, Value } from './controls';
+
+interface Clip {
+  key: string;
+  id: string;
+  label: string;
+  source_type: string;
+  audio?: Media;
+  preset?: 'apply' | 'keep';
+  settings: Record<string, number>;
+  saved_file?: string;
+}
+interface Draft {
+  clips: Clip[];
+  lyrics: string;
+  styles: string;
+  title: string;
+  count: number;
+  options: Record<string, Value>;
+  arrangement?: any;
+}
+interface Item {
+  id: string;
+  name: string;
+  type: string;
+  duration: number;
+  folder?: string;
+  recipe?: any;
+  source_type?: string;
+}
+interface Job {
+  id: string;
+  action: string;
+  status: string;
+  message: string;
+  progress: number;
+  result?: any;
+  song_id?: string;
+  [key: string]: any;
+}
+const defaults = (): Draft => ({
+  clips: [],
+  lyrics: '',
+  styles: '',
+  title: '',
+  count: 1,
+  options: {
+    gender: '',
+    duration: 'auto',
+    weirdness: 50,
+    influence: 50,
+    variety: 0,
+  },
+});
+const field = (
+  key: string,
+  label: string,
+  kind: Field['kind'],
+  initial: Value,
+  min?: number,
+  max?: number,
+  step?: number,
+  choices?: string[],
+): Field => ({ key, label, kind, initial, min, max, step, choices });
+export const fxFields: Field[] = [
+  field('pitch', 'Pitch (semitones)', 'slider', 0, -12, 12, 0.5),
+  field('stretch', 'Time stretch (fixed timeline slot)', 'slider', 1, 0.5, 2, 0.05),
+  field('gain', 'Gain (dB)', 'slider', 0, -24, 24, 0.5),
+  field('low_cut', 'Low cut / high-pass Hz (0=off)', 'slider', 0, 0, 1000, 10),
+  field('high_cut', 'High cut / low-pass Hz (0=off)', 'slider', 0, 0, 20000, 100),
+  field('compress', 'Compression', 'check', false),
+  field('comp_threshold', 'Comp threshold dB', 'slider', -20, -60, 0, 1),
+  field('comp_ratio', 'Comp ratio', 'slider', 4, 1, 20, 0.5),
+  field('chorus', 'Chorus mix', 'slider', 0, 0, 1, 0.05),
+  field('robot', 'Robot mix', 'slider', 0, 0, 1, 0.05),
+  field('robot_hz', 'Robot pitch Hz', 'slider', 110, 40, 400, 5),
+  field('delay', 'Echo mix', 'slider', 0, 0, 1, 0.05),
+  field('delay_time', 'Echo time s', 'slider', 0.3, 0.05, 1.5, 0.05),
+  field('delay_feedback', 'Echo feedback', 'slider', 0.35, 0, 0.9, 0.05),
+  field('reverb', 'Reverb wet', 'slider', 0, 0, 1, 0.05),
+  field('room_size', 'Room size', 'slider', 0.6, 0, 1, 0.05),
+  field('trim', 'Trim silence without shifting timing', 'check', false),
+  field('trim_db', 'Trim threshold below peak (dB)', 'slider', 40, 10, 80, 1),
+  field('normalize', 'Normalize this voice group', 'check', false),
+];
+
+@Component({
+  selector: 'mm-app',
+  imports: [FormsModule, AudioComponent, DownloadComponent, FieldComponent],
+  templateUrl: './app.html',
+})
+export class AppComponent {
+  private cdr = inject(ChangeDetectorRef);
+  @ViewChild('dialog') dialog?: ElementRef<HTMLDialogElement>;
+  tabs = ['Generation', 'Library', 'Vocal FX'];
+  tab = 0;
+  draft = defaults();
+  library: any = {
+    items: [],
+    folders: [],
+    storage: {},
+    models: { choices: [], ready: false },
+  };
+  jobs: Job[] = [];
+  results: any[] = [];
+  error = '';
+  status = '';
+  dialogKind = '';
+  selectedSong = '';
+  libraryAudio: Media | null = null;
+  libraryAssets: { label: string; media: Media | null }[] = [];
+  get selectedRecipe() {
+    return JSON.stringify(this.selected?.recipe, null, 2);
+  }
+  search = '';
+  folderFilter = '*';
+  newFolder = '';
+  songName = '';
+  songFolder = '';
+  libraryPath = '';
+  modelPath = '';
+  modelChoice = 'acestep-v15-base';
+  presetClip?: Clip;
+  reference: any = null;
+  referenceFields: Record<string, boolean> = {};
+  fx: any = null;
+  fxSongId = '';
+  fxGroup = '';
+  fxName = '';
+  fxPreview: Media | null = null;
+  capture?: MediaStream;
+  recorder?: MediaRecorder;
+  recording = false;
+  requestingMic = false;
+  inputHelp = false;
+  private micSession = 0;
+  take?: File;
+  takeUrl = '';
+  retakeIndex = -1;
+  theme = 'light';
+  fxFields = fxFields;
+  generationFields = [
+    field('gender', 'Vocal Gender', 'select', '', undefined, undefined, undefined, [
+      '',
+      'Male',
+      'Female',
+    ]),
+    field('duration', 'Duration (auto or 10–120 seconds)', 'text', 'auto'),
+    field('weirdness', 'Weirdness — Safe to Chaos', 'slider', 50, 0, 100, 1),
+    field('influence', 'Style Influence — Loose to Strong', 'slider', 50, 0, 100, 1),
+    field('variety', 'Variety — vary the styles, keep your lyrics', 'slider', 0, 0, 100, 1),
+  ];
+  private polling = new Set<string>();
+  constructor() {
+    try {
+      this.draft = {
+        ...defaults(),
+        ...JSON.parse(localStorage.getItem('mm-generation-draft') || '{}'),
+      };
+    } catch {
+      this.draft = defaults();
+    }
+    if (!Array.isArray(this.draft.clips)) this.draft.clips = [];
+    this.draft.options = { ...defaults().options, ...this.draft.options };
+    void this.initialize();
+  }
+  async initialize() {
+    try {
+      await this.refresh();
+      this.jobs = (await this.api('/api/jobs')).jobs;
+      for (const job of this.jobs) {
+        if (this.active(job)) void this.poll(job.id).catch((error) => this.fail(error));
+        else if (job.status === 'complete') this.receive(job);
+      }
+      await this.hydrateClips();
+      if (!this.library.models.ready) this.openDialog('storage');
+    } catch (error) {
+      this.fail(error);
+    }
+  }
+  async api(path: string, body?: any) {
+    const response = await fetch(
+      path,
+      body === undefined
+        ? {}
+        : {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-MusicMaker-Request': '1',
+            },
+            body: JSON.stringify(body),
+          },
+    );
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.detail || 'Request failed');
+    return data;
+  }
+  fail(error: unknown) {
+    this.error = error instanceof Error ? error.message : String(error);
+    this.cdr.markForCheck();
+  }
+  async refresh() {
+    this.library = await this.api('/api/library');
+    if (this.dialogKind !== 'storage') {
+      this.libraryPath = this.library.storage.library_dir;
+      this.modelPath = this.library.storage.model_dir;
+      this.modelChoice = this.library.models.selected;
+    }
+    this.cdr.markForCheck();
+  }
+  saveDraft() {
+    queueMicrotask(() => localStorage.setItem('mm-generation-draft', JSON.stringify(this.draft)));
+  }
+  active(job: Job) {
+    return ['queued', 'running'].includes(job.status);
+  }
+  get busy() {
+    return this.jobs.some((job) => this.active(job));
+  }
+  get songs(): Item[] {
+    return this.library.items.filter((item: Item) => ['generated', 'mix'].includes(item.type));
+  }
+  get filteredSongs() {
+    return this.songs.filter(
+      (item) =>
+        (this.folderFilter === '*' || (item.folder || '') === this.folderFilter) &&
+        item.name.toLowerCase().includes(this.search.toLowerCase()),
+    );
+  }
+  get selected(): Item | undefined {
+    return this.songs.find((item) => item.id === this.selectedSong);
+  }
+  get currentGroup(): any {
+    return this.fx?.groups?.find((group: any) => group.id === this.fxGroup);
+  }
+  get referenceKeys(): string[] {
+    return Object.keys(this.reference?.available || {});
+  }
+  async submit(action: string, values: any): Promise<Job> {
+    this.error = '';
+    const created = await this.api('/api/jobs', { action, values });
+    return this.poll(created.id);
+  }
+  async poll(id: string): Promise<Job> {
+    if (this.polling.has(id)) throw new Error('Already following this job');
+    this.polling.add(id);
+    try {
+      for (;;) {
+        const state: Job = await this.api('/api/jobs/' + id);
+        const index = this.jobs.findIndex((job) => job.id === id);
+        if (index >= 0) this.jobs[index] = state;
+        else this.jobs.push(state);
+        if (state.action === 'song_generate' && state.outcomes) this.results = state.outcomes;
+        this.cdr.markForCheck();
+        if (!this.active(state)) {
+          this.receive(state);
+          await this.refresh();
+          if (state.status === 'failed') throw new Error(state.message);
+          return state;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 500));
+      }
+    } finally {
+      this.polling.delete(id);
+    }
+  }
+  receive(job: Job) {
+    const result = job.result;
+    if (!result) return;
+    if (job.action === 'song_generate') this.results = result.outcomes || [];
+    if (job.status !== 'complete') return;
+    if (job.action === 'vocal_prepare' && job.song_id === this.fxSongId) {
+      const previous = this.fx?.song?.id === result.song.id ? this.fx.groups : [];
+      for (const group of result.groups) {
+        const existing = previous.find((entry: any) => entry.id === group.id);
+        if (existing) group.settings = existing.settings;
+      }
+      this.fx = result;
+      this.fxGroup = result.groups.some((group: any) => group.id === this.fxGroup)
+        ? this.fxGroup
+        : result.groups[0]?.id || '';
+      this.fxName = result.song.name + (result.song.recipe?.op === 'vocal-fx-song' ? '' : '_FX');
+    }
+    if (job.action === 'vocal_render' && job.song_id === this.fxSongId) {
+      this.fxPreview = result.audio;
+      if (result.song && this.fx) {
+        this.fx.song = result.song;
+        this.fxSongId = result.song.id;
+      }
+    }
+    this.status = result.message || '';
+    this.cdr.markForCheck();
+  }
+  async cancel(job: Job) {
+    try {
+      await this.api('/api/jobs/' + job.id + '/cancel', {});
+    } catch (error) {
+      this.fail(error);
+    }
+  }
+  changeTab(index: number) {
+    this.stopCapture();
+    this.tab = index;
+    this.saveDraft();
+  }
+  tabKey(event: KeyboardEvent, index: number) {
+    const next =
+      event.key === 'ArrowRight'
+        ? (index + 1) % 3
+        : event.key === 'ArrowLeft'
+          ? (index + 2) % 3
+          : event.key === 'Home'
+            ? 0
+            : event.key === 'End'
+              ? 2
+              : -1;
+    if (next >= 0) {
+      event.preventDefault();
+      this.changeTab(next);
+      document.getElementById('tab-' + next)?.focus();
+    }
+  }
+  openDialog(kind: string) {
+    this.dialogKind = kind;
+    this.cdr.detectChanges();
+    this.dialog?.nativeElement.showModal();
+  }
+  closeDialog() {
+    this.micSession++;
+    this.dialogKind = '';
+    this.stopCapture();
+    this.discardTake();
+    this.dialog?.nativeElement.close();
+  }
+  async upload(file: File) {
+    const form = new FormData();
+    form.append('file', file);
+    const response = await fetch('/api/uploads', {
+      method: 'POST',
+      headers: { 'X-MusicMaker-Request': '1' },
+      body: form,
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.detail || 'Audio upload failed');
+    return data;
+  }
+  async addFiles(event: Event) {
+    const input = event.target as HTMLInputElement;
+    const files = Array.from(input.files || []);
+    input.value = '';
+    try {
+      for (const file of files) await this.acceptFile(file, 'upload');
+    } catch (error) {
+      this.fail(error);
+    }
+  }
+  async acceptFile(file: File, type: string, replace = -1) {
+    const uploaded = await this.upload(file);
+    const job = await this.submit('accept_audio', {
+      uploads: [uploaded.id],
+      source_type: type,
+    });
+    const accepted = job.result.accepted[0];
+    const clip: Clip = {
+      key: crypto.randomUUID(),
+      id: accepted.item.id,
+      label: accepted.item.name,
+      source_type: type,
+      audio: accepted.audio,
+      settings: {},
+    };
+    if (replace >= 0) this.draft.clips[replace] = clip;
+    else this.draft.clips.push(clip);
+    this.saveDraft();
+    this.cdr.markForCheck();
+  }
+  async replaceFile(event: Event, index: number) {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    input.value = '';
+    if (!file) return;
+    try {
+      await this.acceptFile(file, 'upload', index);
+    } catch (error) {
+      this.fail(error);
+    }
+  }
+  async hydrateClips() {
+    for (const clip of this.draft.clips) {
+      try {
+        clip.audio = (await this.api('/api/items/' + clip.id)).audio;
+      } catch {
+        // Saved inputs carry independent preview assets even if the catalog source was deleted.
+        if (!clip.saved_file) clip.audio = undefined;
+      }
+    }
+    this.cdr.markForCheck();
+  }
+  async addAudio(item: Item) {
+    try {
+      const preview = await this.api('/api/items/' + item.id);
+      let clip = this.draft.clips.find((value) => value.id === item.id);
+      if (!clip) {
+        clip = {
+          key: crypto.randomUUID(),
+          id: item.id,
+          label: item.name,
+          source_type: ['generated', 'mix'].includes(item.type)
+            ? 'prior-song'
+            : item.source_type || 'upload',
+          audio: preview.audio,
+          settings: {},
+        };
+        this.draft.clips.push(clip);
+      }
+      this.closeDialog();
+      this.changeTab(0);
+      if (clip.source_type === 'prior-song' && !clip.preset) {
+        this.presetClip = clip;
+        this.openDialog('preset');
+      }
+      this.saveDraft();
+    } catch (error) {
+      this.fail(error);
+    }
+  }
+  choosePreset(choice: 'apply' | 'keep') {
+    if (this.presetClip) {
+      this.presetClip.preset = choice;
+      if (choice === 'apply')
+        this.presetClip.settings = {
+          sample_seconds: 1,
+          samples: 8,
+          pitch: 2,
+          stretch: 1.1,
+          gain: -12,
+        };
+    }
+    this.closeDialog();
+    this.saveDraft();
+  }
+  removeClip(index: number) {
+    this.draft.clips.splice(index, 1);
+    this.saveDraft();
+  }
+  async generate() {
+    try {
+      await this.submit('song_generate', this.draft);
+    } catch (error) {
+      this.fail(error);
+    }
+  }
+  async selectSong(item: Item) {
+    try {
+      this.selectedSong = item.id;
+      this.songName = item.name;
+      this.songFolder = item.folder || '';
+      const preview = await this.api('/api/items/' + item.id);
+      this.libraryAudio = preview.audio;
+      this.libraryAssets = preview.assets || [];
+    } catch (error) {
+      this.fail(error);
+    }
+  }
+  async organize() {
+    try {
+      await this.submit('organize', {
+        id: this.selectedSong,
+        name: this.songName,
+        folder: this.songFolder,
+      });
+    } catch (error) {
+      this.fail(error);
+    }
+  }
+  async createFolder() {
+    try {
+      await this.submit('folder', { name: this.newFolder });
+      this.newFolder = '';
+    } catch (error) {
+      this.fail(error);
+    }
+  }
+  async deleteSong() {
+    if (!this.selectedSong || !confirm('Delete this song from the library?')) return;
+    try {
+      await this.submit('delete', { id: this.selectedSong });
+      this.selectedSong = '';
+      this.libraryAudio = null;
+    } catch (error) {
+      this.fail(error);
+    }
+  }
+  async referenceSong(item: Item) {
+    try {
+      this.reference = await this.api('/api/ingredients/' + item.id);
+      this.referenceFields = {};
+      this.closeDialog();
+      this.openDialog('reference');
+    } catch (error) {
+      this.fail(error);
+    }
+  }
+  applyReference() {
+    if (this.reference)
+      for (const key of this.referenceKeys)
+        if (this.referenceFields[key]) {
+          const value = structuredClone(this.reference.available[key]);
+          if (key === 'clips')
+            this.draft.clips = value.map((clip: any) => ({
+              ...clip,
+              key: crypto.randomUUID(),
+              source_type: clip.source_type || 'upload',
+              settings: clip.settings || {},
+            }));
+          else if (key === 'options') this.draft.options = { ...defaults().options, ...value };
+          else (this.draft as any)[key] = value;
+        }
+    this.closeDialog();
+    this.changeTab(0);
+    this.saveDraft();
+    void this.hydrateClips();
+  }
+  referenceLabel(key: string) {
+    return (
+      (
+        {
+          clips: 'Original input audio',
+          styles: 'Styles',
+          lyrics: 'Lyrics',
+          title: 'Title',
+          options: 'Generation controls',
+          arrangement: 'Sample transformations and placements',
+        } as Record<string, string>
+      )[key] || key
+    );
+  }
+  async editFx(item: Item) {
+    this.fxSongId = item.id;
+    this.fx = null;
+    this.fxPreview = null;
+    this.fxGroup = '';
+    this.changeTab(2);
+    try {
+      await this.submit('vocal_prepare', { song_id: item.id });
+    } catch (error) {
+      this.fail(error);
+    }
+  }
+  referenceValue(key: string) {
+    const value = this.reference?.available[key];
+    if (typeof value === 'string') return value;
+    if (key === 'clips') return value?.map((clip: Clip) => clip.label).join(', ');
+    if (key === 'arrangement')
+      return `${value?.samples?.length || 0} transformed samples · ${value?.placements?.length || 0} placements`;
+    return JSON.stringify(value, null, 2);
+  }
+  fxValue(field: Field): Value {
+    return this.currentGroup?.settings[field.key] ?? field.initial;
+  }
+  setFx(key: string, value: Value) {
+    if (this.currentGroup) this.currentGroup.settings[key] = value;
+  }
+  addVoiceGroup(index: number) {
+    if (!this.fx) return;
+    let next = 1;
+    while (this.fx.groups.some((group: any) => group.id === 'g' + next)) next++;
+    const id = 'g' + next;
+    this.fx.groups.push({
+      id,
+      name: 'Corrected voice group ' + next,
+      settings: { normalize: false },
+      uncertain: true,
+    });
+    this.fx.segments[index].group = id;
+  }
+  async applyGrouping() {
+    try {
+      await this.submit('vocal_prepare', {
+        song_id: this.fxSongId,
+        segments: this.fx.segments,
+      });
+    } catch (error) {
+      this.fail(error);
+    }
+  }
+  fxSave() {
+    if (this.fx?.song.recipe?.op === 'vocal-fx-song') this.openDialog('fx-save');
+    else void this.renderFx(true, 'new');
+  }
+  async renderFx(save: boolean, mode: string) {
+    this.closeDialog();
+    try {
+      await this.submit('vocal_render', {
+        song_id: this.fxSongId,
+        group_settings: Object.fromEntries(
+          this.fx.groups.map((group: any) => [group.id, group.settings]),
+        ),
+        segments: this.fx.segments,
+        name: this.fxName,
+        save,
+        mode,
+      });
+    } catch (error) {
+      this.fail(error);
+    }
+  }
+  async changeStorage(kind: string, mode: string) {
+    try {
+      await this.submit('storage', {
+        kind,
+        mode,
+        path: kind === 'library' ? this.libraryPath : this.modelPath,
+      });
+    } catch (error) {
+      this.fail(error);
+    }
+  }
+  async installModel() {
+    try {
+      const choice = this.modelChoice;
+      if (this.modelPath !== this.library.storage.model_dir) {
+        await this.submit('storage', {
+          kind: 'model',
+          mode: 'open',
+          path: this.modelPath,
+        });
+      }
+      await this.submit('model_install', { model: choice });
+    } catch (error) {
+      this.fail(error);
+    }
+  }
+  get selectedModel() {
+    return this.library.models.choices.find((choice: any) => choice.id === this.modelChoice);
+  }
+  async beginRecording(index = -1) {
+    if (this.requestingMic || this.recording) return;
+    const session = ++this.micSession;
+    this.requestingMic = true;
+    this.error = '';
+    this.retakeIndex = index;
+    this.discardTake();
+    if (this.dialogKind !== 'microphone') this.openDialog('microphone');
+    try {
+      if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined')
+        throw new Error(
+          'Recording needs a supported browser on localhost or a secure connection. Upload an audio file instead.',
+        );
+      const capture = await navigator.mediaDevices.getUserMedia({
+        audio: true,
+      });
+      if (this.dialogKind !== 'microphone' || session !== this.micSession) {
+        capture.getTracks().forEach((track) => track.stop());
+        return;
+      }
+      this.capture = capture;
+      const mimeType = ['audio/webm;codecs=opus', 'audio/ogg;codecs=opus', 'audio/mp4'].find(
+        (type) => MediaRecorder.isTypeSupported(type),
+      );
+      this.recorder = new MediaRecorder(this.capture, mimeType ? { mimeType } : {});
+      const recorder = this.recorder;
+      const chunks: Blob[] = [];
+      this.recorder.ondataavailable = (event) => {
+        if (event.data.size) chunks.push(event.data);
+      };
+      this.recorder.onerror = () => {
+        this.stopCapture();
+        this.fail(new Error('Recording failed. Check the microphone and retry.'));
+      };
+      this.recorder.onstop = () => {
+        capture.getTracks().forEach((track) => track.stop());
+        if (this.recorder !== recorder || session !== this.micSession) return;
+        this.recording = false;
+        this.capture = undefined;
+        const blob = new Blob(chunks, {
+          type: recorder.mimeType || mimeType || 'audio/webm',
+        });
+        if (this.dialogKind !== 'microphone') return;
+        if (!blob.size) {
+          this.fail(new Error('The take was empty. Record again or upload audio.'));
+          return;
+        }
+        const extension = blob.type.includes('mp4')
+          ? 'm4a'
+          : blob.type.includes('ogg')
+            ? 'ogg'
+            : 'webm';
+        this.take = new File([blob], 'Microphone take.' + extension, {
+          type: blob.type,
+        });
+        this.takeUrl = URL.createObjectURL(blob);
+        this.cdr.markForCheck();
+      };
+      this.recorder.start();
+      this.recording = true;
+      this.cdr.markForCheck();
+    } catch (error) {
+      this.stopCapture();
+      const name = error instanceof DOMException ? error.name : '';
+      this.fail(
+        name === 'NotAllowedError'
+          ? new Error(
+              'Microphone access was denied. Allow it in this browser or upload a recording.',
+            )
+          : name === 'NotFoundError'
+            ? new Error('No microphone is available. Connect one or upload a recording.')
+            : error,
+      );
+    } finally {
+      this.requestingMic = false;
+      this.cdr.markForCheck();
+    }
+  }
+  stopCapture() {
+    if (this.recorder?.state === 'recording') this.recorder.stop();
+    this.capture?.getTracks().forEach((track) => track.stop());
+    this.capture = undefined;
+    this.recording = false;
+  }
+  discardTake() {
+    if (this.takeUrl) URL.revokeObjectURL(this.takeUrl);
+    this.take = undefined;
+    this.takeUrl = '';
+  }
+  async keepTake() {
+    if (!this.take) return;
+    try {
+      await this.acceptFile(this.take, 'microphone', this.retakeIndex);
+      this.closeDialog();
+    } catch (error) {
+      this.fail(error);
+    }
+  }
+  @HostListener('window:beforeunload') cleanup() {
+    this.micSession++;
+    this.stopCapture();
+    this.discardTake();
+  }
+  toggleTheme() {
+    this.theme = this.theme === 'light' ? 'dark' : 'light';
+    document.documentElement.classList.toggle('dark', this.theme === 'dark');
+  }
+  async quit() {
+    this.cleanup();
+    try {
+      this.status = (await this.api('/api/shutdown', {})).message;
+      this.cdr.markForCheck();
+    } catch (error) {
+      this.fail(error);
+    }
+  }
+}

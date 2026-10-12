@@ -53,8 +53,8 @@
   non-OpenSpec documentation under docs/. Root standard manifests/instructions
   and Angular CLI's required frontend/angular.json and .postcssrc.json are exceptions.
 - Run Ruff, ty and pytest for Python; ESLint, Vitest, strict Angular compilation
-  and Playwright against the real backend for the frontend. Preserve the initial
-  Gradio appearance and behavior; any redesign belongs in a separate PR.
+  and Playwright against the real backend for the frontend. Preserve the established
+  three task-focused workflows; visual redesign belongs in a separate PR.
 - Follow the CI order in docs/ci.md: title gate, parallel Python/Angular, integration
   and specs, Windows build/installed tests, then main-only semantic-release.
   Use maintained tools for generic checks and explicit released action versions.

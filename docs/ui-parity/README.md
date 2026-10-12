@@ -6,7 +6,9 @@ These are full-page captures: height follows visible content, while viewport sta
 constant. Synthetic voice/beat/mix fixtures are shared. IDs/timestamps of newly
 rendered results can differ. No personal audio was used.
 
-The initial app has **four tabs**, with Library inside AI Producer; that is retained.
+This historical migration retained the original **four tabs**, with Library inside
+AI Producer. WRK-4 subsequently introduced three task-focused workflows; current
+evidence is under [workflows](workflows/README.md).
 The same fonts, colors, labels, defaults, ranges, grouping and two-column layout
 are used. Audio transport is recreated around browser audio/canvas. Framework
 utility details (attribution, local API docs, icons/native selects) use the new stack.

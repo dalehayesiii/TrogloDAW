@@ -176,7 +176,7 @@ def _locked_catalog(write=False):
         data["items"] = [_abs(i) for i in data["items"]]
         yield data
         if write:
-            out = {"version": 1, "items": [_rel(i) for i in data["items"]]}
+            out = {**data, "version": 1, "items": [_rel(i) for i in data["items"]]}
             tmp = str(CATALOG) + ".tmp"
             with open(tmp, "w", encoding="utf-8") as f:
                 json.dump(out, f, indent=2)
@@ -833,6 +833,11 @@ def rerender(ref) -> dict:
     it = get_item(ref)
     rec = it.get("recipe") or {}
     op = rec.get("op")
+    if op in {"song", "vocal-fx-song"}:
+        import sys
+        from songs import Songs
+
+        return Songs(sys.modules[__name__], None, lambda _: None).rerender(it["id"])
     if op == "mix" and rec.get("produce"):
         return produce(**rec["produce"]["params"], name=f"{it['name']}_rerender")
     if op == "mix":
