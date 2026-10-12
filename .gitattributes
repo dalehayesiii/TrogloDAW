@@ -3,5 +3,8 @@
 *.command text eol=lf
 scripts/launchers/mm text eol=lf
 *.bat text eol=crlf
+*.cmd text eol=crlf
+*.vbs text eol=crlf
+*.py text eol=lf
 *.png binary
 *.woff2 binary
