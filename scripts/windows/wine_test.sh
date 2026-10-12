@@ -6,7 +6,8 @@ set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"; REPO="$(cd "$HERE/../.." && pwd)"
 cfg() { python3 "$HERE/cfg.py" "$REPO" "$1" "$2" "$3"; }
 export WINEPREFIX="$(cfg build.wine_prefix TROGLODAW_WINE_PREFIX "$HERE/work/wineprefix")" WINEDEBUG=-all
-OUT="$(cfg build.output TROGLODAW_BUILD_OUTPUT "$REPO/dist/TrogloDAW-Setup.exe")"
+VERSION="${TROGLODAW_VERSION:-0.0.0}"
+OUT="$(cfg build.output TROGLODAW_BUILD_OUTPUT "$REPO/dist/TrogloDAW-Setup-$VERSION.exe")"
 VOCAL="$(cfg build.test_vocal TROGLODAW_TEST_VOCAL "")"
 CACHE="$(cfg build.cache_dir TROGLODAW_BUILD_CACHE_DIR "$HERE/cache")"
 command -v wine >/dev/null || { echo "wine not installed"; exit 1; }

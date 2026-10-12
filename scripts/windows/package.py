@@ -25,7 +25,9 @@ work = Path(
 )
 stage = work / "stage/TrogloDAW"
 output = Path(
-    setting("build.output", "TROGLODAW_BUILD_OUTPUT", str(repo / "dist/TrogloDAW-Setup.exe"))
+    setting(
+        "build.output", "TROGLODAW_BUILD_OUTPUT", str(repo / f"dist/TrogloDAW-Setup-{version}.exe")
+    )
 )
 install = setting("windows.install_dir", "TROGLODAW_WIN_INSTALL_DIR", r"$LOCALAPPDATA\TrogloDAW")
 library = setting(

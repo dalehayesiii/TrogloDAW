@@ -146,19 +146,27 @@ Actions SHALL use explicit released version tags and Dependabot updates. Each is
 - **THEN** release downloads only the checked payload artifact and Windows artifacts use no additional upload compression
 
 ### Requirement: Branded compatible distribution
-Windows installation and release presentation SHALL use TrogloDAW with one canonical TrogloDAW-Setup.exe and no legacy installer alias. Checksums and publication validation SHALL cover that actual distributed artifact. Current TrogloDAW upgrades SHALL preserve configured user assets and preferences; migration of old product-name contracts SHALL NOT be required.
+Windows installation and release presentation SHALL use one canonical `TrogloDAW-Setup-<version>.exe` per release, with the supplied stable version suffixed before `.exe`; development previews SHALL use `0.0.0`. Checksums and publication validation SHALL cover that artifact and reject ambiguous installer uploads. Current upgrades SHALL preserve configured assets and preferences; migration of old product-name contracts SHALL NOT be required.
 
 #### Scenario: Legacy download automation
 - **WHEN** download automation requests a previous product-name installer filename
-- **THEN** no compatibility filename is published and current consumers use TrogloDAW-Setup.exe
+- **THEN** no compatibility filename is published and current consumers use the versioned TrogloDAW filename
 
 #### Scenario: Canonical download
 - **WHEN** a stable release is published
-- **THEN** it contains the canonical TrogloDAW installer, one matching checksum entry and source/version manifest without compatibility-installer metadata
+- **THEN** it contains `TrogloDAW-Setup-<version>.exe`, one matching checksum entry and a source/version manifest identifying that filename
 
 #### Scenario: Retain configured assets
 - **WHEN** a current TrogloDAW installation is upgraded
 - **THEN** configured library/model locations and preferences remain and known app shortcut cleanup preserves unrelated custom entries
+
+#### Scenario: Keep several installers
+- **WHEN** a user downloads installers from two stable releases into the same folder
+- **THEN** their different version suffixes identify both releases without a filename collision
+
+#### Scenario: Development preview
+- **WHEN** a default development installer is built
+- **THEN** its filename is `TrogloDAW-Setup-0.0.0.exe` and its checksum and manifest agree
 
 ### Requirement: Installed release identity
 Packaging SHALL embed the semantic-release-supplied stable version, checked source commit and current repository identity into the installed app before NSIS packaging. The runtime identity, installer registration and published source/version manifest SHALL agree. Development builds SHALL use explicit development identity without planning or publishing an independent release version. Final-release smoke SHALL verify installed runtime identity.

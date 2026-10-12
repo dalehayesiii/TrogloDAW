@@ -8,11 +8,13 @@ $installed = [System.IO.Path]::GetFullPath($InstallRoot).TrimEnd('\')
 if (-not $installed.StartsWith($baseRoot+'\',[StringComparison]::OrdinalIgnoreCase)) { throw 'Unsafe handoff test installation' }
 $helperRoot = Join-Path $baseRoot 'update helper with spaces'
 New-Item -ItemType Directory -Path $helperRoot -Force | Out-Null
-$installer = Join-Path $helperRoot 'TrogloDAW-Setup.exe'
-Copy-Item -LiteralPath ./dist/TrogloDAW-Setup.exe -Destination $installer
+$manifest = Get-Content ./dist/release.json -Raw | ConvertFrom-Json
+$installerName = "TrogloDAW-Setup-$($manifest.version).exe"
+if ($manifest.installer -cne $installerName) { throw 'Handoff installer filename differs from build version' }
+$installer = Join-Path $helperRoot $installerName
+Copy-Item -LiteralPath (Join-Path './dist' $installerName) -Destination $installer
 $helper = Join-Path $helperRoot 'app_update.ps1'
 Copy-Item -LiteralPath (Join-Path $installed 'app/scripts/windows/app_update.ps1') -Destination $helper
-$manifest = Get-Content ./dist/release.json -Raw | ConvertFrom-Json
 $configPath = Join-Path $installed 'app/config.local.json'
 $before = [System.IO.File]::ReadAllBytes($configPath)
 $probe = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback,0)

@@ -16,6 +16,22 @@ This repository currently has private releases. The app can reuse an existing Gi
 
 ## Recovery and limitations
 
+New releases download as `TrogloDAW-Setup-<version>.exe` (for example,
+`TrogloDAW-Setup-2.4.0.exe`) so several installers can be kept together. The updater
+prefers the exact versioned asset and still verifies historical releases that
+only contain `TrogloDAW-Setup.exe`.
+
+Apps released before this filename change only recognize `TrogloDAW-Setup.exe`.
+For the first upgrade, download the versioned installer, SHA256SUMS and
+release.json from the same [stable release](https://github.com/dalehayesiii/music-maker/releases/latest).
+Verify its SHA-256 with `Get-FileHash -Algorithm SHA256` against the matching
+SHA256SUMS entry and confirm release.json names the same file/version. Finish
+active work, close TrogloDAW, then run that installer against the existing app
+location. Keep your configured library/model folders. Confirm the new version in
+Settings; later releases use in-app updates normally. If repair or rollback is
+needed, retain the downloaded verified installer and follow
+[installation and data recovery](installation-recovery.md).
+
 Download, verification or helper launch failures leave the current app running. Retry the operation after resolving connection, disk-space or access issues. Downloads/helpers use the selected model drive; a controlled sibling cache is used if that location is inside the installation directory.
 
 If native installation fails after handoff, the status page identifies the verified installer retained on disk. Run it to repair the same installation or reopen TrogloDAW from its shortcut when its files remain usable. Binary rollback is not automatic. Keep your existing library/model folders; see [installation and data recovery](installation-recovery.md).

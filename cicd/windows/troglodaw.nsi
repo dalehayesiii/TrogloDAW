@@ -15,7 +15,7 @@ RequestExecutionLevel user
   !define STAGE "work\stage\TrogloDAW"
 !endif
 !ifndef OUTFILE
-  !define OUTFILE "TrogloDAW-Setup.exe"
+  !define OUTFILE "TrogloDAW-Setup-${VERSION}.exe"
 !endif
 !ifndef INSTALL_DIR
   !define INSTALL_DIR "$LOCALAPPDATA\TrogloDAW"

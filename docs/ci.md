@@ -74,7 +74,11 @@ checked payload, smoke-tests the resulting versioned EXE, then verifies source/v
 and checksum before semantic-release creates the tag and publishes assets. This
 second NSIS invocation is needed to put the official version into installer
 metadata; it does not reinstall wheels or rebuild Angular. Preparation runs only
-when semantic-release actually selects a release. PR builds use preview 0.0.0.
+when semantic-release actually selects a release. PR builds use
+`TrogloDAW-Setup-0.0.0.exe`. Published releases use
+`TrogloDAW-Setup-<version>.exe`, with exactly that name in SHA256SUMS and
+release.json. The publisher selects versioned EXEs and the guard rejects missing
+or multiple matching installers before tagging.
 
 The existing installer helper's `-ReleaseSmoke` mode verifies installation/shortcuts,
 the displayed version against the manifest, embedded service health, the compiled

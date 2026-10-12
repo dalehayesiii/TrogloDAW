@@ -226,7 +226,7 @@ jobs:
         with:
           name: windows-build
           path: |
-            dist/TrogloDAW-Setup.exe
+            dist/TrogloDAW-Setup-0.0.0.exe
             dist/SHA256SUMS
             dist/release.json
           if-no-files-found: error

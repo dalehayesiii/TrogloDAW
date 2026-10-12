@@ -155,7 +155,11 @@ are required: [repository settings](repository-settings.md).
 On Linux install NSIS and curl; on Windows install NSIS and use Git Bash with Python
 on PATH. Run setup/build commands above followed by
 `TROGLODAW_VERSION=0.0.0 bash scripts/windows/build.sh`. `--stage-only` checks the embedded
-payload without NSIS. Stable versions come from semantic-release in CI.
+payload without NSIS. The default output is `dist/TrogloDAW-Setup-0.0.0.exe` for
+development; stable
+versions come from semantic-release in CI and appear in the filename. Explicit
+`build.output` overrides are retained, with a canonical versioned copy recorded
+by the checksum/manifest helper.
 NSIS bundles Python 3.12.10, locked runtime wheels, ffmpeg and Angular static files.
 The installed app needs neither Python, Node nor uv installed separately. Windows
 metadata/Apps & Features use the injected version; current TrogloDAW upgrades

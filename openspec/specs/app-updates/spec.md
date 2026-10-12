@@ -33,7 +33,7 @@ Private releases SHALL support optional credentials without requiring bundled se
 - **THEN** the token is stored in the OS credential store, cleared from the input and never returned by status APIs
 
 ### Requirement: Verified cancelable downloads
-Update download SHALL be explicit and report actual bytes/status with cancellation and retry. Before readiness, the canonical installer SHALL match the same release's checksum and source/version manifest, with coherent version, filename and asset size. Invalid, incomplete, canceled or mismatched artifacts SHALL NOT be launched. Downloads SHALL stay in controlled app storage following the selected model/cache drive.
+Update download SHALL be explicit and report bytes/status with cancellation and retry. Discovery SHALL prefer `TrogloDAW-Setup-<release-version>.exe`, accepting the historical fixed name only when that asset is absent. Readiness SHALL require matching release checksum, source/version manifest, selected filename and asset size. Invalid, incomplete, canceled or mismatched artifacts SHALL NOT launch. Downloads SHALL use controlled storage on the selected model/cache drive.
 
 #### Scenario: Tampered or interrupted artifact
 - **WHEN** the installer checksum, source/version metadata or transfer size is invalid, or download is interrupted
@@ -42,6 +42,18 @@ Update download SHALL be explicit and report actual bytes/status with cancellati
 #### Scenario: Cancel transfer
 - **WHEN** the user cancels an update download
 - **THEN** the download stops, readiness is cleared and retry remains available
+
+#### Scenario: Versioned release
+- **WHEN** a newer stable release publishes its exact versioned installer
+- **THEN** discovery selects it and readiness requires that filename in its manifest and checksum
+
+#### Scenario: Historical fixed-name release
+- **WHEN** a newer stable release has only the historical `TrogloDAW-Setup.exe` asset
+- **THEN** discovery and verified download remain supported using that exact historical filename
+
+#### Scenario: Both names available
+- **WHEN** a release contains both versioned and historical installer names
+- **THEN** the exact versioned asset is selected and invalid verification does not fall back to the historical asset
 
 ### Requirement: Idle Windows upgrade handoff
 Installation SHALL require explicit user action and verified readiness. It SHALL reject active processing, uploads, storage selection and reported live recordings across app tabs, reserving handoff against new work. A hidden helper outside the installation folder SHALL wait for service exit, reverify the installer and apply it to the existing app location. Failed helper launch SHALL leave the service running; installation failure SHALL retain recovery status/artifacts and user data.
