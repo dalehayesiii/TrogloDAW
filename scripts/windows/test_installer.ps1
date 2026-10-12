@@ -1,4 +1,6 @@
 # Exercise native install/upgrade/uninstall and the actual embedded browser service.
+param([switch]$ReleaseSmoke)
+
 $ErrorActionPreference = 'Stop'
 $testWork = if ($env:RUNNER_TEMP) { $env:RUNNER_TEMP } else { [System.IO.Path]::GetTempPath() }
 $testRoot = [System.IO.Path]::GetFullPath((Join-Path $testWork ('TrogloDAW-check-' + [System.Guid]::NewGuid().ToString('N'))))
@@ -52,6 +54,50 @@ try {
     if ((Get-ItemProperty $registryPaths[1]).DisplayName -ne 'TrogloDAW') { throw 'Uninstall display branding differs' }
     $python = Join-Path $installRoot 'python/python.exe'
     $env:TROGLODAW_LIBRARY = $libraryRoot
+    $manifest = Get-Content dist/release.json -Raw | ConvertFrom-Json
+    $version = (Get-ItemProperty $registryPaths[1]).DisplayVersion
+    if ($version -ne $manifest.version) { throw 'Installed version differs from build' }
+    if ($ReleaseSmoke) {
+        # Final versioning changes installer metadata, not the checked app payload.
+        # Verify service/static delivery without replaying browser/audio workflows.
+        $listener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, 0)
+        $listener.Start()
+        $port = $listener.LocalEndpoint.Port
+        $listener.Stop()
+        $env:TROGLODAW_CONFIG_DIR = Join-Path $installRoot 'app'
+        $env:TROGLODAW_HOST = '127.0.0.1'
+        $app = Join-Path $installRoot 'app/backend/app.py'
+        $server = Start-Process -FilePath $python -ArgumentList @("`"$app`"", '--port', $port, '--no-browser') -PassThru -WindowStyle Hidden -RedirectStandardOutput (Join-Path $testRoot 'service.stdout') -RedirectStandardError (Join-Path $testRoot 'service.stderr')
+        try {
+            $baseUrl = "http://127.0.0.1:$port"
+            $ready = $false
+            $deadline = [DateTime]::UtcNow.AddSeconds(60)
+            while ([DateTime]::UtcNow -lt $deadline) {
+                $server.Refresh()
+                if ($server.HasExited) { throw "Installed service exited: $(Get-Content (Join-Path $testRoot 'service.stderr') -Raw)" }
+                try {
+                    $health = Invoke-RestMethod "$baseUrl/api/health" -TimeoutSec 2
+                    if ($health.application -eq 'troglodaw' -and $health.frontend -eq $true) { $ready = $true; break }
+                } catch { }
+                Start-Sleep -Milliseconds 250
+            }
+            if (-not $ready) { throw 'Installed service did not become healthy' }
+            $page = Invoke-WebRequest "$baseUrl/" -UseBasicParsing -TimeoutSec 10
+            if ($page.Content -notmatch '<troglodaw-app') { throw 'Installed Angular document missing' }
+            $assets = [regex]::Matches($page.Content, '(?:src|href)="([^"<>]+\.(?:js|css))"')
+            if (-not $assets.Count) { throw 'Installed Angular entry assets missing' }
+            foreach ($asset in $assets) {
+                $response = Invoke-WebRequest ([Uri]::new([Uri]"$baseUrl/", $asset.Groups[1].Value)) -UseBasicParsing -TimeoutSec 10
+                if ($response.StatusCode -ne 200 -or $response.Headers['Content-Type'] -match 'text/html') { throw 'Installed Angular asset did not load' }
+            }
+        } finally {
+            if (-not $server.HasExited) { Stop-Process -Id $server.Id -Force }
+            $server.WaitForExit()
+        }
+        Uninstall-TestApp $true
+        Write-Output 'Final installer version, API startup, static UI and uninstall smoke checks passed.'
+        return
+    }
     & (Join-Path $installRoot 'troglodaw.bat') demo
     if ($LASTEXITCODE) { throw 'Embedded CLI demo failed' }
     & $python scripts/smoke_producer.py
@@ -60,9 +106,6 @@ try {
     $env:TROGLODAW_TEST_APP = Join-Path $installRoot 'app/backend/app.py'
     npm run e2e
     if ($LASTEXITCODE) { throw 'Installed Angular UI / Python service failed' }
-    $manifest = Get-Content dist/release.json -Raw | ConvertFrom-Json
-    $version = (Get-ItemProperty $registryPaths[1]).DisplayVersion
-    if ($version -ne $manifest.version) { throw 'Installed version differs from build' }
     $owned = Join-Path $modelRoot 'installed.bin'
     $shared = Join-Path $modelRoot 'shared.bin'
     $unrelated = Join-Path $modelRoot 'personal.txt'
@@ -100,4 +143,7 @@ try {
         if ($shortcutBackup.ContainsKey($path)) { Copy-Item -LiteralPath $shortcutBackup[$path] -Destination $path -Recurse }
     }
     Remove-Item Env:TROGLODAW_TEST_PYTHON,Env:TROGLODAW_TEST_APP -ErrorAction SilentlyContinue
+    if ($ReleaseSmoke) {
+        Remove-Item Env:TROGLODAW_CONFIG_DIR,Env:TROGLODAW_HOST -ErrorAction SilentlyContinue
+    }
 }

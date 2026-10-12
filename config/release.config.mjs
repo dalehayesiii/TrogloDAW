@@ -33,7 +33,7 @@ export default {
       '@semantic-release/exec',
       {
         prepareCmd:
-          'python scripts/windows/package.py ${nextRelease.version} && pwsh -File scripts/windows/test_installer.ps1',
+          'python scripts/windows/package.py ${nextRelease.version} && pwsh -File scripts/windows/test_installer.ps1 -ReleaseSmoke',
       },
     ],
     './scripts/release-guard.mjs',
