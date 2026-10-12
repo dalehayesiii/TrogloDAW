@@ -56,7 +56,6 @@ frontend/dist/
 frontend/.angular/
 playwright-report/
 test-results/
-!docs/ui-parity/**/*.png
 .tools/
 .coverage
 coverage.xml
@@ -82,6 +81,7 @@ parts/
 *.jpg
 mm.part*
 winetricks
+!docs/ui-parity/**/*.png
 
 # ---- editors / OS ----
 .vscode/
