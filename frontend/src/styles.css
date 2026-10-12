@@ -1065,12 +1065,32 @@ main {
   fill: none;
   opacity: 0.6;
 }
-.mural-tally {
-  stroke: #dca2cd;
-  stroke-width: 4;
+.mural-mammoth {
+  stroke: #e1acd4;
+  stroke-width: 2;
   stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0.34;
+}
+.mammoth-body {
+  fill: #dca2cd22;
+}
+.mammoth-far-legs {
   fill: none;
-  opacity: 0.3;
+  opacity: 0.7;
+}
+.mammoth-detail {
+  fill: none;
+  stroke-width: 1.5;
+}
+.mammoth-tusks {
+  fill: none;
+  stroke: var(--lime);
+  stroke-width: 1.7;
+}
+.mammoth-eye {
+  fill: var(--lime);
+  stroke: none;
 }
 .identity {
   display: flex;
@@ -1801,6 +1821,9 @@ footer button {
     bottom: -5px;
     height: 240px;
     opacity: 0.5;
+  }
+  .mural-mammoth {
+    transform: translate(170px, 35px) scale(0.7);
   }
   nav {
     gap: 3px;

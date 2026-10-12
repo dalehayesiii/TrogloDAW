@@ -3,7 +3,7 @@
 TrogloDAW is the current product name in the app/header/browser title, Windows
 installer/product/uninstall metadata and shortcuts, startup/console messages,
 README and maintained product/development/packaging guides. The cave-arch waveform
-mark uses pink-purple/lavender and pale lime; a cave-wall contour and tally mural,
+mark uses pink-purple/lavender and pale lime; a cave-wall contour and mammoth mural,
 carved workflow glyphs, stone strata and rhythm marks extend the identity across
 task panels. Purple-family accents predominate; deliberate lime player, waveform,
 selection and setup accents provide approximately a quarter of the accent design.
