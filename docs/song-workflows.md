@@ -16,6 +16,8 @@ audio processing and storage work offline. See [model setup and measured limits]
 the browser window. If shutdown cannot be confirmed, the interface remains available
 with an error so you can retry.
 
+![Quit completion after the local service exits](assets/quit-dark.png)
+
 The product is designed for fully unfiltered local song creation, inspired by
 frustration with tightening restrictions in hosted song tools such as Suno.
 TrogloDAW adds no content moderation or word blacklists and passes supplied lyrics
