@@ -36,15 +36,35 @@ unsupported-format and empty-audio errors preserve existing inputs. Automated te
 use real MediaRecorder with a synthetic WebAudio stream; a physical microphone
 check is optional after delivery.
 
-Every selected input contributes to a full-song sample arrangement. Selection uses
-phrase boundaries, audible energy and spectral diversity, with a budget based on
-active material. Phase-canceling stereo uses a recorded dominant-channel strategy
-for samples/conditioning while retaining the original unchanged. Short clips are not duplicated merely to fill a sample count;
-longer contrasting recordings yield more distinct cuts. Each cut receives seeded
-pitch/speed variation around its clip adjustments, limited volume balancing and
-edge fades. A shared detected tempo (or 90 BPM fallback), recurring motifs and
-section dynamics spread the samples across the selected duration. These are
-inspectable heuristics, not a guarantee of artistic arrangement or key matching.
+Every selected input contributes to a full-song sample arrangement. A relative
+energy analysis joins brief articulation gaps, retains audible phrase spans and
+selects contrasting phrase, motif and accent cuts. A loud transient does not set
+the threshold for the entire recording. Eligible 0.5–8-second inputs sometimes
+contribute their complete clip as one sample when the song has enough space.
+The `samples` budget caps distinct cut families (default eight, API maximum sixteen);
+short inputs and short song durations can need fewer. Each cut has at most three
+saved statement/response/fill variants, including bounded pitch, speed, filtering,
+echo and gain differences. Statements retain phrase pitch/speed adjustments;
+responses and fills evolve them. Prior-song presets retain their short-cut policy.
+
+A shared detected tempo (or 90 BPM fallback) supports a section plan with quieter
+openings/endings, fuller refrains, restrained bridges and intentional rests.
+Placements use actual transformed lengths, avoid overlap and adjacent returns of
+the same family when alternatives exist, and space family returns by at least eight
+beats or twice the sample length. A transformed variant appears at most twice;
+a family has two to six returns depending on song length, with complete clips
+limited to two. Source selection, variants, sections and effective placement gains
+are saved. The seed reproduces decisions; old recipes retain their saved layout.
+[Synthetic before/after validation](sample-arrangements.md) shows the actual placements.
+This is an inspectable heuristic arrangement, not a learned semantic composer or a
+guarantee of musical harmony, sample identity or artistic quality. Key detection
+and tempo estimation can be uncertain on speech or noisy recordings.
+
+Phase-canceling stereo uses a recorded dominant-channel strategy for the guide;
+original audio remains unchanged. Sample gain balancing is bounded to ±6 dB around
+clip gain, and individual variants and the combined guide are attenuated if necessary
+to retain a 0.8 peak ceiling. This protects against clipping without unlimited quiet
+source/noise amplification. It does not make all recordings equally loud.
 
 By default, the compatible Base model receives this complete arrangement WAV
 **before generation**, alongside lyrics and styles. It produces the whole song;

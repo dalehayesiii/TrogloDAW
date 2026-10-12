@@ -180,15 +180,16 @@
                 <p id="audio-guidance" role="tooltip">
                   Audio inputs are intended to be vocal recordings. Previously generated songs can
                   also be used and may benefit from prior-song presets. Each original clip is
-                  automatically cut into smaller samples, individually transformed and arranged into
-                  one full-song audio guide before generation.
+                  automatically analyzed for phrase, motif and accent cuts. Short clips may also be
+                  used whole. Bounded variations and musical gaps form one full-song audio guide
+                  before generation; selection and arrangement use local audio heuristics.
                 </p>
                 }
               </div>
             </div>
             <p class="muted">
-              Add original recordings. We select a budget of smaller samples from each one,
-              transform them individually and arrange them into one full-song audio guide. Audio is
+              Add original recordings. We derive varied smaller cuts, sometimes use a short clip
+              whole, and transform and arrange samples with spaced motifs and rests. Audio is
               optional when you provide lyrics or styles.
             </p>
             <label for="audio-files">Add audio files</label
@@ -275,7 +276,8 @@
                 <div class="stack options">
                   <p class="muted">
                     Set the starting pitch, speed and volume for samples automatically selected from
-                    this original clip. Each sample receives its own additional transformation.
+                    this original clip. Each derived cut gets bounded statement, response and fill
+                    variations; these adjustments are their starting point.
                   </p>
                   <label [for]="'replace-clip-'+index">Replace this clip with a file</label>
                   <input

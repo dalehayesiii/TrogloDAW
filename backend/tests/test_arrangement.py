@@ -26,7 +26,8 @@ def test_content_selection_avoids_silence_and_covers_different_material():
     assert budget["active_seconds"] == 3
     assert max(r["centroid_hz"] for r in regions) - min(r["centroid_hz"] for r in regions) > 1000
     short, _ = select_regions(audio[sr : sr * 2], sr, CLIP_DEFAULTS, {})
-    assert len(short) == 1
+    assert 1 <= len(short) <= 2
+    assert any(r["end"] - r["start"] == sr for r in short)
     with pytest.raises(ValueError, match="audible"):
         select_regions(np.zeros((sr, 2), np.float32), sr, CLIP_DEFAULTS, {})
 

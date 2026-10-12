@@ -98,7 +98,9 @@ def test_every_input_has_transformed_assets_and_rerenders_portably(core, songs):
     assert len({item["recipe"]["parameters"]["seed"] for item in items}) == 2
     recipe = items[0]["recipe"]
     assert {sample["source_id"] for sample in recipe["samples"]} == {a["id"], b["id"]}
-    assert len(recipe["placements"]) >= len(recipe["samples"]) >= 2
+    assert len(recipe["placements"]) >= len({s["family_id"] for s in recipe["samples"]}) >= 2
+    placed = {p["sample_id"] for p in recipe["placements"]}
+    assert {s["source_id"] for s in recipe["samples"] if s["id"] in placed} == {a["id"], b["id"]}
     assert all(
         1 <= analysis["selection"]["effective_budget"] <= 8 for analysis in recipe["analysis"]
     )
