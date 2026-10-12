@@ -11,6 +11,7 @@ Users currently reinstall releases manually and cannot discover updates from the
 - Support private-release access through existing GitHub CLI credentials or an optional token saved in Windows Credential Manager; keep credentials out of config, logs and cross-host asset redirects.
 - Embed the semantic-release-supplied version/source identity and hand off verified upgrades through a hidden helper outside the installation folder.
 - Preserve library/models/preferences and leave source/unsupported-platform upgrade behavior explicit.
+- Separate first-run onboarding from Settings, persist setup history through upgrades, support retained-folder verification after reinstall, and show independent Download/Installation status with background continuation.
 
 ## Capabilities
 
@@ -21,6 +22,7 @@ Users currently reinstall releases manually and cannot discover updates from the
 ### Modified Capabilities
 
 - `delivery-workflow`: installed version/source identity matches the validated published artifact.
+- `local-model-storage`: persistent first-run history, background setup, retained asset reuse and separate installation/download scopes.
 
 ## Impact
 

@@ -21,6 +21,10 @@ Non-goals: remote audio processing, unattended installation, repository rename, 
 
 ## Risks / Trade-offs
 
+- First-run onboarding and Settings have separate flow composition, sharing embedded storage/model controls. First-run history lives in installation preferences rather than browser state or asset presence. Accepting model setup or dismissing onboarding persists it; upgrades preserve it, uninstall removes it. Existing pre-flag installation identities count as prior setup. Fresh reinstall selects retained directories and explicitly verifies existing pinned assets/runtime before activation, downloading only missing assets.
+- The top model-setup line shows local-machine start time plus full setup remaining time. Overall/current-stage bars first describe Download, then switch to Installation once model bytes are present. Overall installation counts completed asset verification and extraction/preparation/package/probe/activation checkpoints, not elapsed-time fractions; unknown stage work stays indeterminate. Closing onboarding leaves the backend job running; generation waits for readiness while drafts/import/recording/playback/library remain available.
+- User storage cannot use app/Python program directories. Unsafe legacy locations stop uninstall before deletion; verified Settings relocation provides recovery. Future changes that break installation/configuration contracts require a migration guide under docs with a README reference.
+
 - Unsigned installer → retain existing distribution behavior and require matching trusted release metadata/checksum; no claim of code signing.
 - Private repository without credentials → quiet recoverable status and Settings access guidance, without compromising offline audio.
 - Interruption during NSIS execution → do not claim automatic binary rollback; preserve user data and the verified installer/status for recovery. Before handoff, download/launch failures leave the current app running.

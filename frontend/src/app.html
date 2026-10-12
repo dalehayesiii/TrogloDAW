@@ -1,4 +1,29 @@
-@if(stopped){
+@if(updateHandoff){
+<main class="quit-screen" aria-labelledby="update-heading">
+  <section class="quit-card" role="status">
+    <svg class="brand-mark" viewBox="0 0 64 64" aria-hidden="true" focusable="false">
+      <path class="brand-stone" d="M8 53 5 32 13 12 31 5 51 12 59 34 55 54 40 59 22 57Z" />
+      <path class="brand-cave" d="M18 49V34C18 15 47 15 47 34V49Z" />
+      <path class="brand-wave" d="M23 35V42M29 29V47M35 33V44M41 36V41" />
+    </svg>
+    <h1 id="update-heading" tabindex="-1">
+      {{update.phase==='failed' ? 'Update needs attention' : 'Updating TrogloDAW'}}
+    </h1>
+    <p>{{update.message}}</p>
+    <p class="muted">
+      {{update.phase==='failed' ? 'Reopen TrogloDAW from its shortcut to retry, or run the verified
+      installer to repair the app.' : 'Keep this window open. It will return to the app after
+      restart.'}}
+    </p>
+    @if(update.phase==='failed'){<a
+      href="https://github.com/dalehayesiii/music-maker/releases/latest"
+      target="_blank"
+      rel="noopener"
+      >View the latest release</a
+    >}
+  </section>
+</main>
+} @else if(stopped){
 <main class="quit-screen" aria-labelledby="quit-heading">
   <section class="quit-card" role="status">
     <svg class="brand-mark" viewBox="0 0 64 64" aria-hidden="true" focusable="false">
@@ -91,7 +116,22 @@
       ></span></button
     >}
   </nav>
-  @if (error && !dialogKind) {
+  @if(update.available_version &&
+  ['available','ready','downloading','canceled','failed'].includes(update.phase)){
+  <aside class="update-notice" aria-label="App update available">
+    <span>TrogloDAW {{update.available_version}} is available.</span>
+    <button type="button" (click)="openUpdates()">View update</button>
+  </aside>
+  } @if(installingModel){
+  <aside class="update-notice" aria-label="Model installation in background">
+    <span
+      >Model installation continues in the background. You can import, record, play audio and edit
+      drafts. Generation and fresh voice extraction become available when a compatible model is
+      ready.</span
+    >
+    <button type="button" (click)="openDialog('storage')">View installation</button>
+  </aside>
+  } @if (error && !dialogKind) {
   <p class="error-banner" role="alert">{{error}}</p>
   } @if (status) {
   <p class="status-line" role="status">{{status}}</p>
@@ -359,7 +399,7 @@
             <button
               type="button"
               class="primary generate-button"
-              [disabled]="busy || recording"
+              [disabled]="busy || recording || !library.models.ready"
               (click)="generate()"
             >
               <svg viewBox="0 0 28 28" aria-hidden="true">
@@ -629,11 +669,15 @@
       {{quitting ? 'Stopping…' : 'Quit'}}
     </button>
   </footer>
-  <dialog #dialog (cancel)="closeDialog()" aria-labelledby="dialog-heading">
+  <dialog
+    #dialog
+    (cancel)="$event.preventDefault(); closeDialog()"
+    aria-labelledby="dialog-heading"
+  >
     <div class="dialog-heading">
       <h2 id="dialog-heading">
-        {{dialogKind==='storage' ? (library.models.ready ? 'Settings and storage' : 'Set up local
-        music') : dialogKind==='microphone' ? 'Record a vocal clip' : dialogKind==='preset' ?
+        {{dialogKind==='setup' ? 'Welcome to TrogloDAW' : dialogKind==='storage' ? 'Settings and
+        storage' : dialogKind==='microphone' ? 'Record a vocal clip' : dialogKind==='preset' ?
         'Prior-song sampling defaults' : dialogKind==='fx-save' ? 'Save this FX edit' :
         dialogKind==='reference' ? 'Choose creation ingredients' : 'Choose a Library item'}}
       </h2>
@@ -643,137 +687,243 @@
     <p class="error-banner" role="alert">{{error}}</p>
     }
     <div class="stack">
-      @switch(dialogKind){ @case('storage'){
+      <ng-template #storageControls>
+        <p>
+          {{library.models.ready ? 'The selected model is ready for local generation.' : 'Install a
+          local model once. Generation then works offline. You can use the app and return to setup
+          later.'}}
+        </p>
+        <div class="group">
+          <h3>Model setup</h3>
+          <label for="model-choice">Music model</label
+          ><select id="model-choice" [(ngModel)]="modelChoice">
+            @for(choice of library.models.choices;track choice.id){
+            <option [value]="choice.id">
+              {{choice.name}}{{choice.id==='acestep-v15-base' ? ' — recommended' : ''}}
+            </option>
+            }
+          </select>
+          <p class="muted">
+            {{selectedModel?.hardware}} · approximately {{((selectedModel?.bytes ||
+            0)/1000000000).toFixed(1)}} GB of music weights, plus about 12 GB for inference tools
+            and voice analysis.
+          </p>
+          <label for="model-location">Model storage folder</label>
+          <div class="folder-picker-row">
+            <input id="model-location" [value]="modelPath" readonly />
+            @if(library.storage.native_folder_picker){
+            <button
+              type="button"
+              (click)="chooseFolder('model')"
+              [disabled]="busy || choosingFolder || !!folderChoice"
+            >
+              Choose model folder…
+            </button>
+            }
+          </div>
+          <p class="muted">
+            All models and supporting caches use this location. Existing compatible files are
+            verified and reused, so they are not downloaded again. Choose a folder with enough free
+            space.
+          </p>
+          @if(!library.storage.native_folder_picker){
+          <details>
+            <summary>Set folder path on this platform</summary>
+            <label for="manual-model-location">Manual model folder path</label
+            ><input id="manual-model-location" [(ngModel)]="modelPath" />
+            <button
+              type="button"
+              (click)="prepareFolder('model',modelPath)"
+              [disabled]="busy || !!folderChoice"
+            >
+              Use model folder
+            </button>
+          </details>
+          }
+          <button
+            type="button"
+            class="primary"
+            (click)="installModel()"
+            [disabled]="busy || choosingFolder || !!folderChoice || modelPath!==library.storage.model_dir"
+          >
+            Install / verify selected model
+          </button>
+        </div>
+        <details class="group" [open]="dialogKind==='setup'">
+          <summary>Library storage</summary>
+          <p>Your songs, original inputs and saved recipes stay together.</p>
+          <label for="library-location">Library folder</label>
+          <div class="folder-picker-row">
+            <input id="library-location" [value]="libraryPath" readonly />
+            @if(library.storage.native_folder_picker){
+            <button
+              type="button"
+              (click)="chooseFolder('library')"
+              [disabled]="busy || choosingFolder || !!folderChoice"
+            >
+              Choose library folder…
+            </button>
+            }
+          </div>
+          @if(!library.storage.native_folder_picker){
+          <details>
+            <summary>Set folder path on this platform</summary>
+            <label for="manual-library-location">Manual library folder path</label
+            ><input id="manual-library-location" [(ngModel)]="libraryPath" />
+            <button
+              type="button"
+              (click)="prepareFolder('library',libraryPath)"
+              [disabled]="busy || !!folderChoice"
+            >
+              Use library folder
+            </button>
+          </details>
+          }
+        </details>
+        @if(choosingFolder){
+        <p role="status">
+          Choose a folder in the Windows dialog, or cancel to keep the current location.
+        </p>
+        } @if(folderChoice;as choice){
+        <section class="group folder-choice" aria-labelledby="folder-choice-heading">
+          <h3 id="folder-choice-heading" tabindex="-1">
+            Move existing {{choice.kind==='model' ? 'models' : 'library data'}}?
+          </h3>
+          <p>
+            Existing data was found at <span class="storage-destination">{{choice.from}}</span>.
+          </p>
+          <p>New folder: <span class="storage-destination">{{choice.path}}</span></p>
+          <p class="muted">
+            Moved data is verified first. Shared, changed and unrelated files stay at the original
+            location.
+          </p>
+          <div class="actions">
+            <button type="button" class="primary" (click)="acceptFolder('move')" [disabled]="busy">
+              Move existing data
+            </button>
+            <button type="button" (click)="acceptFolder('open')" [disabled]="busy">
+              Use folder without moving
+            </button>
+            <button type="button" (click)="cancelFolderChoice()" [disabled]="busy">
+              Cancel folder change
+            </button>
+          </div>
+        </section>
+        } @for(job of jobs;track job.id){@if(active(job) && (job.action==='model_install' ||
+        job.action==='storage')){
+        <troglodaw-job-status [job]="job" (cancelRequested)="cancel(job)" />}}
+      </ng-template>
+      @switch(dialogKind){ @case('setup'){
+      <p>
+        Choose where your music and local model live. Existing compatible files are verified and
+        reused; only missing assets need downloading.
+      </p>
+      <ng-container [ngTemplateOutlet]="storageControls" />
+      <p class="notice" role="status">
+        {{installingModel ? 'Installation continues safely in the background when you close this
+        setup dialog. Keep TrogloDAW running.' : 'You can explore now and return to Settings for
+        model installation.'}}
+      </p>
+      <p class="muted">
+        Available now: write lyrics/styles, import or record clips, browse your library and play
+        audio. New song generation and fresh voice extraction require a ready local model.
+      </p>
+      <button type="button" class="primary" (click)="closeDialog()">
+        {{installingModel ? 'Continue in background' : library.models.ready ? 'Start creating' :
+        'Set up later'}}
+      </button>
+      } @case('storage'){
+
       <div class="appearance-choice">
         <span>Appearance: {{theme}} {{appearance==='system' ? '(system)' : '(saved choice)'}}</span
         ><button type="button" (click)="useSystemTheme()" [disabled]="appearance==='system'">
           Use system theme
         </button>
       </div>
-      <p>
-        {{library.models.ready ? 'The selected model is ready for local generation.' : 'Install a
-        local model once. Generation then works offline. You can use the app and return to setup
-        later.'}}
-      </p>
-      <div class="group">
-        <h3>Model setup</h3>
-        <label for="model-choice">Music model</label
-        ><select id="model-choice" [(ngModel)]="modelChoice">
-          @for(choice of library.models.choices;track choice.id){
-          <option [value]="choice.id">
-            {{choice.name}}{{choice.id==='acestep-v15-base' ? ' — recommended' : ''}}
-          </option>
-          }
-        </select>
-        <p class="muted">
-          {{selectedModel?.hardware}} · approximately {{((selectedModel?.bytes ||
-          0)/1000000000).toFixed(1)}} GB of music weights, plus about 12 GB for inference tools and
-          voice analysis.
+      <details id="app-updates" class="group">
+        <summary>App updates</summary>
+        <p>
+          Installed version: {{update.version==='0.0.0' ? 'Development/source build' :
+          update.version}}
         </p>
-        <label for="model-location">Model storage folder</label>
-        <div class="folder-picker-row">
-          <input id="model-location" [value]="modelPath" readonly />
-          @if(library.storage.native_folder_picker){
-          <button
-            type="button"
-            (click)="chooseFolder('model')"
-            [disabled]="busy || choosingFolder || !!folderChoice"
-          >
-            Choose model folder…
-          </button>
-          }
-        </div>
-        <p class="muted">
-          All models and supporting caches use this location. Choose a folder with enough free
-          space.
-        </p>
-        @if(!library.storage.native_folder_picker){
-        <details>
-          <summary>Set folder path on this platform</summary>
-          <label for="manual-model-location">Manual model folder path</label
-          ><input id="manual-model-location" [(ngModel)]="modelPath" />
-          <button
-            type="button"
-            (click)="prepareFolder('model',modelPath)"
-            [disabled]="busy || !!folderChoice"
-          >
-            Use model folder
-          </button>
-        </details>
-        }
-        <button
-          type="button"
-          class="primary"
-          (click)="installModel()"
-          [disabled]="busy || choosingFolder || !!folderChoice || modelPath!==library.storage.model_dir"
+        <p role="status">{{update.message}}</p>
+        @if(update.supported){
+        <label class="check"
+          ><input
+            type="checkbox"
+            [ngModel]="update.check_on_startup"
+            (ngModelChange)="updateAction('preferences',{check_on_startup:$event})"
+          />Check for updates on startup</label
         >
-          Install / verify selected model
-        </button>
-      </div>
-      <details class="group">
-        <summary>Library storage</summary>
-        <p>Your songs, original inputs and saved recipes stay together.</p>
-        <label for="library-location">Library folder</label>
-        <div class="folder-picker-row">
-          <input id="library-location" [value]="libraryPath" readonly />
-          @if(library.storage.native_folder_picker){
+        <div class="actions">
+          <button type="button" (click)="updateAction('check')" [disabled]="updateBusy">
+            Check for updates
+          </button>
+          @if(update.available_version && ['available','failed','canceled'].includes(update.phase)){
           <button
             type="button"
-            (click)="chooseFolder('library')"
-            [disabled]="busy || choosingFolder || !!folderChoice"
+            class="primary"
+            (click)="updateAction('download')"
+            [disabled]="updateBusy || busy || choosingFolder"
           >
-            Choose library folder…
+            Download {{update.available_version}}
           </button>
+          } @if(update.phase==='downloading'){
+          <button type="button" (click)="updateAction('cancel')">Cancel update download</button>
+          } @if(update.phase==='ready'){
+          <button
+            type="button"
+            class="primary"
+            (click)="installUpdate()"
+            [disabled]="!canInstallUpdate"
+          >
+            Install update and restart
+          </button>
+          <p class="muted">
+            Finish processing, uploads and recordings in all app tabs before installation. Your
+            library, models and preferences are kept.
+          </p>
           }
         </div>
-        @if(!library.storage.native_folder_picker){
+        @if(update.bytes_total && ['downloading','ready'].includes(update.phase)){
+        <progress
+          aria-label="Update download progress"
+          [max]="update.bytes_total"
+          [value]="update.bytes_done"
+        ></progress>
+        <p class="muted">
+          {{(update.bytes_done/1000000).toFixed(1)}} / {{(update.bytes_total/1000000).toFixed(1)}}
+          MB @if(update.remaining_seconds>0){· About {{update.remaining_seconds.toFixed(0)}} seconds
+          of download remaining}
+        </p>
+        }
         <details>
-          <summary>Set folder path on this platform</summary>
-          <label for="manual-library-location">Manual library folder path</label
-          ><input id="manual-library-location" [(ngModel)]="libraryPath" />
-          <button
-            type="button"
-            (click)="prepareFolder('library',libraryPath)"
-            [disabled]="busy || !!folderChoice"
-          >
-            Use library folder
-          </button>
+          <summary>Private release access</summary>
+          <p class="muted">
+            Private releases need repository Contents-read access. Existing GitHub CLI access can be
+            reused; it is optional. A saved token stays in Windows Credential Manager.
+          </p>
+          @if(update.credential_store){
+          <label for="release-token">GitHub release-access token</label>
+          <input id="release-token" type="password" autocomplete="off" [(ngModel)]="updateToken" />
+          <div class="actions">
+            <button
+              type="button"
+              (click)="saveUpdateAccess()"
+              [disabled]="!updateToken || updateBusy"
+            >
+              Save release access
+            </button>
+            <button type="button" (click)="updateAction('access/remove')" [disabled]="updateBusy">
+              Remove saved release access
+            </button>
+          </div>
+          }
         </details>
         }
       </details>
-      @if(choosingFolder){
-      <p role="status">
-        Choose a folder in the Windows dialog, or cancel to keep the current location.
-      </p>
-      } @if(folderChoice;as choice){
-      <section class="group folder-choice" aria-labelledby="folder-choice-heading">
-        <h3 id="folder-choice-heading" tabindex="-1">
-          Move existing {{choice.kind==='model' ? 'models' : 'library data'}}?
-        </h3>
-        <p>Existing data was found at <span class="storage-destination">{{choice.from}}</span>.</p>
-        <p>New folder: <span class="storage-destination">{{choice.path}}</span></p>
-        <p class="muted">
-          Moved data is verified first. Shared, changed and unrelated files stay at the original
-          location.
-        </p>
-        <div class="actions">
-          <button type="button" class="primary" (click)="acceptFolder('move')" [disabled]="busy">
-            Move existing data
-          </button>
-          <button type="button" (click)="acceptFolder('open')" [disabled]="busy">
-            Use folder without moving
-          </button>
-          <button type="button" (click)="cancelFolderChoice()" [disabled]="busy">
-            Cancel folder change
-          </button>
-        </div>
-      </section>
-      } @for(job of jobs;track job.id){@if(active(job) && (job.action==='model_install' ||
-      job.action==='storage')){
-      <troglodaw-job-status [job]="job" (cancelRequested)="cancel(job)" />}}
-      <button type="button" (click)="closeDialog()">
-        {{library.models.ready ? 'Done' : 'Set up later'}}
-      </button>
+      <ng-container [ngTemplateOutlet]="storageControls" />
+      <button type="button" (click)="closeDialog()">Done</button>
       } @case('preset'){
       <p>
         {{presetClip?.label}} is a finished song. Recommended defaults select up to eight short

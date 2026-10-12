@@ -86,7 +86,10 @@ class Updates:
             and (self.root.parent / "python/python.exe").is_file()
         )
         self.opener = opener or urllib.request.build_opener(ReleaseRedirect())
-        self.token_source = token_source or credentials.candidates
+        self.credential_target = credentials.installation_target(
+            storage.preferences["installation_id"]
+        )
+        self.token_source = token_source or (lambda: credentials.candidates(self.credential_target))
         self.launcher = launcher or subprocess.Popen
         self.lock = threading.RLock()
         self.cancel_event = threading.Event()
@@ -95,6 +98,12 @@ class Updates:
         self.token = ""
         self.ready_path: Path | None = None
         self.ready_manifest: dict | None = None
+        saved_access = False
+        if token_source is None:
+            try:
+                saved_access = credentials.read(self.credential_target) is not None
+            except OSError:
+                pass
         self.state = {
             "phase": "idle" if self.supported else "source",
             "message": "Ready to check releases"
@@ -106,7 +115,7 @@ class Updates:
             "available_version": None,
             "bytes_done": 0,
             "bytes_total": 0,
-            "saved_access": False,
+            "saved_access": saved_access,
         }
 
     def snapshot(self):
@@ -228,6 +237,7 @@ class Updates:
             )
         except Exception as exc:
             self.release = None
+            self.set_state(available_version=None)
             self.error(exc)
 
     def error(self, exc):
@@ -257,11 +267,14 @@ class Updates:
     def update_directory(self):
         relative = "cache/" + self.storage.preferences["installation_id"] + "/updates"
         path = safe_file(self.storage.models, relative)
-        writable_root(str(path), 600 * 1024 * 1024)
         if path.resolve().is_relative_to(self.root.parent.resolve()):
-            raise ValueError(
-                "Update storage must be outside the installed app folder; choose a separate model folder"
+            # A custom model folder can be inside the app. Keep the helper on
+            # that same drive, outside the directory NSIS replaces.
+            path = safe_file(
+                self.root.parent.parent,
+                "TrogloDAW-updates/" + self.storage.preferences["installation_id"],
             )
+        writable_root(str(path), 600 * 1024 * 1024)
         return path
 
     def download_release(self):
@@ -330,7 +343,10 @@ class Updates:
             if done != asset["size"] or digest(partial) != manifest["sha256"]:
                 raise ValueError("Update installer size/checksum verification failed")
             partial.replace(target)
-            self.storage.owned(self.storage.models, [target])
+            owner_root = (
+                self.storage.models if target.is_relative_to(self.storage.models) else directory
+            )
+            self.storage.owned(owner_root, [target])
             with self.lock:
                 if self.cancel_event.is_set():
                     raise InterruptedError("Update download canceled")
@@ -377,6 +393,13 @@ class Updates:
                     phase="failed", message="Verified installer changed. Download it again."
                 )
                 raise ValueError("Verified installer changed")
+            runtime = self.root.parent / "python"
+            if self.storage.core.LIB.resolve().is_relative_to(
+                runtime.resolve()
+            ) or self.storage.models.resolve().is_relative_to(runtime.resolve()):
+                raise ValueError(
+                    "Move your library/model folder outside the app's Python runtime before updating"
+                )
             directory = self.update_directory()
             helper = safe_file(directory, "apply-update.ps1")
             shutil.copyfile(self.root / "scripts/windows/app_update.ps1", helper)
@@ -390,6 +413,7 @@ class Updates:
                     "installer": str(self.ready_path),
                     "sha256": self.ready_manifest["sha256"],
                     "version": self.ready_manifest["version"],
+                    "source_sha": self.ready_manifest["sha"],
                     "install_root": str(self.root.parent),
                     "pid": pid,
                     "host": host,
@@ -414,18 +438,24 @@ class Updates:
                 stderr=subprocess.DEVNULL,
                 creationflags=0x08000000,
             )
-            deadline = time.monotonic() + 10
-            while time.monotonic() < deadline:
-                if status.is_file():
-                    result = json.loads(status.read_text(encoding="utf-8-sig"))
-                    if result.get("phase") == "waiting":
-                        self.set_state(
-                            phase="handoff",
-                            message="Update started. TrogloDAW will reopen after installation.",
-                        )
-                        return self.snapshot()
-                    raise OSError("Update helper could not acknowledge its plan")
-                if process.poll() is not None:
-                    raise OSError("Update helper did not start")
-                time.sleep(0.05)
-            raise OSError("Update helper did not acknowledge its plan")
+            try:
+                deadline = time.monotonic() + 10
+                while time.monotonic() < deadline:
+                    if status.is_file():
+                        result = json.loads(status.read_text(encoding="utf-8-sig"))
+                        if result.get("phase") == "waiting":
+                            self.set_state(
+                                phase="handoff",
+                                message="Update started. TrogloDAW will reopen after installation.",
+                            )
+                            return self.snapshot()
+                        raise OSError("Update helper could not acknowledge its plan")
+                    if process.poll() is not None:
+                        raise OSError("Update helper did not start")
+                    time.sleep(0.05)
+                raise OSError("Update helper did not acknowledge its plan")
+            except Exception:
+                if process.poll() is None:
+                    process.terminate()
+                    process.wait(timeout=5)
+                raise

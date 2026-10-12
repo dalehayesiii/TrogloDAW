@@ -51,6 +51,7 @@ def writable_root(value: str, required_bytes=0) -> Path:
     if not Path(path.anchor).exists():
         raise ValueError("The selected drive is unavailable")
     path = path.resolve()
+    protect_location(path)
     if path.exists() and not path.is_dir():
         raise ValueError("Choose a folder rather than a file")
     path.mkdir(parents=True, exist_ok=True)
@@ -62,6 +63,46 @@ def writable_root(value: str, required_bytes=0) -> Path:
     if shutil.disk_usage(path).free < required_bytes:
         raise ValueError("The selected folder does not have enough free space")
     return path
+
+
+def protect_location(path: Path, app_root=None):
+    """User assets must not live in folders the installer replaces/removes."""
+    root = Path(app_root) if app_root is not None else Path(__file__).resolve().parents[1]
+    if app_root is None and not (root.parent / "python/python.exe").is_file():
+        return  # Source libraries beside the repository remain supported.
+    if any(
+        path.resolve().is_relative_to(base.resolve()) for base in [root, root.parent / "python"]
+    ):
+        raise ValueError("Choose library/model storage outside the app and Python program folders")
+
+
+def guard_uninstall(config_path: Path, app_root=None):
+    config = {}
+    for file in [config_path.parent / "config.json", config_path]:
+        if not file.exists():
+            continue
+        try:
+            value = json.loads(file.read_text(encoding="utf-8-sig"))
+        except UnicodeError:
+            value = json.loads(file.read_text(encoding="utf-16"))
+        if not isinstance(value, dict):
+            raise ValueError("Storage preferences could not be checked safely")
+        config.update(value)
+    for value in [config.get("library_dir"), config.get("model_dir")]:
+        if value:
+            path = Path(value)
+            protect_location(path if path.is_absolute() else config_path.parent / path, app_root)
+    for value in config.get("model_roots", []):
+        path = Path(value)
+        try:
+            protect_location(path, app_root)
+        except ValueError:
+            # Completed moves can leave an empty historical root/ownership marker.
+            if any(
+                file.is_file() and ".troglodaw" not in file.relative_to(path).parts
+                for file in path.rglob("*")
+            ):
+                raise
 
 
 def copy_verified(source: Path, destination: Path, progress, excluded=(), included=None):
@@ -138,6 +179,8 @@ class Storage:
         self.core = core
         self.config_path = core.CONFIG_DIR / "config.local.json"
         self.preferences = core._read_json(self.config_path)
+        # Preserve setup history for upgrades of installations created before this flag.
+        established = bool(self.preferences.get("installation_id"))
         self.model_manifest = {}
         changed = False
         if not self.preferences.get("installation_id"):
@@ -145,6 +188,9 @@ class Storage:
             changed = True
         if not self.preferences.get("model_dir"):
             self.preferences["model_dir"] = str(core.LIB.parent / "models")
+            changed = True
+        if "setup_seen" not in self.preferences:
+            self.preferences["setup_seen"] = established
             changed = True
         if changed:
             self.persist()
@@ -163,6 +209,7 @@ class Storage:
             "library_dir": str(self.core.LIB),
             "model_dir": str(self.models),
             "installation_id": self.preferences["installation_id"],
+            "setup_seen": bool(self.preferences.get("setup_seen")),
             "native_folder_picker": folders.available(),
             "library_has_data": bool(self.core.list_items())
             or bool(self.core._read_json(self.core.CATALOG).get("folders"))
@@ -489,8 +536,10 @@ def remove_owned_models(config_path: Path) -> dict:
 if __name__ == "__main__":
     import sys
 
-    result = remove_owned_models(Path(sys.argv[1]))
-    # NSIS ExecToLog can report "error" for a successful process when its
-    # single output line contains thousands of paths. Keep installer output
-    # bounded; Python callers still receive the detailed lists above.
-    print(json.dumps({key: len(value) for key, value in result.items()}))
+    if "--guard-uninstall" in sys.argv:
+        guard_uninstall(Path(sys.argv[1]))
+        print("User storage is outside the program folders.")
+    else:
+        result = remove_owned_models(Path(sys.argv[1]))
+        # Bound installer output; Python callers still receive detailed lists.
+        print(json.dumps({key: len(value) for key, value in result.items()}))

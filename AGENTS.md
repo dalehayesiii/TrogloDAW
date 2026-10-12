@@ -42,6 +42,8 @@
 - Preserve the Python/FastAPI audio engine and portable catalog paths/saved recipes.
   Angular/Tailwind compiles to static files; Node is development/release tooling only.
 - Keep the app offline; remote generation/storage requires an approved product change.
+- Installation/configuration compatibility breaks require an actionable migration/recovery
+  guide under docs/ and a README reference in the same PR.
 - Use synthetic audio and temporary libraries in tests. Never commit personal audio,
   catalogs, local configs, credentials, installers or caches.
 - Manage Python dependencies in pyproject.toml with uv.lock; use uv sync --locked.

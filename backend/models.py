@@ -409,6 +409,23 @@ class Models:
                 min(asset["bytes"], existing.stat().st_size) if existing.is_file() else 0
             )
         completed_bytes = 0
+        installation_complete = 0
+        report = progress
+
+        def progress(message, fraction=0, **details):
+            # Count completed verification/runtime checkpoints, never guessed elapsed time.
+            details.setdefault("download_bytes_complete", sum(present_bytes.values()))
+            details.setdefault("download_bytes_total", overall_bytes)
+            details["setup_phase"] = (
+                "download"
+                if sum(present_bytes.values()) < overall_bytes
+                or details.get("stage") == "downloading"
+                else "installation"
+            )
+            details["installation_steps_complete"] = installation_complete
+            details["installation_steps_total"] = len(assets) + 5
+            report(message, fraction, **details)
+
         for index, asset in enumerate(assets):
 
             def asset_progress(message, fraction=0, **details):
@@ -466,6 +483,7 @@ class Models:
                 }
             )
             completed_bytes += asset["bytes"]
+            installation_complete = index + 1
             progress(
                 "Verified model assets",
                 (index + 1) / len(assets),
@@ -484,6 +502,7 @@ class Models:
         code, code_files = unpack_runtime(
             root / self.manifest["runtime"]["path"], root, self.manifest["runtime_revision"]
         )
+        installation_complete += 1
         self.storage.owned(root, code_files)
         if not code_files:
             self.storage.reference(root, [p for p in code.rglob("*") if p.is_file()])
@@ -520,6 +539,7 @@ class Models:
                     canceled,
                     stage="preparing_runtime",
                 )
+                installation_complete += 1
                 packages.mkdir(parents=True, exist_ok=True)
                 run_setup(
                     [
@@ -545,11 +565,14 @@ class Models:
                     canceled,
                 )
                 (packages / ".complete").write_text(lock)
+                installation_complete += 1
             finally:
                 temporary.unlink(missing_ok=True)
                 self.storage.owned(root, [p for p in packages.rglob("*") if p.is_file()])
         else:
             self.storage.reference(root, [p for p in packages.rglob("*") if p.is_file()])
+            installation_complete += 2
+        progress("Runtime files prepared", 1, stage="checking_runtime")
         probe = root / "cache" / ("probe-" + uuid.uuid4().hex + ".json")
         atomic_json(probe, {"action": "probe", "packages": str(packages), "code": str(code)})
         try:
@@ -560,6 +583,7 @@ class Models:
                 canceled,
                 stage="checking_runtime",
             )
+            installation_complete += 1
         finally:
             probe.unlink(missing_ok=True)
         state = {
@@ -584,4 +608,8 @@ class Models:
         self.storage.owned(root, [self.state_path(root)])
         self.storage.preferences["music_model"] = model
         self.storage.persist()
+        installation_complete += 1
+        progress(
+            "Model verified and activated", 1, stage="activating", units_complete=1, units_total=1
+        )
         return self.describe()

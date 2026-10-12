@@ -1259,6 +1259,26 @@ main {
   color: var(--muted);
   font-size: 14px;
 }
+.update-notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 12px 20px;
+  margin-bottom: 16px;
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--lime-ink);
+  border-radius: 12px;
+  background: var(--lime-wash);
+}
+#app-updates progress {
+  width: 100%;
+  accent-color: var(--brand);
+}
+#app-updates summary {
+  cursor: pointer;
+}
 .header-actions {
   justify-content: flex-end;
   max-width: 245px;
@@ -1707,6 +1727,7 @@ details.code-panel {
 }
 dialog {
   padding: 28px;
+  margin: auto;
   border-radius: 16px 24px 16px 20px;
   background: var(--surface);
   border: 1px solid var(--control-border);
@@ -1716,6 +1737,12 @@ dialog {
 dialog::backdrop {
   background: var(--backdrop);
   backdrop-filter: blur(4px);
+}
+troglodaw-job-status {
+  display: block;
+}
+.job-panel {
+  margin-bottom: 24px;
 }
 .dialog-heading {
   border-bottom: 1px solid var(--border);

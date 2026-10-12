@@ -11,6 +11,38 @@ from types import SimpleNamespace
 import storage as storage_module
 
 
+def test_setup_history_belongs_to_installation_preferences_not_retained_assets(core):
+    storage = Storage(core)
+    assert storage.describe()["setup_seen"] is False
+    assert Storage(core).describe()["setup_seen"] is False
+    storage.preferences["setup_seen"] = True
+    storage.persist()
+    assert Storage(core).describe()["setup_seen"] is True
+    # Upgrades of pre-flag installations retain their established setup history.
+    storage.preferences.pop("setup_seen")
+    storage.persist()
+    assert Storage(core).describe()["setup_seen"] is True
+    # Uninstall removes preferences, even when asset folders remain.
+    storage.config_path.unlink()
+    assert Storage(core).describe()["setup_seen"] is False
+
+
+def test_reserved_program_paths_are_rejected_and_legacy_data_is_preserved(tmp_path):
+    app_root = tmp_path / "installed/app"
+    library = app_root / "personal library"
+    library.mkdir(parents=True)
+    audio = library / "song.wav"
+    audio.write_bytes(b"synthetic personal data")
+    config = app_root / "config.local.json"
+    atomic_json(config, {"library_dir": str(library)})
+    with pytest.raises(ValueError, match="program folders"):
+        storage_module.guard_uninstall(config, app_root)
+    assert audio.read_bytes() == b"synthetic personal data"
+    with pytest.raises(ValueError, match="program folders"):
+        storage_module.protect_location(app_root.parent / "python/models", app_root)
+    storage_module.protect_location(app_root.parent / "models", app_root)
+
+
 def test_uninstall_cli_reports_bounded_counts(core, tmp_path):
     storage = Storage(core)
     root = tmp_path / "models"

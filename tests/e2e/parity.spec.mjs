@@ -4,10 +4,14 @@ import { execFileSync } from 'node:child_process';
 
 const headers = { 'X-TrogloDAW-Request': '1' };
 async function open(page) {
+  const setup = !(await (await page.request.get('/api/library')).json()).storage.setup_seen;
   await page.goto('/');
   const later = page.getByRole('button', { name: 'Set up later', exact: true });
-  await expect(later).toBeVisible();
-  await later.click();
+  if (setup) {
+    await expect(later).toBeVisible();
+    await later.click();
+  }
+  await expect(page.getByRole('tab').first()).toBeVisible();
 }
 function wave() {
   const rate = 44100,
@@ -90,7 +94,7 @@ test('applicable audio conditioning controls persist and postmix disables adhere
   await page.getByRole('tab', { name: 'Library', exact: true }).click();
   await page.getByRole('tab', { name: 'Generation', exact: true }).click();
   await page.reload();
-  await page.getByRole('button', { name: 'Set up later', exact: true }).click();
+  await expect(page.getByRole('dialog')).not.toBeVisible();
   await settings.getByText('Audio arrangement settings', { exact: true }).click();
   await expect(page.getByLabel(/^Audio adherence/)).toHaveValue('62');
   for (const mode of ['light', 'dark']) {
@@ -115,7 +119,7 @@ test('applicable audio conditioning controls persist and postmix disables adhere
   await expect(page.getByLabel(/^Audio adherence/)).toHaveCount(0);
   await expect(settings).toContainText('Generate music independently');
   await page.reload();
-  await page.getByRole('button', { name: 'Set up later', exact: true }).click();
+  await expect(page.getByRole('dialog')).not.toBeVisible();
   await settings.getByText('Audio arrangement settings', { exact: true }).click();
   await expect(page.getByLabel('Mix samples after generation')).toBeChecked();
   await page.getByRole('button', { name: 'Remove clip', exact: true }).click();
@@ -224,10 +228,12 @@ test('model storage and missing-model errors use real backend without downloads'
   }
   await expect(page.getByRole('status').filter({ hasText: 'Storage updated' })).toBeVisible();
   expect((await (await request.get('/api/library')).json()).storage.model_dir).toBe(destination);
-  await page.getByRole('button', { name: 'Set up later', exact: true }).click();
+  await page.getByRole('button', { name: 'Done', exact: true }).click();
   await page.getByLabel('Input Styles', { exact: true }).fill('folk guitar');
-  await page.getByRole('button', { name: 'Generate song', exact: true }).click();
-  await expect(page.getByRole('alert').first()).toContainText('Install or verify a music model');
+  await expect(page.getByRole('button', { name: 'Generate song', exact: true })).toBeDisabled();
+  await expect(
+    page.getByText('Local model setup is required before generation.', { exact: false }),
+  ).toBeVisible();
 });
 
 test('native folder choices prompt for existing library data and preserve playback after a real move', async ({
@@ -273,8 +279,11 @@ test('native folder choices prompt for existing library data and preserve playba
   const moved = await (await request.get('/api/library')).json();
   expect(moved.items.some((item) => item.id === fixture.song.id)).toBe(true);
   expect((await request.get(token)).status()).toBe(200);
-  await page.getByRole('button', { name: 'Set up later', exact: true }).click();
+  await page.getByRole('button', { name: 'Done', exact: true }).click();
   await page.reload();
+  await expect(page.getByRole('dialog')).not.toBeVisible();
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await page.getByText('Library storage', { exact: true }).click();
   await expect(page.getByLabel('Library folder')).toHaveValue(selected);
 });
 
@@ -376,7 +385,7 @@ test('system appearance, saved override, waveform repaint and accessible themed 
   await page.getByLabel('Input Styles', { exact: true }).fill('Keep this theme-test draft');
   await page.getByRole('button', { name: 'Light mode', exact: true }).click();
   await page.reload();
-  await page.getByRole('button', { name: 'Set up later', exact: true }).click();
+  await expect(page.getByRole('dialog')).not.toBeVisible();
   await expect(page.locator('html')).not.toHaveClass(/dark/);
   await expect(page.getByLabel('Input Styles', { exact: true })).toHaveValue(
     'Keep this theme-test draft',
@@ -387,7 +396,7 @@ test('system appearance, saved override, waveform repaint and accessible themed 
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
   await page.getByRole('button', { name: 'Use system theme', exact: true }).click();
   await expect(page.locator('html')).toHaveClass(/dark/);
-  await page.getByRole('button', { name: 'Set up later', exact: true }).click();
+  await page.getByRole('button', { name: 'Done', exact: true }).click();
   await page.emulateMedia({ colorScheme: 'light' });
   await expect(page.locator('html')).not.toHaveClass(/dark/);
   const audit = async () => {
@@ -408,7 +417,7 @@ test('system appearance, saved override, waveform repaint and accessible themed 
     await audit();
     await page.getByRole('button', { name: 'Settings', exact: true }).click();
     await audit();
-    await page.getByRole('button', { name: 'Set up later', exact: true }).click();
+    await page.getByRole('button', { name: 'Done', exact: true }).click();
     await page.getByRole('tab', { name: 'Library', exact: true }).click();
     await page
       .getByRole('button', { name: /Synthetic browser song/ })

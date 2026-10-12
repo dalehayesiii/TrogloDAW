@@ -1,6 +1,7 @@
 """Version a checked TrogloDAW payload with native NSIS arguments, then record its checksum."""
 
 import os
+import json
 import re
 import subprocess
 import sys
@@ -33,6 +34,12 @@ library = setting(
 if not (stage / "app/frontend/dist/browser/index.html").is_file():
     raise SystemExit("Checked payload is missing")
 output.parent.mkdir(parents=True, exist_ok=True)
+identity = {
+    "version": version,
+    "sha": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=repo, text=True).strip(),
+    "repository": "dalehayesiii/music-maker",
+}
+(stage / "app/version.json").write_text(json.dumps(identity) + "\n", encoding="utf-8")
 arguments = [
     os.environ.get("TROGLODAW_MAKENSIS", "makensis"),
     "-V2",

@@ -14,6 +14,7 @@ Technical input limits and imperfect model delivery still apply.
 
 [Get the Windows installer](https://github.com/dalehayesiii/music-maker/releases/latest) ·
 [Song workflows](docs/song-workflows.md) · [Model setup and hardware](docs/local-models.md) ·
+[App updates](docs/updates.md) · [Installation and data recovery](docs/installation-recovery.md) ·
 [Development](docs/development.md)
 
 | Workflow | Your next step |

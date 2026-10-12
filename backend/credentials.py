@@ -11,6 +11,12 @@ import subprocess
 TARGET = "TrogloDAW:GitHub:dalehayesiii/music-maker"
 
 
+def installation_target(owner):
+    if not isinstance(owner, str) or not owner.isalnum():
+        raise ValueError("Invalid installation identity")
+    return TARGET + ":" + owner
+
+
 class Credential(ctypes.Structure):
     _fields_ = [
         ("flags", ctypes.c_uint32),
@@ -86,11 +92,11 @@ def remove(target=TARGET):
         raise OSError("Windows release credential could not be removed")
 
 
-def candidates():
+def candidates(target=TARGET):
     """Keep tokens in memory, with the user's preferred CLI identity first."""
     result = []
     try:
-        if token := read():
+        if token := read(target):
             result.append((token, "Windows Credential Manager"))
     except OSError:
         pass
@@ -114,3 +120,15 @@ def candidates():
             except (OSError, subprocess.TimeoutExpired):
                 pass
     return [*result, ("", "Public release access")]
+
+
+if __name__ == "__main__":
+    import json
+    import sys
+    from pathlib import Path
+
+    path = Path(sys.argv[1])
+    value = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+    if value.get("installation_id"):
+        remove(installation_target(value["installation_id"]))
+    print("This installation's saved release access was removed.")

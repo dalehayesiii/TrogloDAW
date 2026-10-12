@@ -78,8 +78,7 @@ class ReleaseFixture:
         return Response(data)
 
 
-@pytest.fixture
-def update_manager(core, tmp_path):
+def make_update_manager(core, tmp_path):
     root = tmp_path / "installation with spaces/app"
     root.mkdir(parents=True)
     atomic_json(
@@ -98,6 +97,11 @@ def update_manager(core, tmp_path):
     manager.supported = True  # OS-independent transport tests, no real installer launch.
     manager.state["supported"] = True
     return manager, fixture
+
+
+@pytest.fixture
+def update_manager(core, tmp_path):
+    return make_update_manager(core, tmp_path)
 
 
 def complete(manager, action):

@@ -29,7 +29,7 @@ describe('honest processing status', () => {
     };
     fixture.componentRef.setInput('job', transfer);
     await fixture.whenStable();
-    expect(fixture.nativeElement.textContent).toContain('All model files download');
+    expect(fixture.nativeElement.textContent).toContain('Overall download');
     expect(fixture.nativeElement.textContent).toContain('5m 0s–7m 0s remaining');
     expect(fixture.nativeElement.textContent).toContain('D:/models');
     expect(fixture.nativeElement.textContent).toContain('1.00 GiB / 6.00 GiB');
@@ -37,12 +37,18 @@ describe('honest processing status', () => {
     expect(fixture.nativeElement.textContent).toContain('must also finish');
     fixture.componentRef.setInput('job', {
       ...transfer,
-      stage: 'verifying',
+      stage: 'installing',
+      setup_phase: 'installation',
+      installation_steps_complete: 24,
+      installation_steps_total: 29,
+      download_bytes_complete: 6 * 1024 ** 3,
       download_remaining: null,
     });
     await fixture.whenStable();
-    expect(fixture.nativeElement.textContent).not.toContain('All model files download');
-    expect(fixture.nativeElement.textContent).toContain('Whole request');
+    expect(fixture.nativeElement.textContent).not.toContain('Overall download');
+    expect(fixture.nativeElement.textContent).toContain('Overall installation');
+    expect(fixture.nativeElement.textContent).toContain('24 of 29');
+    expect(fixture.nativeElement.textContent).not.toContain('Whole request');
     expect(fixture.nativeElement.textContent).toContain('Estimating…');
   });
 

@@ -5,7 +5,7 @@ $ErrorActionPreference = 'Stop'
 $testWork = if ($env:RUNNER_TEMP) { $env:RUNNER_TEMP } else { [System.IO.Path]::GetTempPath() }
 $testRoot = [System.IO.Path]::GetFullPath((Join-Path $testWork ('TrogloDAW-check-' + [System.Guid]::NewGuid().ToString('N'))))
 if (-not $testRoot.StartsWith([System.IO.Path]::GetFullPath($testWork).TrimEnd('\') + '\')) { throw 'Unsafe installer test root' }
-$installRoot = Join-Path $testRoot 'installed'
+$installRoot = Join-Path $testRoot 'installed with spaces'
 $modelRoot = Join-Path $testRoot 'models with spaces'
 $libraryRoot = Join-Path $testRoot 'library'
 New-Item -ItemType Directory -Path $testRoot,$modelRoot,$libraryRoot -Force | Out-Null
@@ -59,6 +59,8 @@ try {
     $manifest = Get-Content dist/release.json -Raw | ConvertFrom-Json
     $version = (Get-ItemProperty $registryPaths[1]).DisplayVersion
     if ($version -ne $manifest.version) { throw 'Installed version differs from build' }
+    $identity = Get-Content (Join-Path $installRoot 'app/version.json') -Raw | ConvertFrom-Json
+    if ($identity.version -ne $manifest.version -or $identity.sha -ne $manifest.sha -or $identity.repository -ne 'dalehayesiii/music-maker') { throw 'Installed runtime identity differs from published manifest' }
     if ($ReleaseSmoke) {
         # Final versioning changes installer metadata, not the checked app payload.
         # Verify service/static delivery without replaying browser/audio workflows.
@@ -84,6 +86,7 @@ try {
                 Start-Sleep -Milliseconds 250
             }
             if (-not $ready) { throw 'Installed service did not become healthy' }
+            if ($health.version -ne $manifest.version -or $health.sha -ne $manifest.sha) { throw 'Installed service identity differs from published manifest' }
             $page = Invoke-WebRequest "$baseUrl/" -UseBasicParsing -TimeoutSec 10
             if ($page.Content -notmatch '<troglodaw-app') { throw 'Installed Angular document missing' }
             $assets = [regex]::Matches($page.Content, '(?:src|href)="([^"<>]+\.(?:js|css))"')
@@ -129,10 +132,21 @@ try {
     @{files=$ownedFiles} | ConvertTo-Json -Depth 5 | Set-Content (Join-Path $modelRoot '.troglodaw/installercheck.json')
     @{files=@{'shared.bin'=$ownedFiles['shared.bin']}} | ConvertTo-Json -Depth 5 | Set-Content (Join-Path $modelRoot '.troglodaw/otherowner.json')
     $configPath = Join-Path $installRoot 'app/config.local.json'
-    @{installation_id='installercheck'; model_dir=$modelRoot; model_roots=@($modelRoot); library_dir=$libraryRoot} | ConvertTo-Json | Set-Content $configPath
+    @{installation_id='installercheck'; setup_seen=$true; check_updates=$false; model_dir=$modelRoot; model_roots=@($modelRoot); library_dir=$libraryRoot} | ConvertTo-Json | Set-Content $configPath
     $before = Get-Content $configPath -Raw
+    $unsafeLibrary = Join-Path $installRoot 'app/legacy-library'
+    New-Item -ItemType Directory -Path $unsafeLibrary -Force | Out-Null
+    $unsafeFile = Join-Path $unsafeLibrary 'preserve.wav'
+    [System.IO.File]::WriteAllText($unsafeFile,'synthetic legacy library')
+    @{installation_id='installercheck'; library_dir=$unsafeLibrary; model_dir=$modelRoot} | ConvertTo-Json | Set-Content $configPath
+    $blocked = Start-Process -FilePath (Join-Path $installRoot 'Uninstall.exe') -ArgumentList @('/S','/KEEP_MODELS',"_?=$installRoot") -PassThru -Wait -WindowStyle Hidden
+    if ($blocked.ExitCode -eq 0 -or -not (Test-Path $unsafeFile) -or -not (Test-Path $python)) { throw 'Unsafe legacy library was not preserved before uninstall' }
+    Set-Content -LiteralPath $configPath -Value $before -NoNewline
+    Remove-Item -LiteralPath $unsafeFile
     Install-TestApp
     if ((Get-Content $configPath -Raw) -ne $before -or -not (Test-Path $owned)) { throw 'Upgrade changed preferences or models' }
+    & ./scripts/windows/test_update_handoff.ps1 -InstallRoot $installRoot -TestRoot $testRoot
+    if (-not (Test-Path $owned) -or -not (Test-Path (Join-Path $libraryRoot 'catalog.json'))) { throw 'In-app update lost library/model data' }
     Uninstall-TestApp $false
     if ((Test-Path $owned) -or -not (Test-Path $shared) -or -not (Test-Path $unrelated) -or -not (Test-Path (Join-Path $libraryRoot 'catalog.json'))) { throw 'Default model removal violated ownership/library contract' }
     if (@(Get-ChildItem -LiteralPath $cacheRoot -File).Count) { throw 'Canceled setup cache files survived default uninstall' }
