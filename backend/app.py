@@ -61,6 +61,7 @@ class MusicService:
         self.core = core
         self.scratch = tempfile.TemporaryDirectory(prefix="troglodaw-")
         self.pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="troglodaw-dsp")
+        self.setup_pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="troglodaw-setup")
         self.jobs = {}
         self.media = {}
         self.uploads = {}
@@ -172,6 +173,8 @@ class MusicService:
             for identifier, job in self.jobs.items():
                 if identifier == jid:
                     break
+                if (job["action"] == "model_install") != (state["action"] == "model_install"):
+                    continue
                 if job["status"] in {"queued", "running"}:
                     if job["status"] == "queued" and self.cancel_events[identifier].is_set():
                         continue
@@ -194,6 +197,7 @@ class MusicService:
 
     def close(self):
         self.pool.shutdown(wait=True)
+        self.setup_pool.shutdown(wait=True)
         self.scratch.cleanup()
 
     def file(self, path):
@@ -256,6 +260,14 @@ class MusicService:
         with self.lock:
             if self.handoff:
                 raise HTTPException(409, "The app is installing an update")
+            if action in {"storage", "model_install"} and any(
+                job["status"] in {"queued", "running"}
+                and job["action"] == ("model_install" if action == "storage" else "storage")
+                for job in self.jobs.values()
+            ):
+                raise HTTPException(
+                    409, "Finish model installation before changing storage, and vice versa"
+                )
             if action in {"storage", "model_install"} and self.updates.snapshot()["phase"] in {
                 "downloading",
                 "handoff",
@@ -278,7 +290,8 @@ class MusicService:
             }
             self.cancel_events[jid] = threading.Event()
             self.timing[jid] = tracker
-        self.pool.submit(self._work, jid, action, values)
+        worker = self.setup_pool if action == "model_install" else self.pool
+        worker.submit(self._work, jid, action, values)
         return {"id": jid}
 
     def _work(self, jid, action, values):

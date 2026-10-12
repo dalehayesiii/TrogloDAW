@@ -95,6 +95,7 @@ test('applicable audio conditioning controls persist and postmix disables adhere
   await page.getByRole('tab', { name: 'Generation', exact: true }).click();
   await page.reload();
   await expect(page.getByRole('dialog')).not.toBeVisible();
+  await expect(page.getByLabel('Notification')).toHaveCount(0);
   await settings.getByText('Audio arrangement settings', { exact: true }).click();
   await expect(page.getByLabel(/^Audio adherence/)).toHaveValue('62');
   for (const mode of ['light', 'dark']) {

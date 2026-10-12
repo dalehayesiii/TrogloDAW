@@ -57,7 +57,10 @@ test('first-run background setup and verified update recovery use the real servi
     await expect(dialog).toContainText('Welcome to TrogloDAW');
     const centered = await dialog.evaluate((el) => {
       const r = el.getBoundingClientRect();
-      return Math.abs((r.left + r.right) / 2 - innerWidth / 2) < 2;
+      return (
+        Math.abs((r.left + r.right) / 2 - innerWidth / 2) < 2 &&
+        Math.abs((r.top + r.bottom) / 2 - innerHeight / 2) < 2
+      );
     });
     expect(centered).toBe(true);
     await expect(dialog.getByText('App updates', { exact: true })).toHaveCount(0);
@@ -74,12 +77,38 @@ test('first-run background setup and verified update recovery use the real servi
     await expect(dialog).not.toBeVisible();
     await expect(page.getByLabel('Model installation in background')).toContainText('record');
     await expect(page.getByRole('button', { name: 'Generate song', exact: true })).toBeDisabled();
+    const samples = Buffer.alloc(44 + 4410 * 2);
+    samples.write('RIFF');
+    samples.writeUInt32LE(samples.length - 8, 4);
+    samples.write('WAVEfmt ', 8);
+    samples.writeUInt32LE(16, 16);
+    samples.writeUInt16LE(1, 20);
+    samples.writeUInt16LE(1, 22);
+    samples.writeUInt32LE(44100, 24);
+    samples.writeUInt32LE(88200, 28);
+    samples.writeUInt16LE(2, 32);
+    samples.writeUInt16LE(16, 34);
+    samples.write('data', 36);
+    samples.writeUInt32LE(samples.length - 44, 40);
+    for (let index = 0; index < 4410; index++)
+      samples.writeInt16LE(
+        Math.round(6000 * Math.sin((2 * Math.PI * 220 * index) / 44100)),
+        44 + index * 2,
+      );
+    await page
+      .getByLabel('Add audio files')
+      .setInputFiles({ name: 'background-import.wav', mimeType: 'audio/wav', buffer: samples });
+    await expect(page.locator('.clip-card')).toHaveCount(1, { timeout: 5000 });
+    await expect(page.getByLabel('Model installation in background')).toBeVisible();
     await page.getByLabel('Input Lyrics', { exact: true }).fill('Keep my draft through upgrade');
     await page.reload();
     await expect(dialog).not.toBeVisible();
     await expect(page.getByLabel('Processing jobs')).toContainText('Download + installation');
     await expect(page.getByLabel('Processing jobs')).toContainText('Overall download');
     await expect(page.getByLabel('Processing jobs')).not.toContainText('Whole request');
+    if (process.env.TROGLODAW_SCREENSHOT_DIR)
+      await page.setViewportSize({ width: 1440, height: 1600 });
+    if (process.env.TROGLODAW_SCREENSHOT_DIR) await page.evaluate(() => window.scrollTo(0, 0));
     if (process.env.TROGLODAW_SCREENSHOT_DIR)
       await page.screenshot({
         path: join(process.env.TROGLODAW_SCREENSHOT_DIR, 'setup-background-dark.png'),
@@ -91,6 +120,15 @@ test('first-run background setup and verified update recovery use the real servi
     await expect(page.getByLabel('Model installation in background')).toHaveCount(0);
     await page.getByRole('button', { name: 'Settings', exact: true }).click();
     await expect(dialog).toContainText('Settings and storage');
+    expect(
+      await dialog.evaluate((el) => {
+        const r = el.getBoundingClientRect();
+        return (
+          Math.abs((r.left + r.right) / 2 - innerWidth / 2) < 2 &&
+          Math.abs((r.top + r.bottom) / 2 - innerHeight / 2) < 2
+        );
+      }),
+    ).toBe(true);
     await dialog.getByText('App updates', { exact: true }).click();
     await expect(dialog).toContainText('2.0.0');
     if (process.env.TROGLODAW_SCREENSHOT_DIR)

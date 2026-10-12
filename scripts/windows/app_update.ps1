@@ -28,11 +28,11 @@ function Serve-UpdateStatus {
         $request = [System.Text.Encoding]::ASCII.GetString($buffer,0,$length)
         $allowed = $request -match '^GET /api/updates(?:\?[^ ]*)? HTTP/1\.[01]'
         $health = $request -match '^GET /api/health HTTP/1\.[01]' -and $script:state.phase -ne 'failed'
-        $home = $request -match '^GET / HTTP/1\.[01]'
-        $status = if ($allowed -or $health -or $home) {'200 OK'} else {'503 Service Unavailable'}
+        $homeRequest = $request -match '^GET / HTTP/1\.[01]'
+        $status = if ($allowed -or $health -or $homeRequest) {'200 OK'} else {'503 Service Unavailable'}
         $contentType = 'application/json'
         $body = if ($allowed) {$script:state | ConvertTo-Json -Compress} elseif ($health) {'{"application":"troglodaw","frontend":true,"updating":true}'} else {'{"detail":"Update installation in progress"}'}
-        if ($home) {
+        if ($homeRequest) {
             $contentType = 'text/html; charset=utf-8'
             $body = @'
 <!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>TrogloDAW update</title>

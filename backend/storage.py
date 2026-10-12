@@ -6,6 +6,7 @@ import hashlib
 import json
 import os
 import shutil
+import threading
 import uuid
 import folders
 import copy
@@ -177,6 +178,7 @@ def copy_verified(source: Path, destination: Path, progress, excluded=(), includ
 class Storage:
     def __init__(self, core):
         self.core = core
+        self.persist_lock = threading.RLock()
         self.config_path = core.CONFIG_DIR / "config.local.json"
         self.preferences = core._read_json(self.config_path)
         # Preserve setup history for upgrades of installations created before this flag.
@@ -196,8 +198,9 @@ class Storage:
             self.persist()
 
     def persist(self):
-        atomic_json(self.config_path, self.preferences)
-        self.core.CONFIG.update(self.preferences)
+        with self.persist_lock:
+            atomic_json(self.config_path, self.preferences)
+            self.core.CONFIG.update(self.preferences)
 
     @property
     def models(self) -> Path:

@@ -281,10 +281,16 @@ export class AppComponent {
     return ['queued', 'running'].includes(job.status);
   }
   get busy() {
-    return this.audioImports > 0 || this.jobs.some((job) => this.active(job));
+    return (
+      this.audioImports > 0 ||
+      this.jobs.some((job) => this.active(job) && job.action !== 'model_install')
+    );
   }
   get installingModel() {
     return this.jobs.some((job) => job.action === 'model_install' && this.active(job));
+  }
+  get storageBusy() {
+    return this.busy || this.installingModel;
   }
   get songs(): Item[] {
     return this.library.items.filter((item: Item) => ['generated', 'mix'].includes(item.type));
@@ -706,7 +712,7 @@ export class AppComponent {
     }
   }
   async chooseFolder(kind: 'library' | 'model') {
-    if (this.choosingFolder || this.busy) return;
+    if (this.choosingFolder || this.storageBusy) return;
     this.choosingFolder = true;
     this.error = '';
     try {
@@ -742,7 +748,7 @@ export class AppComponent {
   }
   async acceptFolder(mode: 'move' | 'open') {
     const choice = this.folderChoice;
-    if (!choice || this.busy) return;
+    if (!choice || this.storageBusy) return;
     await this.applyFolder(choice.kind, choice.path, mode);
   }
   cancelFolderChoice() {

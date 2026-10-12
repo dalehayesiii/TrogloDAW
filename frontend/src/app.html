@@ -665,7 +665,7 @@
   <footer>
     <span class="footer-mark"><span aria-hidden="true">◈</span> Made here. Kept here.</span>
     <button type="button" (click)="refresh()">Refresh library</button
-    ><button type="button" class="stop" (click)="quit()" [disabled]="busy || quitting">
+    ><button type="button" class="stop" (click)="quit()" [disabled]="storageBusy || quitting">
       {{quitting ? 'Stopping…' : 'Quit'}}
     </button>
   </footer>
@@ -707,7 +707,7 @@
         <div class="group">
           <h3>Model setup</h3>
           <label for="model-choice">Music model</label
-          ><select id="model-choice" [(ngModel)]="modelChoice">
+          ><select id="model-choice" [(ngModel)]="modelChoice" [disabled]="storageBusy">
             @for(choice of library.models.choices;track choice.id){
             <option [value]="choice.id">
               {{choice.name}}{{choice.id==='acestep-v15-base' ? ' — recommended' : ''}}
@@ -726,7 +726,7 @@
             <button
               type="button"
               (click)="chooseFolder('model')"
-              [disabled]="busy || choosingFolder || !!folderChoice"
+              [disabled]="storageBusy || choosingFolder || !!folderChoice"
             >
               Choose model folder…
             </button>
@@ -745,7 +745,7 @@
             <button
               type="button"
               (click)="prepareFolder('model',modelPath)"
-              [disabled]="busy || !!folderChoice"
+              [disabled]="storageBusy || !!folderChoice"
             >
               Use model folder
             </button>
@@ -755,7 +755,7 @@
             type="button"
             class="primary"
             (click)="installModel()"
-            [disabled]="busy || choosingFolder || !!folderChoice || modelPath!==library.storage.model_dir"
+            [disabled]="storageBusy || choosingFolder || !!folderChoice || modelPath!==library.storage.model_dir"
           >
             Install / verify selected model
           </button>
@@ -770,7 +770,7 @@
             <button
               type="button"
               (click)="chooseFolder('library')"
-              [disabled]="busy || choosingFolder || !!folderChoice"
+              [disabled]="storageBusy || choosingFolder || !!folderChoice"
             >
               Choose library folder…
             </button>
@@ -784,7 +784,7 @@
             <button
               type="button"
               (click)="prepareFolder('library',libraryPath)"
-              [disabled]="busy || !!folderChoice"
+              [disabled]="storageBusy || !!folderChoice"
             >
               Use library folder
             </button>
@@ -809,13 +809,18 @@
             location.
           </p>
           <div class="actions">
-            <button type="button" class="primary" (click)="acceptFolder('move')" [disabled]="busy">
+            <button
+              type="button"
+              class="primary"
+              (click)="acceptFolder('move')"
+              [disabled]="storageBusy"
+            >
               Move existing data
             </button>
-            <button type="button" (click)="acceptFolder('open')" [disabled]="busy">
+            <button type="button" (click)="acceptFolder('open')" [disabled]="storageBusy">
               Use folder without moving
             </button>
-            <button type="button" (click)="cancelFolderChoice()" [disabled]="busy">
+            <button type="button" (click)="cancelFolderChoice()" [disabled]="storageBusy">
               Cancel folder change
             </button>
           </div>
@@ -877,7 +882,7 @@
             type="button"
             class="primary"
             (click)="updateAction('download')"
-            [disabled]="updateBusy || busy || choosingFolder"
+            [disabled]="updateBusy || storageBusy || choosingFolder"
           >
             Download {{update.available_version}}
           </button>

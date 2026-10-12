@@ -6,6 +6,10 @@ Open **Settings → App updates** to check manually or turn startup checks off. 
 
 Installation waits for processing, uploads, folder selection and recording in every app tab to finish. The update helper acknowledges its plan before TrogloDAW stops, runs the verified installer against the existing installation, and restarts the app on the same localhost port. A status page replaces the controls during installation; it returns to the app after restart. Models, library folders and installation preferences—including completed or deferred initial setup—are reused.
 
+![App update controls in centered Settings](assets/updates-dark.png)
+
+Interface example captured from the real app against synthetic release/installer boundaries; the displayed versions are illustrative.
+
 ## Private release access
 
 This repository currently has private releases. The app can reuse an existing GitHub CLI login (purpledragondude7 first, then s116821), an explicit `TROGLODAW_GITHUB_TOKEN`, or a token you save through **Private release access**. GitHub CLI is optional. A fine-grained token needs read access to repository **Contents**. Save tokens only through the password field; they are stored in Windows Credential Manager for this installation, never in JSON preferences or song recipes. Uninstall removes this installation's saved access even when models are retained. Credentials are stripped from redirects to other approved download hosts.

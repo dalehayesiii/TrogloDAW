@@ -47,8 +47,39 @@ try {
     $server.Refresh()
     if ($server.HasExited -or (Wait-Healthy).application -ne 'troglodaw') { throw 'Pre-handoff failure stopped the running app' }
     $plan.sha256=(Get-FileHash -LiteralPath $installer -Algorithm SHA256).Hash.ToLower()
+    # A successful native installer with an unexpected identity must retain recovery
+    # status and data, without restarting a payload it has not validated.
+    $plan.source_sha='0'*40
     [System.IO.File]::WriteAllText($planPath,($plan|ConvertTo-Json),[System.Text.UTF8Encoding]::new($false))
     Remove-Item -LiteralPath $statusPath -ErrorAction SilentlyContinue
+    $runner=Start-TestHelper
+    $deadline=[DateTime]::UtcNow.AddSeconds(15)
+    while ([DateTime]::UtcNow -lt $deadline) {
+        if ((Test-Path -LiteralPath $statusPath) -and (Get-Content -LiteralPath $statusPath -Raw | ConvertFrom-Json).phase -eq 'waiting') { break }
+        Start-Sleep -Milliseconds 100
+    }
+    if ((Get-Content -LiteralPath $statusPath -Raw | ConvertFrom-Json).phase -ne 'waiting') { throw 'Failure-path helper did not acknowledge its plan' }
+    $null=Invoke-RestMethod "$url/api/shutdown" -Method Post -Headers @{'X-TrogloDAW-Request'='1'} -ContentType 'application/json' -Body '{}'
+    if (-not $server.WaitForExit(15000)) { throw 'Failure-path original app did not stop' }
+    $deadline=[DateTime]::UtcNow.AddSeconds(120)
+    $failed=$false
+    while ([DateTime]::UtcNow -lt $deadline) {
+        try {
+            $status=Invoke-RestMethod "$url/api/updates" -TimeoutSec 2
+            if ($status.helper -and $status.phase -eq 'failed') { $failed=$true; break }
+        } catch { }
+        Start-Sleep -Milliseconds 150
+    }
+    if (-not $failed -or $status.message -notmatch 'identity') { throw 'Native post-install failure did not expose recovery status' }
+    if (-not (Test-Path -LiteralPath $installer) -or [Convert]::ToBase64String($before) -ne [Convert]::ToBase64String([IO.File]::ReadAllBytes($configPath))) { throw 'Native failure discarded recovery artifact or preferences' }
+    Stop-Process -Id $runner.Id -Force
+    $runner.WaitForExit()
+    $server = Start-Process -FilePath $python -ArgumentList @("`"$app`"",'--port',$port,'--no-browser') -PassThru -WindowStyle Hidden -RedirectStandardOutput (Join-Path $helperRoot 'retry.stdout') -RedirectStandardError (Join-Path $helperRoot 'retry.stderr')
+    $null=Wait-Healthy
+    $plan.pid=$server.Id
+    $plan.source_sha=$manifest.sha
+    [IO.File]::WriteAllText($planPath,($plan|ConvertTo-Json),[Text.UTF8Encoding]::new($false))
+    Remove-Item -LiteralPath $statusPath
     $runner=Start-TestHelper
     $deadline=[DateTime]::UtcNow.AddSeconds(15)
     $acknowledged=$false
@@ -81,7 +112,7 @@ try {
     if ([Convert]::ToBase64String($before) -ne [Convert]::ToBase64String($after)) { throw 'Native update changed persisted storage preferences' }
     $null=Invoke-RestMethod "$url/api/shutdown" -Method Post -Headers @{'X-TrogloDAW-Request'='1'} -ContentType 'application/json' -Body '{}'
     Start-Sleep -Milliseconds 1000
-    Write-Output 'Real acknowledged native handoff, status listener, verified restart and pre-handoff tamper recovery passed.'
+    Write-Output 'Real acknowledged native handoff, failure recovery, status listener, verified restart and pre-handoff tamper rejection passed.'
 } finally {
     if ($runner -and -not $runner.HasExited) { Stop-Process -Id $runner.Id -Force }
     if (-not $server.HasExited) { Stop-Process -Id $server.Id -Force }

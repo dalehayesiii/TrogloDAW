@@ -24,6 +24,65 @@ def test_setup_acknowledgment_survives_restart_without_claiming_model_readiness(
         assert client.get("/api/library").json()["storage"]["setup_seen"] is True
 
 
+def test_setup_worker_keeps_local_audio_jobs_responsive_and_excludes_storage_moves(
+    core, monkeypatch
+):
+    import threading
+    from models import Canceled
+
+    started = threading.Event()
+    released = threading.Event()
+
+    def install(_model, progress, canceled):
+        progress("Synthetic acquisition", 0, stage="downloading")
+        started.set()
+        while not canceled() and not released.is_set():
+            time.sleep(0.01)
+        raise Canceled("Synthetic acquisition canceled")
+
+    with TestClient(app.create_app(core)) as client:
+        service = client.app.state.service
+        monkeypatch.setattr(service.models, "install", install)
+        setup = client.post(
+            "/api/jobs",
+            headers=HEADERS,
+            json={"action": "model_install", "values": {"model": "acestep-v15-base"}},
+        ).json()["id"]
+        try:
+            assert started.wait(2)
+            assert (
+                client.post(
+                    "/api/jobs",
+                    headers=HEADERS,
+                    json={
+                        "action": "storage",
+                        "values": {
+                            "kind": "model",
+                            "mode": "open",
+                            "path": str(core.LIB.parent / "other-models"),
+                        },
+                    },
+                ).status_code
+                == 409
+            )
+            folder = client.post(
+                "/api/jobs",
+                headers=HEADERS,
+                json={"action": "folder", "values": {"name": "During setup"}},
+            ).json()["id"]
+            deadline = time.monotonic() + 2
+            while (
+                client.get("/api/jobs/" + folder).json()["status"] in {"queued", "running"}
+                and time.monotonic() < deadline
+            ):
+                time.sleep(0.01)
+            assert client.get("/api/jobs/" + folder).json()["status"] == "complete"
+            assert client.get("/api/jobs/" + setup).json()["status"] == "running"
+            client.post("/api/jobs/" + setup + "/cancel", headers=HEADERS)
+        finally:
+            released.set()
+
+
 @pytest.fixture
 def update_manager(core, tmp_path):
     return make_update_manager(core, tmp_path)
