@@ -248,6 +248,9 @@ def test_fresh_install_reuses_retained_assets_and_reports_real_installation_chec
         "models": {"fixture": {"name": "Fixture", "assets": [weight_asset]}},
     }
     monkeypatch.setattr(models, "runtime_signature", lambda: "synthetic-lock")
+    from types import SimpleNamespace
+
+    monkeypatch.setattr(models.shutil, "disk_usage", lambda _path: SimpleNamespace(free=1024**3))
     monkeypatch.setattr(models, "run_setup", lambda *args, **kwargs: None)
 
     def no_network(*args, **kwargs):

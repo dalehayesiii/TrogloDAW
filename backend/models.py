@@ -457,9 +457,14 @@ class Models:
             *self.manifest["models"][model]["assets"],
             *self.manifest.get("auxiliary_assets", []),
         ]
-        root = writable_root(
-            str(self.storage.models), sum(a["bytes"] for a in assets) + 12 * 1024**3
-        )
+        root = writable_root(str(self.storage.models))
+        runtime_lock = runtime_signature()
+        runtime_marker = safe_file(root, "runtime-packages/" + runtime_lock[:16] + "/.complete")
+        reuse_runtime = runtime_marker.is_file() and runtime_marker.read_text() == runtime_lock
+        if runtime_marker.exists() and not reuse_runtime:
+            raise ValueError(
+                "Existing runtime differs from the locked installation. Choose another model folder to preserve it."
+            )
         owned = []
         verified = []
         overall_bytes = sum(a["bytes"] for a in assets)
@@ -474,6 +479,8 @@ class Models:
             present_bytes[asset["path"]] = (
                 min(asset["bytes"], existing.stat().st_size) if existing.is_file() else 0
             )
+        missing = sum(asset["bytes"] - present_bytes[asset["path"]] for asset in assets)
+        writable_root(str(root), missing + (0 if reuse_runtime else 12 * 1024**3) + 512 * 1024**2)
         completed_bytes = 0
         installation_complete = 0
         report = progress
@@ -572,7 +579,7 @@ class Models:
         self.storage.owned(root, code_files)
         if not code_files:
             self.storage.reference(root, [p for p in code.rglob("*") if p.is_file()])
-        lock = runtime_signature()
+        lock = runtime_lock
         packages = root / "runtime-packages" / lock[:16]
         env = cache_environment(root, self.storage.preferences["installation_id"])
         if not (packages / ".complete").exists():
