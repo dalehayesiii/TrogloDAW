@@ -223,3 +223,34 @@ def test_cancellation_between_saved_variants_stops_before_inference(core, songs)
             sources, directory, {"duration": 120, "seed": 42}, progress, lambda: stopped
         )
     assert len(list((directory / "samples").glob("*.wav"))) == 1 and not calls
+
+
+def test_explicit_saved_arrangement_reuse_does_not_resample_or_claim_new_plan(
+    core, songs, monkeypatch
+):
+    service, _ = songs
+    item = core._new_entry("voice", "reused synthetic", core.synth_voice(1), "fixture")
+    draft = {
+        "clips": [{"id": item["id"]}],
+        "styles": "folk",
+        "audio_mode": "postmix",
+        "options": {"duration": 10},
+    }
+    result = service.generate(draft, lambda *a, **k: None, lambda: False)["outcomes"][0]["song"]
+    fields = service.ingredients(result["id"])["available"]
+
+    def unexpected(*args, **kwargs):
+        raise AssertionError("Saved layout was unnecessarily resampled")
+
+    monkeypatch.setattr("songs.select_regions", unexpected)
+    outcome = service.generate(
+        {**draft, "clips": fields["clips"], "arrangement": fields["arrangement"]},
+        lambda *a, **k: None,
+        lambda: False,
+    )["outcomes"][0]
+    assert outcome["status"] == "complete"
+    recipe = outcome["song"]["recipe"]
+    assert all(a["arrangement"]["method"] == "saved-arrangement" for a in recipe["analysis"])
+    assert [(p["offset_samples"], p["length_samples"]) for p in recipe["placements"]] == [
+        (p["offset_samples"], p["length_samples"]) for p in result["recipe"]["placements"]
+    ]

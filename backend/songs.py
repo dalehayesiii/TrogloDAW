@@ -333,7 +333,15 @@ class Songs:
             )
         return sources
 
-    def arrange(self, sources, directory, parameters, progress, canceled=lambda: False):
+    def arrange(
+        self,
+        sources,
+        directory,
+        parameters,
+        progress,
+        canceled=lambda: False,
+        reused_source_ids=frozenset(),
+    ):
         layer = np.zeros((round(parameters["duration"] * self.core.SR), 2), np.float32)
         assets, placements, analyses = [], [], []
         rng = random.Random(parameters["seed"])
@@ -352,6 +360,15 @@ class Songs:
             input_file.parent.mkdir(parents=True, exist_ok=True)
             sf.write(input_file, audio, self.core.SR, subtype="FLOAT")
             source["file"] = self.relative(input_file)
+            if source["id"] in reused_source_ids:
+                analyses.append(
+                    {
+                        "source_id": source["id"],
+                        "selection": {"method": "saved-arrangement"},
+                        "arrangement": {"method": "saved-arrangement"},
+                    }
+                )
+                continue
             progress(
                 "Analyzing input audio",
                 0,
@@ -483,6 +500,8 @@ class Songs:
             for placement in placements:
                 placement["gain"] *= gain
         for analysis in analyses:
+            if analysis["selection"]["method"] == "saved-arrangement":
+                continue
             analysis["arrangement"] = {
                 **plan,
                 "bpm": bpm,
@@ -548,7 +567,12 @@ class Songs:
 
             try:
                 layer, samples, placements, analyses = self.arrange(
-                    current_sources, directory, parameters, item_progress, canceled
+                    current_sources,
+                    directory,
+                    parameters,
+                    item_progress,
+                    canceled,
+                    {s["source_id"] for s in (draft.get("arrangement") or {}).get("samples", [])},
                 )
                 if draft.get("arrangement"):
                     imported = draft["arrangement"]
@@ -599,6 +623,12 @@ class Songs:
                             "gain", 1
                         )
                         placements.append({**old_placement, "sample_id": sample["id"]})
+                peak = float(np.max(np.abs(layer), initial=0))
+                if peak > 0.8:
+                    gain = 0.8 / peak
+                    layer *= gain
+                    for placement in placements:
+                        placement["gain"] = placement.get("gain", 1) * gain
                 mode = generation_mode(draft, self.models, bool(samples))
                 parameters.update(mode)
                 arrangement_file = directory / "sample-arrangement.wav"

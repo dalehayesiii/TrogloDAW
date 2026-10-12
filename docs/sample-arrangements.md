@@ -34,10 +34,36 @@ The guide remains exactly the requested song duration; unoccupied space is inten
 
 `backend/tests/test_arrangement_quality.py` verifies articulated/transient inputs,
 identical selection at amplitude scales 1, 0.03 and 0.003, silence/DC rejection,
-optional whole-clip inclusion, prior-song short cuts, a one-cut budget, reproducible
+optional whole-clip inclusion, prior-song short cuts, a one-cut budget, explicit saved
+layout reuse without unnecessary resampling, reproducible
 10/120/300-second plans, source contributions, bounded variants/repeats, varied
 intervals, actual DSP headroom and unchanged source copies. Arrangement integration
 tests verify both conditioning/postmix, cancellation and portable recipe replay.
+
+## Actual offline model check
+
+A separate native check uses a seven-second excerpt of an earlier locally generated
+synthetic-vocal song, not a personal recording. The actual old/corrected arrangers
+produce complete 120-second guides. Two Base cover runs use the same seed 42,
+caption, explicit lyrics, ODE settings and 75% audio adherence; outbound sockets are
+blocked in the inference subprocess.
+
+| Measurement | Earlier guide | Corrected guide |
+| --- | --- | --- |
+| Placements | 49 | 20 |
+| Distinct cut lengths (seconds) | All 2.00 | 0.20, 0.80, 2.00, 2.78, 3.68 |
+| Highest exact-variant repeats | 10 | 2 |
+| Unoccupied guide duration | 19.60 seconds | 82.10 seconds |
+| Generated duration/rate | 120 seconds / 48 kHz | 120 seconds / 48 kHz |
+| Generated waveform RMS | 0.1362 | 0.0966 |
+| Model-generation time | 41.66 seconds | 40.03 seconds |
+| Peak CUDA allocation | 4.86 GiB | 4.86 GiB |
+
+Generated outputs have RMS difference 0.1278 with only the guide changed. This
+proves actual file conditioning reaches the model and changes its output without
+silent, truncated or out-of-memory generation on the tested RTX 3070. It does not
+measure perceived artistic quality or guarantee that the model respects every gap,
+source syllable or effect. Synthetic waveforms/runtime logs stay outside the repo.
 
 ## Upstream conditioning reports
 
