@@ -1,4 +1,5 @@
 import copy
+import shutil
 from pathlib import Path
 
 import numpy as np
@@ -8,12 +9,6 @@ import soundfile as sf
 from arrangement import select_regions
 from models import Canceled
 from songs import CLIP_DEFAULTS, generation_mode
-from test_songs import songs as song_service_fixture
-
-
-@pytest.fixture(name="songs")
-def arrangement_song_service(core):
-    return song_service_fixture.__wrapped__(core)
 
 
 def test_content_selection_avoids_silence_and_covers_different_material():
@@ -37,7 +32,7 @@ def test_content_selection_avoids_silence_and_covers_different_material():
 
 
 @pytest.mark.parametrize("mode", ["conditioned", "postmix"])
-def test_real_arrangement_request_and_no_double_overlay(core, songs, mode):
+def test_real_arrangement_request_and_no_double_overlay(core, songs, mode, tmp_path, monkeypatch):
     service, _ = songs
     service.models.manifest["models"]["base"]["conditioning"] = ["cover"]
     clip = core._new_entry("voice", "phrases", core.synth_voice(4), "fixture")
@@ -69,6 +64,9 @@ def test_real_arrangement_request_and_no_double_overlay(core, songs, mode):
     assert recipe["parameters"]["effective_mode"] == mode
     assert requests[0]["parameters"]["lyrics"] == draft["lyrics"]
     assert requests[0]["parameters"]["guidance"] == 8
+    if mode == "conditioned":
+        assert requests[0]["parameters"]["audio_cover_steps"] == 20
+        assert requests[0]["parameters"]["effective_audio_adherence"] == 20 / 32
     music = core.load(service.asset(recipe["musical_file"]))
     layer = core.load(service.asset(recipe["conditioning_file"]))
     expected = core.master(music + layer if mode == "postmix" else music)
@@ -78,6 +76,42 @@ def test_real_arrangement_request_and_no_double_overlay(core, songs, mode):
     assert len({tuple(s["transformation"].values()) for s in recipe["samples"]}) > 1
     assert service.ingredients(output["song"]["id"])["available"]["audio_mode"] == mode
     assert all(not Path(s["file"]).is_absolute() for s in recipe["samples"])
+    moved = tmp_path / "relocated-library"
+    shutil.copytree(core.LIB, moved)
+    monkeypatch.setattr(core, "LIB", moved)
+    monkeypatch.setattr(core, "CATALOG", moved / "catalog.json")
+    monkeypatch.setattr(core, "INBOX", moved / "inbox")
+    relocated = service.rerender(output["song"]["id"])
+    np.testing.assert_allclose(core.load_item(relocated["id"]), expected, atol=1 / 32768)
+
+
+def test_original_recipe_retains_postmix_replay_semantics(core, songs):
+    service, _ = songs
+    clip = core._new_entry("voice", "legacy-source", core.synth_voice(2), "fixture")
+    result = service.generate(
+        {
+            "clips": [{"id": clip["id"]}],
+            "styles": "folk",
+            "audio_mode": "postmix",
+            "options": {"duration": 10},
+        },
+        lambda *_a, **_k: None,
+        lambda: False,
+    )["outcomes"][0]["song"]
+    recipe = copy.deepcopy(result["recipe"])
+    recipe["version"] = 1
+    recipe.pop("render_mode")
+    recipe.pop("conditioning_file")
+    audio = core.load(service.asset(recipe["musical_file"]))
+    samples = {sample["id"]: sample for sample in recipe["samples"]}
+    for placement in recipe["placements"]:
+        placement.pop("gain")
+        start, length = placement["offset_samples"], placement["length_samples"]
+        fragment = core.load(service.asset(samples[placement["sample_id"]]["file"]))
+        audio[start : start + length] += fragment[:length]
+    core.update_item(result["id"], recipe=recipe)
+    replay = service.rerender(result["id"])
+    np.testing.assert_allclose(core.load_item(replay["id"]), core.master(audio), atol=1 / 32768)
 
 
 def test_modes_fallback_and_input_validation(songs):
@@ -101,3 +135,22 @@ def test_sample_work_cancels_without_an_inference_call(core, songs, tmp_path):
             sources, tmp_path, {"duration": 10, "seed": 42}, lambda *_a, **_k: None, lambda: True
         )
     assert not calls
+
+
+def test_audible_antiphase_stereo_is_selected_and_conditioning_remains_audible(
+    core, songs, tmp_path
+):
+    service, _ = songs
+    left = core.synth_voice(2)[:, 0]
+    audio = np.stack([left, -left], axis=1)
+    item = core._new_entry("voice", "out of phase", audio, "fixture")
+    sources = service.collect_sources({"clips": [{"id": item["id"]}]})
+    directory = core.LIB / "assets" / "phase-fixture"
+    directory.mkdir(parents=True)
+    layer, samples, _, analyses = service.arrange(
+        sources, directory, {"duration": 10, "seed": 42}, lambda *_a, **_k: None
+    )
+    assert samples and np.max(np.abs(layer.mean(axis=1))) > 0.01
+    assert analyses[0]["channel_strategy"] == "dominant-channel-stereo"
+    preserved = core.load(service.asset(sources[0]["file"]))
+    np.testing.assert_allclose(preserved[:, 0], -preserved[:, 1], atol=1 / 32768)

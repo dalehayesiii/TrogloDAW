@@ -7,10 +7,20 @@ import math
 import numpy as np
 
 
+def phase_safe_audio(audio):
+    """Avoid losing audible stereo material through an out-of-phase mono fold."""
+    mono = audio.mean(axis=1)
+    channels = np.sqrt(np.mean(audio**2, axis=0))
+    if float(np.sqrt(np.mean(mono**2))) < float(channels.max()) * 0.25:
+        dominant = audio[:, int(np.argmax(channels))]
+        return np.repeat(dominant[:, None], 2, axis=1), "dominant-channel-stereo"
+    return audio, "preserved-stereo"
+
+
 def select_regions(audio, sr, settings, analysis):
     """Choose distinct audible cuts; an explicit sample count is an upper bound."""
     hop = max(1, round(sr * 0.02))
-    mono = audio.mean(axis=1)
+    mono = phase_safe_audio(audio)[0].mean(axis=1)
     padded = np.pad(mono, (0, (-len(mono)) % hop))
     energy = np.sqrt(np.mean(padded.reshape(-1, hop) ** 2, axis=1))
     threshold = max(1e-5, float(energy.max()) * 0.08)

@@ -97,6 +97,46 @@ previews are necessary before accepting edits. Bypass reconstruction uses the
 exact residual `original - extracted vocals`, rather than adding edited voices
 on top of a mix containing the original vocals.
 
+## Audio-conditioned generation validation
+
+The Base model supports a complete source arrangement through `task_type=cover`,
+`src_audio` and `audio_cover_strength`, as documented in the
+[official inference API](https://github.com/ace-step/ACE-Step-1.5/blob/main/docs/en/INFERENCE.md).
+Only the tested Base checkpoint advertises this capability; the unbenchmarked SFT
+alternative uses the clearly explained postmix fallback. No extra download is
+needed for Base conditioning. Text guidance, unchanged lyrics and the existing CFG
+compatibility mapping remain active.
+
+Offline embedded-Python RTX 3070 tests used fixed seed 42, CFG 8 and 32 steps with
+known synthetic/generated input assets. A full-duration arrangement at 0%, 75% and
+100% adherence succeeded. The 75%-versus-zero waveform difference RMS was 0.2163;
+changing the arrangement at the same 75% strength also changed the generated audio.
+These differences demonstrate active conditioning, not a perceptual quality score.
+
+| Arrangement/output duration | Total time | Inference time | Peak process RSS | Peak CUDA allocation |
+| --- | --- | --- | --- | --- |
+| 10 s, 75% | 30.27 s | 14.64 s | 11.02 GiB | 4.69 GiB |
+| 60 s, 75% | 36.45 s | 21.56 s | 11.05 GiB | 4.76 GiB |
+| 120 s, 75% | 47.88 s | 30.00 s | 11.13 GiB | 4.86 GiB |
+
+The first cold 10-second run took 79.33 seconds including initialization; these
+single-run measurements are not calibrated ETAs. All outbound sockets were denied
+in the inference harness. Normal display/desktop use remained active.
+
+The pinned checkpoint repeats its cover-to-text conditioning switch on every
+remaining step, doubling CFG tensors repeatedly. A narrow verified-source adapter
+changes that switch to happen once, in memory; it never edits downloaded code or
+weight files. Regression tests and actual zero/partial/full-adherence runs cover
+this repair. Unrecognized incompatible code fails clearly.
+
+The arrangement uses audible phrase/energy/spectral-diversity heuristics and a
+shared rhythmic grid. The model may reinterpret or blur sample identity, timbre,
+words or structure. Adherence rounds down to whole conditioning steps out of 32 and preserves both
+requested and effective values. Higher adherence is influence, not a guarantee of exact sample
+preservation. Use the optional post-generation mix when exact arranged samples
+should remain audible over independently generated music. Both modes preserve
+original inputs, individual cuts and complete arrangement audio for inspection.
+
 ## Runtime and asset licenses
 
 The app acquires pinned inference code and model files explicitly after installation.

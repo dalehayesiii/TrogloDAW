@@ -32,7 +32,7 @@ uv sync --locked
 npm ci --ignore-scripts
 uv lock --check
 uv run --locked ruff check .
-uv run --locked ruff format --check backend/app.py backend/models.py backend/storage.py backend/songs.py backend/inference_runner.py scripts backend/tests
+uv run --locked ruff format --check backend/app.py backend/models.py backend/storage.py backend/songs.py backend/arrangement.py backend/inference_runner.py scripts backend/tests
 uv run --locked ty check
 uv run --locked pytest
 npm run format:check

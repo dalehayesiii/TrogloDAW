@@ -17,7 +17,7 @@ from pathlib import Path
 import numpy as np
 import soundfile as sf
 
-from arrangement import positions, sample_transform, select_regions
+from arrangement import phase_safe_audio, positions, sample_transform, select_regions
 from models import CREATE_FLAGS, ROOT, Canceled, cache_environment, runtime_signature
 from storage import atomic_json, digest, safe_file, writable_root
 
@@ -59,7 +59,10 @@ def generation_mode(draft, models, has_samples):
         "requested_mode": requested,
         "effective_mode": effective,
         "audio_adherence": adherence,
-        "effective_audio_adherence": adherence / 100 if effective == "conditioned" else None,
+        "effective_audio_adherence": int(32 * adherence / 100) / 32
+        if effective == "conditioned"
+        else None,
+        "audio_cover_steps": int(32 * adherence / 100) if effective == "conditioned" else 0,
         "fallback_reason": reason,
     }
 
@@ -335,9 +338,11 @@ class Songs:
             sf.write(input_file, audio, self.core.SR, subtype="FLOAT")
             source["file"] = self.relative(input_file)
             progress("Analyzing " + source["label"], 0, stage="analyzing")
+            audio, channel_strategy = phase_safe_audio(audio)
             analysis = self.core.analyze_vocal(audio)
             regions, budget = select_regions(audio, self.core.SR, source["settings"], analysis)
             analyses.append({"source_id": source["id"], "analysis": analysis, "selection": budget})
+            analyses[-1]["channel_strategy"] = channel_strategy
             if analysis.get("tempo_confidence", 0) >= 0.25 and analysis.get("tempo_raw"):
                 tempos.append(float(analysis["tempo_raw"]))
             transformed_samples = []
@@ -591,6 +596,7 @@ class Songs:
                         "download": self.media(mp3),
                         "effective_styles": parameters["effective_styles"],
                         "generation_mode": mode,
+                        "arrangement_audio": self.media(arrangement_file) if samples else None,
                     }
                 )
             except Canceled:

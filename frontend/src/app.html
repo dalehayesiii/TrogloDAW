@@ -140,24 +140,46 @@
             @if(draft.clips.length){
             <details class="audio-arrangement-settings">
               <summary>Audio arrangement settings</summary>
-              <label for="postmix-mode"><input id="postmix-mode" type="checkbox"
-                [ngModel]="draft.audio_mode==='postmix'"
-                (ngModelChange)="draft.audio_mode=$event ? 'postmix' : 'conditioned';saveDraft()" />
-                Mix samples after generation</label>
+              <label for="postmix-mode"
+                ><input
+                  id="postmix-mode"
+                  type="checkbox"
+                  [ngModel]="draft.audio_mode==='postmix'"
+                  (ngModelChange)="draft.audio_mode=$event ? 'postmix' : 'conditioned';saveDraft()"
+                />
+                Mix samples after generation</label
+              >
               @if(draft.audio_mode==='postmix'){
-              <p class="muted">Generate music independently, then mix your transformed sample arrangement into it.</p>
+              <p class="muted">
+                Generate music independently, then mix your transformed sample arrangement into it.
+              </p>
               } @else if(!audioConditioningSupported){
-              <p class="muted">This model does not support audio conditioning. Your samples will be mixed after generation.</p>
+              <p class="muted">
+                This model does not support audio conditioning. Your samples will be mixed after
+                generation.
+              </p>
               } @else {
-              <p class="muted">Arrange your transformed samples first, then let the model build the whole song around that audio. It can change the samples' sound.</p>
+              <p class="muted">
+                Arrange your transformed samples first, then let the model build the whole song
+                around that audio. It can change the samples' sound.
+              </p>
               <label for="audio-adherence">Audio adherence ({{draft.audio_adherence}}%)</label>
-              <input id="audio-adherence" type="range" min="0" max="100" step="1"
-                [(ngModel)]="draft.audio_adherence" (ngModelChange)="saveDraft()" />
-              <p class="muted">Higher values follow the arrangement more closely; zero uses text guidance only. Separate from Style Influence.</p>
+              <input
+                id="audio-adherence"
+                type="range"
+                min="0"
+                max="100"
+                step="1"
+                [(ngModel)]="draft.audio_adherence"
+                (ngModelChange)="saveDraft()"
+              />
+              <p class="muted">
+                Higher values follow the arrangement more closely (whole steps out of 32); zero uses
+                text guidance only. Separate from Style Influence.
+              </p>
               }
             </details>
-            }
-            @for (clip of draft.clips; track clip.key; let index=$index) {
+            } @for (clip of draft.clips; track clip.key; let index=$index) {
             <article class="clip-card">
               <label [for]="'clip-label-'+index">Clip label</label
               ><input [id]="'clip-label-'+index" [(ngModel)]="clip.label" />
@@ -329,10 +351,30 @@
             @if(result.status==='complete'){
             <h3>{{result.song.name}}</h3>
             <p>Styles: {{result.effective_styles}}</p>
+            @if(result.generation_mode?.effective_mode==='conditioned'){
+            <p class="muted">
+              Generated around your arranged audio · {{result.generation_mode.audio_adherence}}%
+              Audio adherence
+            </p>
+            } @else if(result.generation_mode?.effective_mode==='postmix'){
+            <p class="muted">
+              Samples mixed after generation. {{result.generation_mode.fallback_reason || ''}}
+            </p>
+            }
             <mm-audio [label]="result.song.name" [media]="result.audio" /><mm-download
               label="MP3"
               [media]="result.download"
             />
+            @if(result.arrangement_audio){
+            <details>
+              <summary>Preview transformed sample arrangement</summary>
+              <p class="muted">
+                The complete arrangement before music generation or post-generation mixing. Original
+                clips and individual samples are also available in Library.
+              </p>
+              <mm-audio label="Transformed sample arrangement" [media]="result.arrangement_audio" />
+            </details>
+            }
             <div class="actions">
               <button type="button" (click)="selectSong(result.song);changeTab(1)">
                 Open in Library</button
@@ -649,9 +691,9 @@
       </button>
       } @case('preset'){
       <p>
-        {{presetClip?.label}} is a finished song. Recommended defaults use eight short one-second
-        samples, +2 semitones, 1.1× stretch and −12 dB gain for this clip. Your lyrics, styles and
-        other draft fields stay as they are.
+        {{presetClip?.label}} is a finished song. Recommended defaults select up to eight short
+        one-second samples, +2 semitones, 1.1× stretch and −12 dB gain for this clip. Your lyrics,
+        styles and other draft fields stay as they are.
       </p>
       <button type="button" class="primary" (click)="choosePreset('apply')">
         Apply recommended prior-song defaults</button

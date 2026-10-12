@@ -9,6 +9,13 @@ lyrics, organize songs, and edit candidate voice groups. Portable recipes retain
 original/generated/sample assets and arrangements. See [song workflows](docs/song-workflows.md)
 and [model setup, hardware measurements and limits](docs/local-models.md).
 
+Input audio is sampled from audible, varied regions, transformed individually and
+arranged across the song before the Base model generates around it. Expand **Audio
+arrangement settings** inside Input Audio to set **Audio adherence**, or enable
+**Mix samples after generation** for independent music generation followed by a
+sample overlay. The model can reinterpret samples; original inputs and the complete
+arrangement remain available for inspection and portable replay.
+
 ## Easiest: Windows installer
 
 Run **`TrogloDAW-Setup.exe`**. Python is included and no admin rights are needed. It installs to

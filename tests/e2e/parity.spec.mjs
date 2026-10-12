@@ -72,16 +72,63 @@ test('three workflows, progressive controls, drafts and accessible input help', 
   expect(errors).toEqual([]);
 });
 
+test('applicable audio conditioning controls persist and postmix disables adherence', async ({
+  page,
+}) => {
+  await open(page);
+  await expect(page.getByText('Audio arrangement settings', { exact: true })).toHaveCount(0);
+  await page.getByLabel('Add audio files').setInputFiles({
+    name: 'arrangement.wav',
+    mimeType: 'audio/wav',
+    buffer: wave(),
+  });
+  const settings = page.locator('.input-stone .audio-arrangement-settings');
+  await expect(settings).not.toHaveAttribute('open');
+  await settings.getByText('Audio arrangement settings', { exact: true }).click();
+  await expect(page.getByLabel('Mix samples after generation')).not.toBeChecked();
+  await page.getByLabel(/^Audio adherence/).fill('62');
+  await page.getByRole('tab', { name: 'Library', exact: true }).click();
+  await page.getByRole('tab', { name: 'Generation', exact: true }).click();
+  await page.reload();
+  await page.getByRole('button', { name: 'Set up later', exact: true }).click();
+  await settings.getByText('Audio arrangement settings', { exact: true }).click();
+  await expect(page.getByLabel(/^Audio adherence/)).toHaveValue('62');
+  for (const mode of ['light', 'dark']) {
+    if ((await page.locator('html').getAttribute('data-theme')) !== mode)
+      await page
+        .getByRole('button', { name: mode === 'light' ? 'Light mode' : 'Dark mode', exact: true })
+        .click();
+    expect(
+      (await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze())
+        .violations,
+    ).toEqual([]);
+  }
+  await page.getByLabel('Mix samples after generation').check();
+  await expect(page.getByLabel(/^Audio adherence/)).toHaveCount(0);
+  await expect(settings).toContainText('Generate music independently');
+  await page.reload();
+  await page.getByRole('button', { name: 'Set up later', exact: true }).click();
+  await settings.getByText('Audio arrangement settings', { exact: true }).click();
+  await expect(page.getByLabel('Mix samples after generation')).toBeChecked();
+  await page.getByRole('button', { name: 'Remove clip', exact: true }).click();
+  await expect(settings).toHaveCount(0);
+});
+
 test('multiple real uploads, folders, prior-song choices and cached FX saves', async ({
   page,
   request,
 }) => {
   const fixture = await seed(request);
   await open(page);
+  await page.route('**/api/uploads', async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    await route.continue();
+  });
   await page.getByLabel('Add audio files').setInputFiles([
     { name: 'one.wav', mimeType: 'audio/wav', buffer: wave() },
     { name: 'two.wav', mimeType: 'audio/wav', buffer: wave() },
   ]);
+  await expect(page.getByRole('button', { name: 'Generate song', exact: true })).toBeDisabled();
   await expect(page.locator('.clip-card')).toHaveCount(2);
   const uploadedAdjustments = page.locator('.input-stone .clip-card .clip-adjustments');
   await expect(uploadedAdjustments).toHaveCount(2);
@@ -91,10 +138,11 @@ test('multiple real uploads, folders, prior-song choices and cached FX saves', a
   await expect(uploadedAdjustments.first().getByLabel('Pitch (semitones)')).toBeEnabled();
   await expect(uploadedAdjustments.first().getByLabel('Playback speed')).toBeEnabled();
   await expect(uploadedAdjustments.first().getByLabel('Volume (dB)')).toBeEnabled();
-  await page
-    .getByLabel('Replace this clip with a file')
-    .first()
-    .setInputFiles({ name: 'replacement.wav', mimeType: 'audio/wav', buffer: wave() });
+  await page.getByLabel('Replace this clip with a file').first().setInputFiles({
+    name: 'replacement.wav',
+    mimeType: 'audio/wav',
+    buffer: wave(),
+  });
   await expect(page.getByLabel('Clip label').first()).toHaveValue('replacement');
   await expect(page.getByLabel('Clip label').nth(1)).toHaveValue('two');
   await expect(page.locator('.clip-card')).toHaveCount(2);
@@ -166,9 +214,11 @@ test('model storage and missing-model errors use real backend without downloads'
 
 test('microphone denial is recoverable and does not discard accepted clips', async ({ page }) => {
   await open(page);
-  await page
-    .getByLabel('Add audio files')
-    .setInputFiles({ name: 'accepted.wav', mimeType: 'audio/wav', buffer: wave() });
+  await page.getByLabel('Add audio files').setInputFiles({
+    name: 'accepted.wav',
+    mimeType: 'audio/wav',
+    buffer: wave(),
+  });
   await expect(page.locator('.clip-card')).toHaveCount(1);
   await page.evaluate(() => {
     navigator.mediaDevices.getUserMedia = async () => {
@@ -188,7 +238,10 @@ test('microphone denial is recoverable and does not discard accepted clips', asy
   await expect(page.getByRole('alert')).toContainText('No microphone is available');
   await page.getByRole('button', { name: 'Close dialog', exact: true }).click();
   await page.evaluate(() => {
-    Object.defineProperty(window, 'MediaRecorder', { value: undefined, configurable: true });
+    Object.defineProperty(window, 'MediaRecorder', {
+      value: undefined,
+      configurable: true,
+    });
   });
   await page.getByRole('button', { name: 'Record a clip', exact: true }).click();
   await expect(page.getByRole('alert')).toContainText('supported browser on localhost');
@@ -276,7 +329,10 @@ test('system appearance, saved override, waveform repaint and accessible themed 
       .withTags(['wcag2a', 'wcag2aa', 'wcag21aa'])
       .analyze();
     expect(
-      result.violations.map((v) => ({ id: v.id, nodes: v.nodes.map((n) => n.target) })),
+      result.violations.map((v) => ({
+        id: v.id,
+        nodes: v.nodes.map((n) => n.target),
+      })),
     ).toEqual([]);
   };
   for (const theme of ['light', 'dark']) {
@@ -313,11 +369,18 @@ test('narrow layout and shutdown stay usable', async ({ page, request }) => {
   await page.getByRole('tab', { name: 'Vocal FX', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Choose a Library song' })).toBeVisible();
   expect(
-    (await request.post('/api/jobs', { data: { action: 'unknown', values: {} } })).status(),
+    (
+      await request.post('/api/jobs', {
+        data: { action: 'unknown', values: {} },
+      })
+    ).status(),
   ).toBe(403);
   expect(
     (
-      await request.post('/api/jobs', { headers, data: { action: 'unknown', values: {} } })
+      await request.post('/api/jobs', {
+        headers,
+        data: { action: 'unknown', values: {} },
+      })
     ).status(),
   ).toBe(422);
   await page.getByRole('button', { name: 'Quit', exact: true }).click();
