@@ -138,7 +138,14 @@ class Updates:
             if self.busy():
                 raise ValueError("An update operation is already running")
             self.cancel_event.clear()
-            self.set_state(phase=phase)
+            if phase == "checking":
+                self.set_state(
+                    phase=phase,
+                    message="Checking for the latest release…",
+                    available_version=None,
+                )
+            else:
+                self.set_state(phase=phase)
             self.thread = threading.Thread(target=target, daemon=True, name="troglodaw-updates")
             self.thread.start()
         return self.snapshot()

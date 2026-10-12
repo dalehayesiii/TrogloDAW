@@ -25,7 +25,11 @@ from models import Canceled  # noqa: E402
 parser = argparse.ArgumentParser()
 parser.add_argument("--port", type=int, required=True)
 args = parser.parse_args()
-state = {"failed_download": False, "failed_launch": False}
+state: dict[str, bool | float] = {
+    "failed_download": False,
+    "failed_launch": False,
+    "check_delay": 0,
+}
 artifact = b"MZ" + b"synthetic installer" * 4096
 checksum = hashlib.sha256(artifact).hexdigest()
 source = "a" * 40
@@ -52,6 +56,7 @@ class Transport:
     def open(self, request, timeout):
         url = request.full_url
         if url.endswith("/latest"):
+            time.sleep(state["check_delay"])
             return io.BytesIO(json.dumps(release).encode())
         if "/git/ref/tags/" in url:
             return io.BytesIO(json.dumps({"object": {"type": "commit", "sha": source}}).encode())
@@ -147,6 +152,12 @@ def busy(values: dict):
 def setup_fixture():
     api.state.service.models.install = fixture_model_install
     return {"message": "External model acquisition fixture enabled"}
+
+
+@api.post("/api/fixture/check-delay")
+def check_delay(values: dict):
+    state["check_delay"] = min(3, max(0, float(values.get("seconds", 0))))
+    return {"message": "Synthetic release delay configured"}
 
 
 @api.post("/api/fixture/stop")

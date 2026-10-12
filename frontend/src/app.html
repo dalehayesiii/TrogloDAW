@@ -874,7 +874,7 @@
           Installed version: {{update.version==='0.0.0' ? 'Development/source build' :
           update.version}}
         </p>
-        <p role="status">{{update.message}}</p>
+        <p role="status">{{update.status_error || update.message}}</p>
         <p>
           <a
             href="https://github.com/dalehayesiii/music-maker/releases/latest"
@@ -899,7 +899,7 @@
         >
         <div class="actions">
           <button type="button" (click)="updateAction('check')" [disabled]="updateBusy">
-            Check for updates
+            {{update.phase==='checking' ? 'Checking for updates…' : 'Check for updates'}}
           </button>
           @if(update.available_version && ['available','failed','canceled'].includes(update.phase)){
           <button

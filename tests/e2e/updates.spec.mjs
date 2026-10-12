@@ -139,6 +139,18 @@ test('first-run background setup and verified update recovery use the real servi
     await expect(browserRelease).toHaveAttribute('target', '_blank');
     await expect(dialog).toContainText('Release access:');
     await expect(dialog).toContainText('2.0.0');
+    await post('/api/fixture/check-delay', { seconds: 2 });
+    await dialog.getByRole('button', { name: 'Check for updates', exact: true }).click();
+    await expect(dialog).toContainText('Checking for the latest release');
+    await expect(dialog.getByRole('button', { name: /Checking for updates/ })).toBeDisabled();
+    await expect(dialog.getByRole('button', { name: 'Download 2.0.0', exact: true })).toBeVisible();
+    await page.route(base + '/api/updates', (route) => route.abort());
+    await dialog.getByRole('button', { name: 'Check for updates', exact: true }).click();
+    await expect(dialog).toContainText('Could not read update status');
+    await page.unroute(base + '/api/updates');
+    await expect(dialog.getByRole('button', { name: 'Download 2.0.0', exact: true })).toBeVisible();
+    await expect(dialog).not.toContainText('Could not read update status');
+    await post('/api/fixture/check-delay', { seconds: 0 });
     if (process.env.TROGLODAW_SCREENSHOT_DIR)
       await page.screenshot({
         path: join(process.env.TROGLODAW_SCREENSHOT_DIR, 'updates-dark.png'),

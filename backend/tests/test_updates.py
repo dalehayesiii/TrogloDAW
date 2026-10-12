@@ -131,6 +131,8 @@ def test_check_runs_asynchronously_and_can_be_disabled(update_manager):
     fixture.block = threading.Event()
     manager.startup()
     assert manager.snapshot()["phase"] == "checking"
+    assert manager.snapshot()["message"] == "Checking for the latest release…"
+    assert manager.snapshot()["available_version"] is None
     fixture.block.set()
     manager.thread.join(3)
     assert manager.snapshot()["phase"] == "available"
