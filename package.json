@@ -20,7 +20,9 @@
     "release:plan": "node scripts/release-plan.mjs",
     "release": "semantic-release --extends ./config/release.config.mjs"
   },
-  "overrides": { "postcss": "8.5.29" },
+  "overrides": {
+    "postcss": "8.5.29"
+  },
   "devDependencies": {
     "prettier": "3.9.10",
     "@playwright/test": "1.64.0",
