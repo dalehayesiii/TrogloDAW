@@ -131,6 +131,13 @@ test('first-run background setup and verified update recovery use the real servi
       }),
     ).toBe(true);
     await dialog.getByText('App updates', { exact: true }).click();
+    const browserRelease = dialog.getByRole('link', { name: 'Open latest release in browser' });
+    await expect(browserRelease).toHaveAttribute(
+      'href',
+      'https://github.com/dalehayesiii/music-maker/releases/latest',
+    );
+    await expect(browserRelease).toHaveAttribute('target', '_blank');
+    await expect(dialog).toContainText('Release access:');
     await expect(dialog).toContainText('2.0.0');
     if (process.env.TROGLODAW_SCREENSHOT_DIR)
       await page.screenshot({

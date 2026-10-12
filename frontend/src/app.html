@@ -875,7 +875,21 @@
           update.version}}
         </p>
         <p role="status">{{update.message}}</p>
-        @if(update.supported){
+        <p>
+          <a
+            href="https://github.com/dalehayesiii/music-maker/releases/latest"
+            target="_blank"
+            rel="noopener noreferrer"
+            >Open latest release in browser</a
+          >
+        </p>
+        <p class="muted">
+          Use your browser's GitHub sign-in for a manual download. In-app downloads use separate
+          release access.
+        </p>
+        @if(update.access){
+        <p class="muted">Release access: {{update.access}}</p>
+        } @if(update.supported){
         <label class="check"
           ><input
             type="checkbox"

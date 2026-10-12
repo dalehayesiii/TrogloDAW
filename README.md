@@ -63,6 +63,11 @@ The version in the filename distinguishes installers kept in the same folder.
 Older apps need a one-time manual upgrade; see the
 [versioned installer transition](docs/updates.md#recovery-and-limitations).
 
+Closing the browser tab leaves the app and background work running. Launching the
+desktop shortcut again reopens that same app, including when the default port was
+occupied. Use **Quit** to stop it. Concurrent shortcut launches share one running
+service; stale launch files after a crash do not prevent restarting.
+
 First-run setup and **Settings** let you choose separate library and model folders,
 including a different drive. Windows opens a folder browser. If the current folder
 contains data, choose whether to move it, use the new folder without moving, or cancel.

@@ -96,3 +96,5 @@ winetricks
 .DS_Store
 Thumbs.db
 desktop.ini
+# Ephemeral process ownership and local launch discovery
+**/.troglodaw-instance.*

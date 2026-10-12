@@ -4,6 +4,13 @@ Installed Windows builds check the latest stable GitHub release in the backgroun
 
 Open **Settings → App updates** to check manually or turn startup checks off. An available-version notice opens these controls. **Download** is explicit and shows actual bytes and a transfer estimate; you can cancel and retry. The app verifies the canonical installer against its release manifest, checksum, source tag and asset size before offering **Install update and restart**.
 
+**Open latest release in browser** uses your normal browser login for manual
+downloads. It needs no CLI or separately entered token when that browser already
+has repository access. The app's background Python requests cannot reuse browser
+login cookies, so verified in-app checking/downloading still needs release access
+for a private repository. Successful checks show the access source in Settings.
+Checks discover releases; downloading and installing remain explicit actions.
+
 Installation waits for processing, uploads, folder selection and recording in every app tab to finish. The update helper acknowledges its plan before TrogloDAW stops, runs the verified installer against the existing installation, and restarts the app on the same localhost port. A status page replaces the controls during installation; it returns to the app after restart. Models, library folders and installation preferences—including completed or deferred initial setup—are reused.
 
 ![App update controls in centered Settings](assets/updates-dark.png)
@@ -13,6 +20,12 @@ Interface example captured from the real app against synthetic release/installer
 ## Private release access
 
 This repository currently has private releases. The app can reuse an existing GitHub CLI login (purpledragondude7 first, then s116821), an explicit `TROGLODAW_GITHUB_TOKEN`, or a token you save through **Private release access**. GitHub CLI is optional. A fine-grained token needs read access to repository **Contents**. Save tokens only through the password field; they are stored in Windows Credential Manager for this installation, never in JSON preferences or song recipes. Uninstall removes this installation's saved access even when models are retained. Credentials are stripped from redirects to other approved download hosts.
+
+After the preferred accounts, the CLI's active account is also tried. Windows
+checks look in standard GitHub CLI and WinGet installation locations if the
+desktop process inherited a PATH from before the CLI was installed. Source builds
+show their development status and use Git/rebuild or manual browser downloads;
+in-app installation applies only to installed Windows releases.
 
 ## Recovery and limitations
 
