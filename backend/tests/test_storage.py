@@ -1,4 +1,6 @@
 import json
+import subprocess
+import sys
 
 import pytest
 
@@ -6,6 +8,55 @@ from storage import Storage, atomic_json, copy_verified, remove_owned_models, sa
 from storage import writable_root
 from types import SimpleNamespace
 import storage as storage_module
+
+
+def test_uninstall_cli_reports_bounded_counts(core, tmp_path):
+    storage = Storage(core)
+    root = tmp_path / "models"
+    root.mkdir()
+    assets = []
+    for index in range(1000):
+        asset = root / f"canceled-setup-cache-fragment-{index:04}.bin"
+        asset.write_bytes(b"synthetic cache")
+        assets.append(asset)
+    shared = root / "shared.bin"
+    shared.write_bytes(b"shared")
+    unrelated = root / "personal.txt"
+    unrelated.write_bytes(b"unrelated")
+    storage.owned(root, [*assets, shared])
+    atomic_json(root / ".troglodaw" / "otherowner.json", {"files": {"shared.bin": "other"}})
+    process = subprocess.run(
+        [sys.executable, storage_module.__file__, str(storage.config_path)],
+        capture_output=True,
+        check=True,
+    )
+    assert json.loads(process.stdout) == {"removed": 1000, "retained": 1}
+    assert len(process.stdout) < 100
+    assert not process.stderr
+    assert all(not asset.exists() for asset in assets)
+    assert shared.exists() and unrelated.exists()
+
+
+def test_uninstall_cli_preserves_actual_failure_status(core, tmp_path):
+    storage = Storage(core)
+    root = tmp_path / "models"
+    root.mkdir()
+    outside = tmp_path / "outside.bin"
+    outside.write_bytes(b"preserve")
+    storage.preferences["model_roots"] = [str(root)]
+    storage.persist()
+    atomic_json(
+        root / ".troglodaw" / f"{storage.preferences['installation_id']}.json",
+        {"files": {"../outside.bin": "unsafe"}},
+    )
+    process = subprocess.run(
+        [sys.executable, storage_module.__file__, str(storage.config_path)],
+        capture_output=True,
+    )
+    assert process.returncode != 0
+    assert not process.stdout
+    assert b"Unsafe managed asset path" in process.stderr
+    assert outside.read_bytes() == b"preserve"
 
 
 def test_relocation_verifies_and_preserves_source(tmp_path):
