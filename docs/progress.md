@@ -95,5 +95,5 @@ voice separation uses CPU below 2 GiB. Missing driver tooling uses the CUDA read
 The actual CPU-fallback benchmark held driver-visible free memory near 1.3 GiB,
 while CUDA reported roughly 7.5 GiB; the final guard correctly chose CPU.
 
-See [real-job screenshot evidence](ui-parity/progress/README.md) and
+See [PR #7 for real-job review screenshots](https://github.com/dalehayesiii/music-maker/pull/7) and
 [model limits](local-models.md).

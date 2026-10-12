@@ -27,7 +27,7 @@ their audio contracts; configured model/library locations remain user choices.
 
 The existing **dalehayesiii/music-maker** GitHub remote and links remain real
 repository addresses; renaming that remote requires the owner. Archived OpenSpec
-changes and earlier screenshots retain truthful historical names. Generated
+changes and Git history retain truthful historical names and screenshot evidence. Generated
 workflow instructions remain upstream material rather than product branding.
 
 Current TrogloDAW upgrades preserve configuration and models. Installation and
@@ -41,8 +41,9 @@ Sample management is automatic. The result area has a fixed **Song generation
 output** heading with the actual song title below it.
 
 Theme checks use axe-core against the real backend, plus system/override/reload,
-canvas-repaint and narrow-layout tests. Paired theme evidence is under
-[themes](ui-parity/themes/README.md).
+canvas-repaint and narrow-layout tests. Current dark-mode app screenshots appear
+in the [repository overview](../README.md); before/after review evidence belongs
+to the relevant pull request.
 
 Measured semantic contrast (actual hex tokens, WCAG luminance calculation):
 
@@ -60,4 +61,4 @@ Measured semantic contrast (actual hex tokens, WCAG luminance calculation):
 | Header secondary text | 7.25:1 | 7.16:1 |
 
 Text pairs exceed 4.5:1; control boundaries/focus exceed 3:1. Automated axe checks
-cover the rendered states listed in the screenshot guide.
+cover Generation, Library, Vocal FX, setup and key error/dialog states.
