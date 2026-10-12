@@ -44,8 +44,9 @@
 - Use synthetic audio and temporary libraries in tests. Never commit personal audio,
   catalogs, local configs, credentials, installers or caches.
 - Manage Python dependencies in pyproject.toml with uv.lock; use uv sync --locked.
-  Keep the exported requirements.txt aligned with uv.lock. Keep CI Python aligned with the
-  embedded Windows runtime. Keep release credentials out of PR jobs.
+  Do not track or ship requirements.txt exports; Windows packaging generates a temporary
+  hashed export from uv.lock. Keep CI Python aligned with the embedded Windows runtime.
+  Keep release credentials out of PR jobs.
 - Keep code under frontend/ and backend/, helper/setup scripts under scripts/,
   development configuration under config/, packaging assets under cicd/, and
   non-OpenSpec documentation under docs/. Root standard manifests/instructions

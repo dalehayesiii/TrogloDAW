@@ -22,7 +22,8 @@ def test_documentation_allowlist():
     assert validate("docs: explain release", ["README.md", "docs/development.md"])
     for path in [
         "mmcore.py",
-        "requirements.txt",
+        "pyproject.toml",
+        "uv.lock",
         ".github/workflows/ci.yml",
         ".agents/skills/a/SKILL.md",
         "docs/tool.py",

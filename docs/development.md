@@ -55,13 +55,11 @@ For CLI integration tests set MM_LIBRARY to a temporary directory, then run
 
 `pyproject.toml` declares runtime/dev dependencies; **uv.lock** pins them across
 Linux/Windows. Use `uv add`, `uv add --dev`, and `uv lock --upgrade-package NAME`.
-`requirements.txt` is a hashed compatibility export, not an independently edited list:
-```sh
-uv export --locked --no-dev --no-emit-project --format requirements-txt -o requirements.txt
-```
-Its 0.0.0 project metadata is a development placeholder, never a release version.
-The build exports runtime requirements directly from uv.lock and installs Windows
-wheels with hashes. The executable version is supplied by semantic-release.
+No root requirements export is maintained or shipped. Windows packaging generates
+a temporary hashed runtime export from uv.lock in its build work directory and
+installs compatible Windows wheels with hash verification.
+The 0.0.0 version in pyproject.toml is development metadata; the executable version
+is supplied by semantic-release.
 
 Source launchers are under `scripts/launchers/` and run locked uv setup. They build
 the frontend if absent. Rebuild after frontend edits with `npm run build`, then run

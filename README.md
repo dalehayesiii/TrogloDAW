@@ -13,7 +13,7 @@ in a library folder with a catalog of "recipes", so any mix can be re-rendered o
 Run **`MusicMaker-Setup.exe`**. Python is included and no admin rights are needed. It installs to
 `%LOCALAPPDATA%\MusicMaker`, adds **Music Maker** to the Desktop and Start Menu, and keeps your files in
 `Documents\MusicMaker\library` (set in `%LOCALAPPDATA%\MusicMaker\app\config.json`). The app opens in your browser
-and has no console window. Use the **Quit Music Maker** button on the Library tab to stop it. Uninstall from
+and has no console window. Use the **Quit Music Maker** button in Library inside AI Producer to stop it. Uninstall from
 Settings > Apps or the Start Menu. Your library is kept. Command line: `%LOCALAPPDATA%\MusicMaker\mm.bat <command>`.
 Windows SmartScreen may warn because the installer isn't code-signed. Click *More info > Run anyway*.
 

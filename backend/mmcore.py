@@ -88,7 +88,10 @@ def ffmpeg_exe() -> str:
         exe = shutil.which("ffmpeg")
         if exe:
             return exe
-        raise RuntimeError("ffmpeg not found: run 'pip install imageio-ffmpeg' or install ffmpeg")
+        raise RuntimeError(
+            "ffmpeg not found: run 'uv sync --locked' from the source checkout, "
+            "reinstall the Windows app, or install ffmpeg"
+        )
 
 
 _CREATIONFLAGS = 0x08000000 if os.name == "nt" else 0  # no console flash on Windows

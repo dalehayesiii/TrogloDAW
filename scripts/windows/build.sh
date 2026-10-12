@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Build the Windows installer (MusicMaker-Setup.exe) from this repo on a Linux host - no Windows needed.
-# Requires: makensis (apt install nsis), curl, unzip, python3, and a Python venv containing
-#           uv, pefile, packaging and pillow  (e.g. python3 -m venv .venv && .venv/bin/pip install uv pefile packaging pillow)
+# Requires: makensis (apt install nsis), curl, unzip, python3, and the locked development
+#           environment (run uv sync --locked at the repository root).
 # Paths come from env vars > config.local.json ("build" section) > config.json > defaults below.
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -37,13 +37,13 @@ printf 'python%s.zip\r\n.\r\nLib\\site-packages\r\n..\\app\\backend\r\n..\\app\r
 "$UV" export --project "$REPO" --locked --no-dev --no-emit-project --format requirements-txt --output-file "$WORK/requirements.txt" --quiet
 "$UV" pip install --target "$SP" --python-platform x86_64-pc-windows-msvc --python-version "$(echo "$PYV" | cut -d. -f1,2)" \
     --only-binary :all: --require-hashes -r "$WORK/requirements.txt"
-rm -rf "$SP/bin"; find "$SP/numpy" "$SP/scipy" "$SP/pandas" -type d -name tests -prune -exec rm -rf {} + 2>/dev/null || true
+rm -rf "$SP/bin"; find "$SP/numpy" "$SP/scipy" -type d -name tests -prune -exec rm -rf {} + 2>/dev/null || true
 # app-local MSVC C++ runtime (Microsoft msvcp140, shipped renamed inside the numpy wheel) for pedalboard
 cp "$SP"/numpy.libs/msvcp140-*.dll "$S/python/msvcp140.dll"
 
 mkdir -p "$S/app/backend"
 cp "$REPO/backend"/{mmcore.py,cli.py,app.py} "$S/app/backend/"
-cp "$REPO"/{README.md,requirements.txt} "$S/app/"
+cp "$REPO/README.md" "$S/app/"
 [[ -f "$REPO/frontend/dist/browser/index.html" ]] || { echo "Build the Angular frontend with npm run build first"; exit 1; }
 mkdir -p "$S/app/frontend/dist"
 cp -r "$REPO/frontend/dist/browser" "$S/app/frontend/dist/"
