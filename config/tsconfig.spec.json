@@ -1,0 +1,6 @@
+{
+  "extends": "./tsconfig.frontend.json",
+  "compilerOptions": { "types": ["vitest/globals"] },
+  "files": [],
+  "include": ["../frontend/src/**/*.ts"]
+}

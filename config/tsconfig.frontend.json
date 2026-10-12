@@ -1,0 +1,15 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "preserve",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022", "DOM"],
+    "strict": true,
+    "experimentalDecorators": true,
+    "skipLibCheck": true,
+    "isolatedModules": true,
+    "useDefineForClassFields": false
+  },
+  "angularCompilerOptions": { "strictTemplates": true },
+  "files": ["../frontend/src/main.ts"]
+}

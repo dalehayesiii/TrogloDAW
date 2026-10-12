@@ -35,6 +35,7 @@ catalog.json.tmp
 *.log
 *.pid
 *.lock
+!uv.lock
 *.tmp
 nohup.out
 
@@ -50,12 +51,21 @@ __pycache__/
 .ruff_cache/
 .ipynb_checkpoints/
 .cache/
+node_modules/
+frontend/dist/
+frontend/.angular/
+playwright-report/
+test-results/
+!docs/ui-parity/**/*.png
+.tools/
+.coverage
+coverage.xml
 
 # ---- build outputs / binaries ----
 dist/
-build/windows/work/
-build/windows/cache/
-build/windows/stage/
+scripts/windows/work/
+scripts/windows/cache/
+scripts/windows/stage/
 wineprefix/
 parts/
 *.exe

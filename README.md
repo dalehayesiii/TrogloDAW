@@ -1,5 +1,9 @@
 # musicmaker v1
 
+Developer workflow, CI, OpenSpec and automated Windows releases:
+[Development guide](docs/development.md). Repository owners should complete
+[merge enforcement setup](docs/repository-settings.md).
+
 A personal music maker: import voice recordings, tweak vocals, generate original beats,
 mix any voice over any track, and remix saved mixes later. Everything is stored on disk
 in a library folder with a catalog of "recipes", so any mix can be re-rendered or remixed.
@@ -13,18 +17,19 @@ and has no console window. Use the **Quit Music Maker** button on the Library ta
 Settings > Apps or the Start Menu. Your library is kept. Command line: `%LOCALAPPDATA%\MusicMaker\mm.bat <command>`.
 Windows SmartScreen may warn because the installer isn't code-signed. Click *More info > Run anyway*.
 
-## Quick start from the zip (Windows 10/11, needs Python)
+## Run from source
 
-1. Unzip `musicmaker-dist.zip` anywhere (for example `Documents\musicmaker`).
-2. Double-click **`start.bat`**.
-   - If Python is missing, the window says so and opens https://www.python.org/downloads/windows/.
-     Install Python 3.12 (or any 3.10-3.14) and **tick "Add python.exe to PATH"**, then run `start.bat` again.
-   - The first run creates `.venv` and installs the dependencies (a few minutes, needs internet).
-   - Your browser then opens at **http://127.0.0.1:7860** (or the next free port).
-3. Leave the black window open while you use the app. Close it to quit.
+Install [uv](https://docs.astral.sh/uv/getting-started/installation/) and Node.js
+24.15 or newer. Source development targets Python 3.12, matching the embedded runtime;
+uv can install that Python version automatically.
 
-macOS / Linux: run `start.command` (macOS, double-click) or `./start.sh`.
-On macOS you may need to run `chmod +x start.command` once, and right-click > Open the first time.
+Windows: run **`scripts\launchers\start.bat`**. macOS/Linux: run
+`bash scripts/launchers/start.sh` (or double-click `scripts/launchers/start.command`
+on macOS). The launcher runs `uv sync --locked`, builds the Angular frontend if
+missing, then starts FastAPI and opens **http://127.0.0.1:7860** (or the next free port).
+The first setup needs internet. Leave the terminal open or use **Quit Music Maker**.
+After frontend source changes, run `npm run build` before relaunching.
+The Windows installer includes the compiled UI and Python; it needs neither uv nor Node.
 
 You don't need to install ffmpeg separately. A copy comes with the `imageio-ffmpeg` package.
 
@@ -54,7 +59,7 @@ Settings are looked up in this order: **environment variables > `config.local.js
 | `ffmpeg` | `MM_FFMPEG` | bundled `imageio-ffmpeg`, else `ffmpeg` on PATH |
 
 `config.local.json` is for machine-specific values (library location, port, build paths) and is gitignored.
-Start from `config.local.example.json`. `MM_CONFIG_DIR` changes where both config files are read from.
+Copy `config/config.local.example.json` to root `config.local.json`. `MM_CONFIG_DIR` changes where both config files are read from.
 When you update the app, keep your library folder (or point `library_dir` at it).
 
 ## AI Producer (one vocal in, finished song out)
@@ -88,7 +93,7 @@ choices and seed. `mm remix <song> --music-vol -8` changes the balance and keeps
 
 ## The web UI
 
-- **Library**: upload any audio (mp3, m4a, wav, ogg, opus, flac, webm, video files...), play items,
+- **Library (inside AI Producer)**: upload any audio (mp3, m4a, wav, ogg, opus, flac, webm, video files...), play items,
   tag/rename/delete, and view each item's catalog entry and recipe.
 - **Voice FX**: pitch (semitones), time stretch, gain, low/high cut EQ, compression, chorus, robot,
   echo, reverb, trim silence, normalize. Use Preview, or save the result as a new voice.
@@ -99,7 +104,8 @@ choices and seed. `mm remix <song> --music-vol -8` changes the balance and keeps
 
 ## Command line
 
-Windows: `mm.bat <command>` from the app folder (run `start.bat` once first). macOS/Linux: `./mm <command>`.
+Source: `uv run --locked python backend/cli.py <command>` or the wrappers in
+`scripts/launchers/`. Installed Windows: `%LOCALAPPDATA%\MusicMaker\mm.bat <command>`.
 You can refer to items by id, a unique id prefix, or exact name.
 
 ```
@@ -134,12 +140,16 @@ their seed, so `rerender` reproduces them exactly.
 
 ## Building the Windows installer (from Linux)
 
-`build/windows/build.sh` makes a self-contained `MusicMaker-Setup.exe` with an embedded Python, Windows wheels and bundled ffmpeg. No Windows machine is needed.
-It needs `makensis` (`apt install nsis`), `curl`, `unzip`, and a venv with `uv pefile packaging pillow`.
+Run `uv sync --locked`, `npm ci --ignore-scripts`, and `npm run build` first.
+`scripts/windows/build.sh` makes a self-contained `MusicMaker-Setup.exe` with embedded
+Python, locked Windows wheels, bundled ffmpeg and the compiled Angular UI. It needs
+Linux `makensis` (`apt install nsis`), `curl` and `unzip`. No Windows machine is needed to build;
+CI installs and functionally tests the result on Windows before any release.
 Paths come from the `build` section of `config.local.json` (or `MM_BUILD_*` env vars):
 `venv`, `work_dir`, `cache_dir`, `output`, `parts_dir` (optional 15 MB split), `python_embed_version`.
 Installer target paths are in the `windows` section (`install_dir`, `library_dir`, as NSIS variables).
-`build/windows/wine_test.sh` installs the result silently under Wine and runs `mm.bat produce <build.test_vocal>`, or `mm.bat demo`.
+`scripts/windows/wine_test.sh` provides the original optional Wine smoke test.
+Packaging assets are under `cicd/windows/`; installer versions come from semantic-release.
 
 ## Limitations (v1)
 
