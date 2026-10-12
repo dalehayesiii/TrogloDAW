@@ -194,6 +194,7 @@ jobs:
     env:
       MM_VERSION: '0.0.0'
       MM_LIBRARY: ${{ github.workspace }}/.tools/musicmaker-installed-library
+      PLAYWRIGHT_CHANNEL: msedge
     steps:
       - uses: actions/checkout@v7.0.1
         with:
@@ -222,7 +223,6 @@ jobs:
           $nsis = Join-Path ${env:ProgramFiles(x86)} 'NSIS/makensis.exe'
           if (-not (Test-Path -LiteralPath $nsis)) { throw 'Native NSIS compiler missing' }
           "MM_MAKENSIS=$($nsis.Replace('\', '/'))" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-      - run: npx --no-install playwright install chromium
       - name: Stage locked runtime and build EXE
         shell: bash
         run: bash scripts/windows/build.sh
@@ -247,6 +247,7 @@ jobs:
       contents: write
     env:
       MM_LIBRARY: ${{ github.workspace }}/.tools/musicmaker-release-library
+      PLAYWRIGHT_CHANNEL: msedge
     steps:
       - uses: actions/checkout@v7.0.1
         with:
@@ -285,7 +286,6 @@ jobs:
           $nsis = Join-Path ${env:ProgramFiles(x86)} 'NSIS/makensis.exe'
           if (-not (Test-Path -LiteralPath $nsis)) { throw 'Native NSIS compiler missing' }
           "MM_MAKENSIS=$($nsis.Replace('\', '/'))" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-      - run: npx --no-install playwright install chromium
       - name: Version, test, tag and publish with semantic-release
         run: npm run release
         env:

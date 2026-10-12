@@ -24,6 +24,8 @@ configuration and checks OpenSpec. Build restores the same UI, installs hashed
 Windows wheels into embedded Python, makes the EXE with NSIS and tests the actual
 installed app. There is one Python job and one Windows packaging job rather than
 a Python OS matrix plus separate installer and Windows-test jobs.
+Linux integration uses Playwright's Chromium; Windows uses the runner's installed
+Edge through Playwright's supported channel, avoiding another browser download.
 
 GitHub jobs run on separate fresh machines. Each Node job needs its own `npm ci`
 to provide its tools: Angular needs Angular/ESLint/Vitest, integration needs
@@ -82,7 +84,7 @@ releases. The initial main attempt failed in note rendering before any tag was m
 | `scripts/check_specs.py` | Completed change must be archived in the implementation PR; proposal-only label is exceptional; no unfinished archived tasks | OpenSpec CLI separately validates spec structure; it does not enforce this delivery policy |
 | `scripts/smoke_producer.py` | A synthetic vocal must produce a finished song in this app | Music Maker's own DSP/CLI |
 | `scripts/windows/build.sh` | Assemble this app's embedded Python, static UI, licenses, ffmpeg and MSVC runtime | uv's locked export/hash/wheel installation, Python zipfile, NSIS |
-| `scripts/windows/package.sh` | Give NSIS the official version and checked payload, then record the artifact | NSIS, semantic-release exec, SHA-256 |
+| `scripts/windows/package.py` | Give NSIS the official version and checked payload with native arguments, then record the artifact | NSIS, Python subprocess, semantic-release exec, SHA-256 |
 | `scripts/windows/test_installer.ps1` | Install this EXE; prove its CLI, producer, UI and displayed version work | NSIS silent install and Playwright |
 | `scripts/windows/validate.py` | Existing embedded-bundle architecture/DLL/ffmpeg checks | pefile and packaging |
 | `scripts/windows/cfg.py` / `make_icon.py` | Existing local build settings and Music Maker icon | Python JSON and Pillow |

@@ -26,6 +26,8 @@ branch protection, or inventing version/tag history.
   CLI/producer tests, release-note tests, OpenSpec validation and archive checks.
 - One Windows build job stages wheels/assets, runs NSIS and tests the installed
   app. The build's payload archive is passed to the main-only publisher.
+- Native Python subprocess arguments invoke NSIS without shell path conversion.
+  Windows Playwright uses the runner's installed Edge; Linux uses Chromium.
 - Use semantic-release's official exec prepare plugin to repackage the checked
   payload with nextRelease.version and test that installer before tagging. This
   repackaging changes version metadata; it does not recompile Angular or resolve

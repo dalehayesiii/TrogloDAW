@@ -32,9 +32,8 @@ export default {
     [
       '@semantic-release/exec',
       {
-        shell: process.platform === 'win32' ? 'C:/Program Files/Git/bin/bash.exe' : 'bash',
         prepareCmd:
-          'bash scripts/windows/package.sh ${nextRelease.version} && pwsh -File scripts/windows/test_installer.ps1',
+          'python scripts/windows/package.py ${nextRelease.version} && pwsh -File scripts/windows/test_installer.ps1',
       },
     ],
     './scripts/release-guard.mjs',

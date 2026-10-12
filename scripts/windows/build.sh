@@ -57,7 +57,7 @@ cp "$REPO"/cicd/windows/launchers/* "$S/"
 "$PY" "$HERE/validate.py" "$S"
 
 [[ "${1:-}" == --stage-only ]] && exit 0
-bash "$HERE/package.sh" "$VERSION"
+"$PY" "$HERE/package.py" "$VERSION"
 ls -la "$OUT"; sha256sum "$OUT"
 if [ -n "$PARTS" ]; then
     rm -rf "$PARTS" && mkdir -p "$PARTS"
