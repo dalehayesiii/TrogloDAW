@@ -1065,9 +1065,12 @@ main {
   fill: none;
   opacity: 0.6;
 }
-.mural-hand {
-  fill: #dca2cd;
-  opacity: 0.11;
+.mural-tally {
+  stroke: #dca2cd;
+  stroke-width: 4;
+  stroke-linecap: round;
+  fill: none;
+  opacity: 0.3;
 }
 .identity {
   display: flex;

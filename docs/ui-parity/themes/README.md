@@ -2,7 +2,7 @@
 
 Reference: [WRK-5 palette attachment](https://linear.app/magentumdragon/issue/WRK-5/pr-2-brand-troglodaw-across-the-app-and-docs-add-caveman-lightdark).
 The provided pink-purple/lavender and pale lime image informed the cave-wall mural,
-hand stencil, carved workflow glyphs, stone strata and rhythm marks. Purple-family
+tally marks, carved workflow glyphs, stone strata and rhythm marks. Purple-family
 accents predominate with deliberate lime playback/waveform/selection/setup accents.
 Text/control derivatives are tuned for contrast.
 These captures use the actual compiled frontend/FastAPI and explicitly synthetic
