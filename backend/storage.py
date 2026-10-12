@@ -268,4 +268,8 @@ def remove_owned_models(config_path: Path) -> dict:
 if __name__ == "__main__":
     import sys
 
-    print(json.dumps(remove_owned_models(Path(sys.argv[1]))))
+    result = remove_owned_models(Path(sys.argv[1]))
+    # NSIS ExecToLog can report "error" for a successful process when its
+    # single output line contains thousands of paths. Keep installer output
+    # bounded; Python callers still receive the detailed lists above.
+    print(json.dumps({key: len(value) for key, value in result.items()}))

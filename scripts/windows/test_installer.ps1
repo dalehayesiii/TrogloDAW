@@ -114,6 +114,16 @@ try {
     [System.IO.File]::WriteAllText($unrelated,'preserve unrelated files')
     New-Item -ItemType Directory (Join-Path $modelRoot '.troglodaw') -Force | Out-Null
     $ownedFiles = @{ 'installed.bin'=(Get-FileHash $owned -Algorithm SHA256).Hash.ToLower(); 'shared.bin'=(Get-FileHash $shared -Algorithm SHA256).Hash.ToLower() }
+    # A canceled setup can own thousands of wheel/cache fragments. The cleanup
+    # helper must not overflow nsExec's log with one enormous per-file JSON line.
+    $cacheRoot = Join-Path $modelRoot 'cache/installercheck/canceled-setup'
+    New-Item -ItemType Directory -Path $cacheRoot -Force | Out-Null
+    $cacheChecksum = (Get-FileHash $owned -Algorithm SHA256).Hash.ToLower()
+    foreach ($index in 0..4999) {
+        $relative = 'cache/installercheck/canceled-setup/runtime-package-fragment-{0:D5}.bin' -f $index
+        [System.IO.File]::WriteAllText((Join-Path $modelRoot $relative),'synthetic owned asset')
+        $ownedFiles[$relative] = $cacheChecksum
+    }
     @{files=$ownedFiles} | ConvertTo-Json -Depth 5 | Set-Content (Join-Path $modelRoot '.troglodaw/installercheck.json')
     @{files=@{'shared.bin'=$ownedFiles['shared.bin']}} | ConvertTo-Json -Depth 5 | Set-Content (Join-Path $modelRoot '.troglodaw/otherowner.json')
     $configPath = Join-Path $installRoot 'app/config.local.json'
@@ -123,6 +133,7 @@ try {
     if ((Get-Content $configPath -Raw) -ne $before -or -not (Test-Path $owned)) { throw 'Upgrade changed preferences or models' }
     Uninstall-TestApp $false
     if ((Test-Path $owned) -or -not (Test-Path $shared) -or -not (Test-Path $unrelated) -or -not (Test-Path (Join-Path $libraryRoot 'catalog.json'))) { throw 'Default model removal violated ownership/library contract' }
+    if (@(Get-ChildItem -LiteralPath $cacheRoot -File).Count) { throw 'Canceled setup cache files survived default uninstall' }
     Install-TestApp
     [System.IO.File]::WriteAllText($owned,'keep this owned asset')
     @{files=@{'installed.bin'=(Get-FileHash $owned -Algorithm SHA256).Hash.ToLower()}} | ConvertTo-Json -Depth 5 | Set-Content (Join-Path $modelRoot '.troglodaw/installercheck.json')
