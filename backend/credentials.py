@@ -128,7 +128,12 @@ if __name__ == "__main__":
     from pathlib import Path
 
     path = Path(sys.argv[1])
-    value = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+    value = {}
+    if path.exists():
+        try:
+            value = json.loads(path.read_text(encoding="utf-8-sig"))
+        except UnicodeError:
+            value = json.loads(path.read_text(encoding="utf-16"))
     if value.get("installation_id"):
         remove(installation_target(value["installation_id"]))
     print("This installation's saved release access was removed.")

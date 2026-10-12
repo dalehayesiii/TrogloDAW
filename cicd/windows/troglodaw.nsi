@@ -194,6 +194,12 @@ Section "Uninstall"
   ${EndIf}
   nsExec::ExecToLog '"$INSTDIR\python\python.exe" "$INSTDIR\app\backend\credentials.py" "$INSTDIR\app\config.local.json"'
   Pop $0
+  ${If} $0 != 0
+    IfSilent +2
+    MessageBox MB_ICONSTOP "Saved release access could not be removed. Your app and library are still present. Remove saved release access in Settings and retry uninstall."
+    SetErrorLevel 1
+    Abort
+  ${EndIf}
   Delete "$DESKTOP\${APPNAME}.lnk"
   Delete "$SMPROGRAMS\${APPNAME}\${APPNAME}.lnk"
   Delete "$SMPROGRAMS\${APPNAME}\${APPNAME} (console, troubleshooting).lnk"

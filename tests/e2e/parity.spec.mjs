@@ -227,6 +227,8 @@ test('model storage and missing-model errors use real backend without downloads'
     await page.getByRole('button', { name: 'Use model folder', exact: true }).click();
   }
   await expect(page.getByRole('status').filter({ hasText: 'Storage updated' })).toBeVisible();
+  await page.getByRole('button', { name: 'Dismiss notification', exact: true }).click();
+  await expect(page.getByLabel('Notification')).toHaveCount(0);
   expect((await (await request.get('/api/library')).json()).storage.model_dir).toBe(destination);
   await page.getByRole('button', { name: 'Done', exact: true }).click();
   await page.getByLabel('Input Styles', { exact: true }).fill('folk guitar');
@@ -276,6 +278,8 @@ test('native folder choices prompt for existing library data and preserve playba
   await page.getByRole('button', { name: 'Choose library folder…', exact: true }).click();
   await page.getByRole('button', { name: 'Move existing data', exact: true }).click();
   await expect(page.getByLabel('Library folder')).toHaveValue(selected);
+  await expect(page.getByRole('status').filter({ hasText: 'Storage updated' })).toBeVisible();
+  await expect(page.getByLabel('Notification')).toHaveCount(0, { timeout: 12000 });
   const moved = await (await request.get('/api/library')).json();
   expect(moved.items.some((item) => item.id === fixture.song.id)).toBe(true);
   expect((await request.get(token)).status()).toBe(200);

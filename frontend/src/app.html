@@ -133,8 +133,8 @@
   </aside>
   } @if (error && !dialogKind) {
   <p class="error-banner" role="alert">{{error}}</p>
-  } @if (status) {
-  <p class="status-line" role="status">{{status}}</p>
+  } @if (status && !dialogKind) {
+  <ng-container [ngTemplateOutlet]="successToast" />
   } @if(jobs.length){
   <aside class="job-panel" aria-label="Processing jobs">
     @for(job of jobs;track job.id){@if(active(job) || job.status==='failed' ||
@@ -669,6 +669,12 @@
       {{quitting ? 'Stopping…' : 'Quit'}}
     </button>
   </footer>
+  <ng-template #successToast>
+    <aside class="success-toast" [class.toast-in-dialog]="!!dialogKind" aria-label="Notification">
+      <p role="status">{{status}}</p>
+      <button type="button" aria-label="Dismiss notification" (click)="dismissStatus()">×</button>
+    </aside>
+  </ng-template>
   <dialog
     #dialog
     [class.setup-dialog]="dialogKind==='setup'"
@@ -686,6 +692,8 @@
     </div>
     @if(error){
     <p class="error-banner" role="alert">{{error}}</p>
+    } @if(status){
+    <ng-container [ngTemplateOutlet]="successToast" />
     }
     <div class="stack">
       <ng-template #storageControls>

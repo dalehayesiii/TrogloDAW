@@ -26,6 +26,20 @@ class Response(io.BytesIO):
     pass
 
 
+def test_update_preserves_legacy_library_inside_program_files(core, tmp_path):
+    manager, _ = make_update_manager(core, tmp_path)
+    complete(manager, "check")
+    complete(manager, "download")
+    core.LIB = manager.root / "legacy-library"
+    core.LIB.mkdir()
+    song = core.LIB / "song.wav"
+    song.write_bytes(b"synthetic retained personal data")
+    with pytest.raises(ValueError, match="program folders"):
+        manager.apply(pid=1, host="127.0.0.1", port=7860)
+    assert song.read_bytes() == b"synthetic retained personal data"
+    assert manager.snapshot()["phase"] == "ready"
+
+
 class ReleaseFixture:
     def __init__(self):
         self.installer = b"MZ" + b"synthetic Windows installer" * 100

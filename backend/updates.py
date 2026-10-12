@@ -15,7 +15,7 @@ import urllib.request
 from pathlib import Path
 
 import credentials
-from storage import atomic_json, digest, safe_file, writable_root
+from storage import atomic_json, digest, safe_file, writable_root, protect_location, guard_uninstall
 
 ROOT = Path(__file__).resolve().parents[1]
 REPOSITORY = "dalehayesiii/music-maker"
@@ -393,13 +393,9 @@ class Updates:
                     phase="failed", message="Verified installer changed. Download it again."
                 )
                 raise ValueError("Verified installer changed")
-            runtime = self.root.parent / "python"
-            if self.storage.core.LIB.resolve().is_relative_to(
-                runtime.resolve()
-            ) or self.storage.models.resolve().is_relative_to(runtime.resolve()):
-                raise ValueError(
-                    "Move your library/model folder outside the app's Python runtime before updating"
-                )
+            protect_location(self.storage.core.LIB, self.root)
+            protect_location(self.storage.models, self.root)
+            guard_uninstall(self.storage.config_path, self.root)
             directory = self.update_directory()
             helper = safe_file(directory, "apply-update.ps1")
             shutil.copyfile(self.root / "scripts/windows/app_update.ps1", helper)

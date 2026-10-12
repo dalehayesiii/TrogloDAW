@@ -134,6 +134,7 @@ export class AppComponent {
   results: any[] = [];
   error = '';
   status = '';
+  private statusTimer?: ReturnType<typeof setTimeout>;
   stopped = false;
   quitting = false;
   update: any = { phase: 'idle', version: '0.0.0', supported: false };
@@ -219,7 +220,7 @@ export class AppComponent {
       this.jobs = (await this.api('/api/jobs')).jobs;
       for (const job of this.jobs) {
         if (this.active(job)) void this.poll(job.id).catch((error) => this.fail(error));
-        else if (job.status === 'complete') this.receive(job);
+        else if (job.status === 'complete') this.receive(job, false);
       }
       await this.hydrateClips();
       if (!this.library.storage.setup_seen) this.openDialog('setup');
@@ -248,6 +249,18 @@ export class AppComponent {
   }
   fail(error: unknown) {
     this.error = error instanceof Error ? error.message : String(error);
+    this.cdr.markForCheck();
+  }
+  notify(message: string) {
+    this.dismissStatus();
+    this.status = message;
+    this.statusTimer = setTimeout(() => this.dismissStatus(), 8000);
+    this.cdr.markForCheck();
+  }
+  dismissStatus() {
+    if (this.statusTimer) clearTimeout(this.statusTimer);
+    this.statusTimer = undefined;
+    this.status = '';
     this.cdr.markForCheck();
   }
   async refresh() {
@@ -320,7 +333,7 @@ export class AppComponent {
       this.polling.delete(id);
     }
   }
-  receive(job: Job) {
+  receive(job: Job, announce = true) {
     const result = job.result;
     if (!result) return;
     if (job.action === 'song_generate') this.results = result.outcomes || [];
@@ -344,7 +357,7 @@ export class AppComponent {
         this.fxSongId = result.song.id;
       }
     }
-    this.status = result.message || '';
+    if (announce && result.message) this.notify(result.message);
     this.cdr.markForCheck();
   }
   async cancel(job: Job) {

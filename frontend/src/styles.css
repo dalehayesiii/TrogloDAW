@@ -1755,6 +1755,32 @@ troglodaw-job-status {
 .setup-actions button {
   width: 100%;
 }
+.success-toast {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  max-width: min(520px, calc(100vw - 48px));
+  padding: 12px 18px;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--lime-ink);
+  border-left: 5px solid var(--lime-ink);
+  border-radius: 12px;
+  box-shadow: 0 8px 32px var(--shadow);
+  z-index: 10;
+}
+.success-toast p {
+  margin: 0;
+}
+.toast-in-dialog {
+  position: sticky;
+  inset: auto;
+  top: 0;
+  margin-bottom: 16px;
+}
 .job-panel {
   margin-bottom: 24px;
 }

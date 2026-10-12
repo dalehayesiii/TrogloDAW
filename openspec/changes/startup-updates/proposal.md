@@ -23,6 +23,7 @@ Users currently reinstall releases manually and cannot discover updates from the
 
 - `delivery-workflow`: installed version/source identity matches the validated published artifact.
 - `local-model-storage`: persistent first-run history, background setup, retained asset reuse and separate installation/download scopes.
+- `frontend-service`: dismissible, expiring success notifications without replaying old completion messages.
 
 ## Impact
 

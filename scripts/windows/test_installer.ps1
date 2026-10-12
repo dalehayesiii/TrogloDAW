@@ -7,6 +7,8 @@ $testRoot = [System.IO.Path]::GetFullPath((Join-Path $testWork ('TrogloDAW-check
 if (-not $testRoot.StartsWith([System.IO.Path]::GetFullPath($testWork).TrimEnd('\') + '\')) { throw 'Unsafe installer test root' }
 $installRoot = Join-Path $testRoot 'installed with spaces'
 $modelRoot = Join-Path $testRoot 'models with spaces'
+$credentialOwner = 'installercheck' + [System.Guid]::NewGuid().ToString('N')
+$credentialOther = 'installerother' + [System.Guid]::NewGuid().ToString('N')
 $libraryRoot = Join-Path $testRoot 'library'
 New-Item -ItemType Directory -Path $testRoot,$modelRoot,$libraryRoot -Force | Out-Null
 # Restore pre-existing registration and shortcuts even after a failed test.
@@ -129,10 +131,10 @@ try {
         [System.IO.File]::WriteAllText((Join-Path $modelRoot $relative),'synthetic owned asset')
         $ownedFiles[$relative] = $cacheChecksum
     }
-    @{files=$ownedFiles} | ConvertTo-Json -Depth 5 | Set-Content (Join-Path $modelRoot '.troglodaw/installercheck.json')
+    @{files=$ownedFiles} | ConvertTo-Json -Depth 5 | Set-Content (Join-Path $modelRoot ('.troglodaw/'+$credentialOwner+'.json'))
     @{files=@{'shared.bin'=$ownedFiles['shared.bin']}} | ConvertTo-Json -Depth 5 | Set-Content (Join-Path $modelRoot '.troglodaw/otherowner.json')
     $configPath = Join-Path $installRoot 'app/config.local.json'
-    @{installation_id='installercheck'; setup_seen=$true; check_updates=$false; model_dir=$modelRoot; model_roots=@($modelRoot); library_dir=$libraryRoot} | ConvertTo-Json | Set-Content $configPath
+    @{installation_id=$credentialOwner; setup_seen=$true; check_updates=$false; model_dir=$modelRoot; model_roots=@($modelRoot); library_dir=$libraryRoot} | ConvertTo-Json | Set-Content $configPath
     $before = Get-Content $configPath -Raw
     $unsafeLibrary = Join-Path $installRoot 'app/legacy-library'
     New-Item -ItemType Directory -Path $unsafeLibrary -Force | Out-Null
@@ -147,17 +149,25 @@ try {
     if ((Get-Content $configPath -Raw) -ne $before -or -not (Test-Path $owned)) { throw 'Upgrade changed preferences or models' }
     & ./scripts/windows/test_update_handoff.ps1 -InstallRoot $installRoot -TestRoot $testRoot
     if (-not (Test-Path $owned) -or -not (Test-Path (Join-Path $libraryRoot 'catalog.json'))) { throw 'In-app update lost library/model data' }
+    uv run --locked python scripts/windows/test_update_access.py save $credentialOwner $credentialOther
+    if ($LASTEXITCODE) { throw 'Native release credential preparation failed' }
     Uninstall-TestApp $false
+    uv run --locked python scripts/windows/test_update_access.py verify $credentialOwner $credentialOther
+    if ($LASTEXITCODE) { throw 'Native uninstall credential cleanup failed' }
     if ((Test-Path $owned) -or -not (Test-Path $shared) -or -not (Test-Path $unrelated) -or -not (Test-Path (Join-Path $libraryRoot 'catalog.json'))) { throw 'Default model removal violated ownership/library contract' }
     if (@(Get-ChildItem -LiteralPath $cacheRoot -File).Count) { throw 'Canceled setup cache files survived default uninstall' }
     Install-TestApp
     [System.IO.File]::WriteAllText($owned,'keep this owned asset')
-    @{files=@{'installed.bin'=(Get-FileHash $owned -Algorithm SHA256).Hash.ToLower()}} | ConvertTo-Json -Depth 5 | Set-Content (Join-Path $modelRoot '.troglodaw/installercheck.json')
-    @{installation_id='installercheck'; model_roots=@($modelRoot)} | ConvertTo-Json | Set-Content $configPath
+    @{files=@{'installed.bin'=(Get-FileHash $owned -Algorithm SHA256).Hash.ToLower()}} | ConvertTo-Json -Depth 5 | Set-Content (Join-Path $modelRoot ('.troglodaw/'+$credentialOwner+'.json'))
+    @{installation_id=$credentialOwner; model_roots=@($modelRoot)} | ConvertTo-Json | Set-Content $configPath
+    uv run --locked python scripts/windows/test_update_access.py save $credentialOwner $credentialOther
     Uninstall-TestApp $true
+    uv run --locked python scripts/windows/test_update_access.py verify $credentialOwner $credentialOther
+    if ($LASTEXITCODE) { throw 'Retaining models also retained private release access' }
     if (-not (Test-Path $owned)) { throw 'Uninstall opt-out removed model assets' }
     Write-Output 'Native install, upgrade, default removal, opt-out and installed browser checks passed.'
 } finally {
+    if (-not $ReleaseSmoke) { uv run --locked python scripts/windows/test_update_access.py cleanup $credentialOwner $credentialOther }
     foreach ($path in $registryPaths) {
         if (Test-Path -LiteralPath $path) { Remove-Item -LiteralPath $path -Recurse }
         if ($registryBackup.ContainsKey($path)) {

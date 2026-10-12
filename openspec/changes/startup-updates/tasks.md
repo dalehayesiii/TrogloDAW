@@ -14,6 +14,7 @@
 ## 3. Interface and integration
 
 - [ ] 3.0 Separate first-run onboarding from Settings using shared embedded controls; persist setup history, verify retained-folder reuse, center dialogs, correct job spacing and independent Download/Installation status, and test background continuation/readiness/restart behavior.
+- [ ] 3.4 Replace persistent success messages with accessible eight-second/dismissible notifications visible within dialogs, without expiring errors or replaying old completions.
 
 - [ ] 3.1 Add available-version notices and Settings check/access/download/install controls with accessible status/recovery; verify real-backend browser flows and light/dark evidence, and update user guides.
 - [ ] 3.2 Run documented Python/frontend/integration/native checks and validate a real authenticated release download without exposing credentials.
