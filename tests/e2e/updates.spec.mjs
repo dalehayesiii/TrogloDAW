@@ -106,6 +106,7 @@ test('first-run background setup and verified update recovery use the real servi
     await expect(dialog).not.toBeVisible();
     await expect(page.getByLabel('Processing jobs')).toContainText('Download + installation');
     await expect(page.getByLabel('Processing jobs')).toContainText('Overall download');
+    await expect(page.getByRole('button', { name: 'Dismiss Model setup notice' })).toHaveCount(0);
     await expect(page.getByLabel('Processing jobs')).not.toContainText('Whole request');
     if (process.env.TROGLODAW_SCREENSHOT_DIR)
       await page.setViewportSize({ width: 1440, height: 1600 });
@@ -119,6 +120,14 @@ test('first-run background setup and verified update recovery use the real servi
       .getByRole('button', { name: 'Cancel', exact: true })
       .click();
     await expect(page.getByLabel('Model installation in background')).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Dismiss Model setup notice' })).toBeVisible();
+    await page.getByRole('button', { name: 'Dismiss Model setup notice' }).click();
+    await page.reload();
+    await expect(page.getByRole('button', { name: 'Dismiss Model setup notice' })).toHaveCount(0);
+    const canceledJobs = (await (await page.request.get(base + '/api/jobs')).json()).jobs;
+    expect(
+      canceledJobs.some((job) => job.action === 'model_install' && job.status === 'canceled'),
+    ).toBe(true);
     await page.getByRole('button', { name: 'Settings', exact: true }).click();
     await expect(dialog).toContainText('Settings and storage');
     expect(

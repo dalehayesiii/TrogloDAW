@@ -10,6 +10,13 @@ import { FormsModule } from '@angular/forms';
 import { NgTemplateOutlet } from '@angular/common';
 import { AudioComponent, DownloadComponent, Field, FieldComponent, Media, Value } from './controls';
 import { JobStatusComponent, ProcessingJob } from './job-status';
+import {
+  NotificationLedger,
+  Notice,
+  PresentedJobError,
+  ScopedError,
+  workflow,
+} from './notifications';
 
 interface Clip {
   key: string;
@@ -132,7 +139,15 @@ export class AppComponent {
   };
   jobs: Job[] = [];
   results: any[] = [];
-  error = '';
+  notices = new NotificationLedger(
+    (() => {
+      try {
+        return localStorage;
+      } catch {
+        return undefined;
+      }
+    })(),
+  );
   status = '';
   private statusTimer?: ReturnType<typeof setTimeout>;
   stopped = false;
@@ -222,15 +237,16 @@ export class AppComponent {
     try {
       await this.refresh();
       this.jobs = (await this.api('/api/jobs')).jobs;
+      this.notices.restore(this.jobs);
       for (const job of this.jobs) {
-        if (this.active(job)) void this.poll(job.id).catch((error) => this.fail(error));
+        if (this.active(job)) void this.poll(job.id).catch((error) => this.fail(error, job.action));
         else if (job.status === 'complete') this.receive(job, false);
       }
       await this.hydrateClips();
       if (!this.library.storage.setup_seen) this.openDialog('setup');
       void this.refreshUpdates();
     } catch (error) {
-      this.fail(error);
+      this.fail(error, 'startup');
     }
   }
   async api(path: string, body?: any) {
@@ -251,9 +267,30 @@ export class AppComponent {
     if (!response.ok) throw new Error(data.detail || 'Request failed');
     return data;
   }
-  fail(error: unknown) {
-    this.error = error instanceof Error ? error.message : String(error);
+  get notificationGroups() {
+    return this.notices.groups(this.jobs);
+  }
+  get activeJobs() {
+    return this.jobs.filter((job) => this.active(job));
+  }
+  beginWorkflow(action: string) {
+    this.notices.begin(action, this.jobs);
     this.cdr.markForCheck();
+  }
+  fail(error: unknown, action = 'startup') {
+    this.notices.fail(error, action);
+    this.cdr.markForCheck();
+  }
+  dismissNotice(notice: Notice<Job>) {
+    const focused = document.activeElement?.closest('.notice-entry');
+    this.notices.dismiss(notice);
+    this.cdr.detectChanges();
+    if (focused && !document.contains(focused)) {
+      const target = this.dialogKind
+        ? this.dialog?.nativeElement.querySelector<HTMLButtonElement>('button')
+        : document.getElementById('tab-' + this.tab);
+      target?.focus();
+    }
   }
   notify(message: string) {
     this.dismissStatus();
@@ -266,6 +303,15 @@ export class AppComponent {
     this.statusTimer = undefined;
     this.status = '';
     this.cdr.markForCheck();
+  }
+  async refreshLibrary() {
+    this.beginWorkflow('startup');
+    this.beginWorkflow('library');
+    try {
+      await this.refresh();
+    } catch (error) {
+      this.fail(error, 'startup');
+    }
   }
   async refresh() {
     this.library = await this.api('/api/library');
@@ -316,9 +362,14 @@ export class AppComponent {
     return Object.keys(this.reference?.available || {});
   }
   async submit(action: string, values: any): Promise<Job> {
-    this.error = '';
-    const created = await this.api('/api/jobs', { action, values });
-    return this.poll(created.id);
+    this.beginWorkflow(action);
+    try {
+      const created = await this.api('/api/jobs', { action, values });
+      return await this.poll(created.id);
+    } catch (error) {
+      if (error instanceof PresentedJobError) throw error;
+      throw new ScopedError(error, workflow(action));
+    }
   }
   async poll(id: string): Promise<Job> {
     if (this.polling.has(id)) throw new Error('Already following this job');
@@ -332,9 +383,11 @@ export class AppComponent {
         if (state.action === 'song_generate' && state.outcomes) this.results = state.outcomes;
         this.cdr.markForCheck();
         if (!this.active(state)) {
+          this.notices.live.add(state.id);
           this.receive(state);
           await this.refresh();
-          if (state.status === 'failed') throw new Error(state.message);
+          if (['failed', 'canceled'].includes(state.status))
+            throw new PresentedJobError(state.message);
           return state;
         }
         await new Promise((resolve) => setTimeout(resolve, 500));
@@ -374,7 +427,7 @@ export class AppComponent {
     try {
       await this.api('/api/jobs/' + job.id + '/cancel', {});
     } catch (error) {
-      this.fail(error);
+      this.fail(error, job.action);
     }
   }
   changeTab(index: number) {
@@ -412,11 +465,12 @@ export class AppComponent {
   }
   async closeDialog() {
     if (this.dialogKind === 'setup') {
+      this.beginWorkflow('setup-close');
       try {
         await this.api('/api/setup/acknowledge', {});
         this.library.storage.setup_seen = true;
       } catch (error) {
-        this.fail(error);
+        this.fail(error, 'setup-close');
         return;
       }
     }
@@ -427,6 +481,7 @@ export class AppComponent {
     this.stopCapture();
     this.discardTake();
     this.dialog?.nativeElement.close();
+    this.cdr.markForCheck();
   }
   async upload(file: File) {
     const form = new FormData();
@@ -444,17 +499,20 @@ export class AppComponent {
     const input = event.target as HTMLInputElement;
     const files = Array.from(input.files || []);
     input.value = '';
+    if (!files.length) return;
     this.audioImports++;
+    this.beginWorkflow('audio-input');
     try {
       for (const file of files) await this.acceptFile(file, 'upload');
     } catch (error) {
-      this.fail(error);
+      this.fail(error, 'audio-input');
     } finally {
       this.audioImports--;
       this.cdr.markForCheck();
     }
   }
   async acceptFile(file: File, type: string, replace = -1) {
+    this.beginWorkflow('audio-input');
     this.audioImports++;
     try {
       await this.reportActivity();
@@ -486,10 +544,11 @@ export class AppComponent {
     const file = input.files?.[0];
     input.value = '';
     if (!file) return;
+    this.beginWorkflow('audio-input');
     try {
       await this.acceptFile(file, 'upload', index);
     } catch (error) {
-      this.fail(error);
+      this.fail(error, 'audio-input');
     }
   }
   async hydrateClips() {
@@ -504,6 +563,7 @@ export class AppComponent {
     this.cdr.markForCheck();
   }
   async addAudio(item: Item) {
+    this.beginWorkflow('audio-input');
     try {
       const preview = await this.api('/api/items/' + item.id);
       let clip = this.draft.clips.find((value) => value.id === item.id);
@@ -528,7 +588,7 @@ export class AppComponent {
       }
       this.saveDraft();
     } catch (error) {
-      this.fail(error);
+      this.fail(error, 'audio-input');
     }
   }
   choosePreset(choice: 'apply' | 'keep') {
@@ -558,6 +618,7 @@ export class AppComponent {
     }
   }
   async selectSong(item: Item) {
+    this.beginWorkflow('library');
     try {
       this.selectedSong = item.id;
       this.songName = item.name;
@@ -566,7 +627,7 @@ export class AppComponent {
       this.libraryAudio = preview.audio;
       this.libraryAssets = preview.assets || [];
     } catch (error) {
-      this.fail(error);
+      this.fail(error, 'library');
     } finally {
       this.cdr.markForCheck();
     }
@@ -601,13 +662,14 @@ export class AppComponent {
     }
   }
   async referenceSong(item: Item) {
+    this.beginWorkflow('library');
     try {
       this.reference = await this.api('/api/ingredients/' + item.id);
       this.referenceFields = {};
       this.closeDialog();
       this.openDialog('reference');
     } catch (error) {
-      this.fail(error);
+      this.fail(error, 'library');
     }
   }
   applyReference() {
@@ -719,19 +781,20 @@ export class AppComponent {
   async chooseFolder(kind: 'library' | 'model') {
     if (this.choosingFolder || this.storageBusy) return;
     this.choosingFolder = true;
-    this.error = '';
+    this.beginWorkflow('storage');
     try {
       const selection = await this.api('/api/storage/pick', { kind });
       if (selection.path && ['storage', 'setup'].includes(this.dialogKind))
         await this.prepareFolder(kind, selection.path);
     } catch (error) {
-      this.fail(error);
+      this.fail(error, 'storage');
     } finally {
       this.choosingFolder = false;
       this.cdr.markForCheck();
     }
   }
   async prepareFolder(kind: 'library' | 'model', path: string) {
+    this.beginWorkflow('storage');
     try {
       const storage = (await this.api('/api/library')).storage;
       const from = kind === 'library' ? storage.library_dir : storage.model_dir;
@@ -748,7 +811,7 @@ export class AppComponent {
         await this.applyFolder(kind, path, 'open');
       }
     } catch (error) {
-      this.fail(error);
+      this.fail(error, 'storage');
     }
   }
   async acceptFolder(mode: 'move' | 'open') {
@@ -796,7 +859,7 @@ export class AppComponent {
     if (this.requestingMic || this.recording) return;
     const session = ++this.micSession;
     this.requestingMic = true;
-    this.error = '';
+    this.beginWorkflow('audio-input');
     this.retakeIndex = index;
     this.discardTake();
     if (this.dialogKind !== 'microphone') this.openDialog('microphone');
@@ -825,7 +888,7 @@ export class AppComponent {
       };
       this.recorder.onerror = () => {
         this.stopCapture();
-        this.fail(new Error('Recording failed. Check the microphone and retry.'));
+        this.fail(new Error('Recording failed. Check the microphone and retry.'), 'audio-input');
       };
       this.recorder.onstop = () => {
         capture.getTracks().forEach((track) => track.stop());
@@ -837,7 +900,7 @@ export class AppComponent {
         });
         if (this.dialogKind !== 'microphone') return;
         if (!blob.size) {
-          this.fail(new Error('The take was empty. Record again or upload audio.'));
+          this.fail(new Error('The take was empty. Record again or upload audio.'), 'audio-input');
           return;
         }
         const extension = blob.type.includes('mp4')
@@ -865,6 +928,7 @@ export class AppComponent {
           : name === 'NotFoundError'
             ? new Error('No microphone is available. Connect one or upload a recording.')
             : error,
+        'audio-input',
       );
     } finally {
       this.requestingMic = false;
@@ -890,7 +954,7 @@ export class AppComponent {
       await this.acceptFile(this.take, 'microphone', this.retakeIndex);
       this.closeDialog();
     } catch (error) {
-      this.fail(error);
+      this.fail(error, 'audio-input');
     }
   }
   @HostListener('window:beforeunload') cleanup() {
@@ -958,11 +1022,12 @@ export class AppComponent {
     }
   }
   async updateAction(action: string, values: any = {}) {
+    this.beginWorkflow('updates');
     try {
       this.update = await this.api('/api/updates/' + action, values);
       void this.refreshUpdates();
     } catch (error) {
-      this.fail(error);
+      this.fail(error, 'updates');
     }
   }
   async saveUpdateAccess() {
@@ -978,6 +1043,7 @@ export class AppComponent {
   }
   async installUpdate() {
     if (!this.canInstallUpdate) return;
+    this.beginWorkflow('updates');
     try {
       this.update = await this.api('/api/updates/apply', {});
       this.cleanup();
@@ -988,7 +1054,7 @@ export class AppComponent {
       requestAnimationFrame(() => document.getElementById('update-heading')?.focus());
       void this.refreshUpdates();
     } catch (error) {
-      this.fail(error);
+      this.fail(error, 'updates');
     }
   }
   toggleTheme() {
@@ -1018,6 +1084,7 @@ export class AppComponent {
   async quit() {
     if (this.quitting || this.stopped) return;
     this.quitting = true;
+    this.beginWorkflow('quit');
     try {
       await this.api('/api/shutdown', {});
       this.cleanup();
@@ -1027,7 +1094,7 @@ export class AppComponent {
       this.cdr.markForCheck();
       requestAnimationFrame(() => document.getElementById('quit-heading')?.focus());
     } catch (error) {
-      this.fail(error);
+      this.fail(error, 'quit');
     } finally {
       this.quitting = false;
       this.cdr.markForCheck();
