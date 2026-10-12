@@ -2,7 +2,7 @@
   "$schema": "../node_modules/@angular/cli/lib/config/schema.json",
   "version": 1,
   "projects": {
-    "musicmaker": {
+    "troglodaw": {
       "projectType": "application",
       "root": "",
       "sourceRoot": "src",
@@ -26,7 +26,7 @@
         },
         "serve": {
           "builder": "@angular/build:dev-server",
-          "options": { "buildTarget": "musicmaker:build" }
+          "options": { "buildTarget": "troglodaw:build" }
         },
         "test": {
           "builder": "@angular/build:unit-test",

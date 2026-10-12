@@ -149,9 +149,9 @@ class Storage:
     def _change(self, kind: str, value: str, mode: str, progress):
         if kind not in {"library", "model"} or mode not in {"open", "relocate"}:
             raise ValueError("Choose library/model and open/relocate")
-        if kind == "library" and os.environ.get("MM_LIBRARY"):
+        if kind == "library" and os.environ.get("TROGLODAW_LIBRARY"):
             raise ValueError(
-                "MM_LIBRARY overrides storage. Restart without that override to change it"
+                "TROGLODAW_LIBRARY overrides storage. Restart without that override to change it"
             )
         old = self.core.LIB if kind == "library" else self.models
         new = writable_root(value, 64 * 1024 * 1024)

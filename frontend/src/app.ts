@@ -98,7 +98,7 @@ export const fxFields: Field[] = [
 ];
 
 @Component({
-  selector: 'mm-app',
+  selector: 'troglodaw-app',
   imports: [FormsModule, AudioComponent, DownloadComponent, FieldComponent],
   templateUrl: './app.html',
 })
@@ -185,7 +185,7 @@ export class AppComponent {
     try {
       this.draft = {
         ...defaults(),
-        ...JSON.parse(localStorage.getItem('mm-generation-draft') || '{}'),
+        ...JSON.parse(localStorage.getItem('troglodaw-generation-draft') || '{}'),
       };
     } catch {
       this.draft = defaults();
@@ -217,7 +217,7 @@ export class AppComponent {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'X-MusicMaker-Request': '1',
+              'X-TrogloDAW-Request': '1',
             },
             body: JSON.stringify(body),
           },
@@ -240,7 +240,9 @@ export class AppComponent {
     this.cdr.markForCheck();
   }
   saveDraft() {
-    queueMicrotask(() => localStorage.setItem('mm-generation-draft', JSON.stringify(this.draft)));
+    queueMicrotask(() =>
+      localStorage.setItem('troglodaw-generation-draft', JSON.stringify(this.draft)),
+    );
   }
   active(job: Job) {
     return ['queued', 'running'].includes(job.status);
@@ -368,7 +370,7 @@ export class AppComponent {
     form.append('file', file);
     const response = await fetch('/api/uploads', {
       method: 'POST',
-      headers: { 'X-MusicMaker-Request': '1' },
+      headers: { 'X-TrogloDAW-Request': '1' },
       body: form,
     });
     const data = await response.json();
@@ -495,6 +497,8 @@ export class AppComponent {
       this.libraryAssets = preview.assets || [];
     } catch (error) {
       this.fail(error);
+    } finally {
+      this.cdr.markForCheck();
     }
   }
   async organize() {

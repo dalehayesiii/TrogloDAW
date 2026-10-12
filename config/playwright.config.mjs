@@ -4,9 +4,9 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 
-const testConfig = mkdtempSync(join(tmpdir(), 'musicmaker-config-'));
-const testLibrary = mkdtempSync(join(tmpdir(), 'musicmaker-e2e-'));
-const testPort = Number(process.env.MM_TEST_PORT || 7863);
+const testConfig = mkdtempSync(join(tmpdir(), 'troglodaw-config-'));
+const testLibrary = mkdtempSync(join(tmpdir(), 'troglodaw-e2e-'));
+const testPort = Number(process.env.TROGLODAW_TEST_PORT || 7863);
 writeFileSync(
   join(testConfig, 'config.local.json'),
   JSON.stringify({ library_dir: testLibrary, model_dir: join(testConfig, 'models') }),
@@ -26,12 +26,12 @@ export default defineConfig({
     screenshot: 'only-on-failure',
   },
   webServer: {
-    command: process.env.MM_TEST_PYTHON
-      ? `"${process.env.MM_TEST_PYTHON}" "${process.env.MM_TEST_APP || 'backend/app.py'}" --port ${testPort} --no-browser`
+    command: process.env.TROGLODAW_TEST_PYTHON
+      ? `"${process.env.TROGLODAW_TEST_PYTHON}" "${process.env.TROGLODAW_TEST_APP || 'backend/app.py'}" --port ${testPort} --no-browser`
       : `uv run --locked python backend/app.py --port ${testPort} --no-browser`,
     cwd: fileURLToPath(new URL('..', import.meta.url)),
     url: `http://127.0.0.1:${testPort}/api/health`,
     reuseExistingServer: false,
-    env: { MM_CONFIG_DIR: testConfig, MM_LIBRARY: '', MM_HOST: '127.0.0.1' },
+    env: { TROGLODAW_CONFIG_DIR: testConfig, TROGLODAW_LIBRARY: '', TROGLODAW_HOST: '127.0.0.1' },
   },
 });

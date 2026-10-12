@@ -35,7 +35,7 @@ export interface Media {
 }
 
 @Component({
-  selector: 'mm-icon',
+  selector: 'troglodaw-icon',
   template: `<svg
     viewBox="0 0 24 24"
     fill="none"
@@ -66,7 +66,7 @@ export class IconComponent {
 }
 
 @Component({
-  selector: 'mm-field',
+  selector: 'troglodaw-field',
   imports: [FormsModule],
   template: `
     @if (field.kind === 'check') {
@@ -172,10 +172,10 @@ export class FieldComponent {
 }
 
 @Component({
-  selector: 'mm-upload',
+  selector: 'troglodaw-upload',
   imports: [IconComponent],
   template: `<div class="upload-panel" (dragover)="$event.preventDefault()" (drop)="drop($event)">
-    <label class="corner-label" [for]="id"><mm-icon />{{ label }}</label>
+    <label class="corner-label" [for]="id"><troglodaw-icon />{{ label }}</label>
     <input
       [id]="id"
       type="file"
@@ -201,7 +201,7 @@ export class FieldComponent {
       </div>
     } @else {
       <label class="drop-target" [for]="id"
-        ><span class="upload-icon"><mm-icon name="upload" /></span><span>Drop File Here</span
+        ><span class="upload-icon"><troglodaw-icon name="upload" /></span><span>Drop File Here</span
         ><span class="muted">- or -</span><span>Click to Upload</span></label
       >
     }
@@ -232,14 +232,14 @@ export class UploadComponent {
 }
 
 @Component({
-  selector: 'mm-download',
+  selector: 'troglodaw-download',
   imports: [IconComponent],
   template: `<div class="download-panel">
-    <span class="corner-label"><mm-icon />{{ label }}</span>
+    <span class="corner-label"><troglodaw-icon />{{ label }}</span>
     @if (media) {
       <a [href]="media.url + '?download=true'" download>{{ media.name }} <span>↓</span></a>
     } @else {
-      <span class="empty-file" aria-hidden="true"><mm-icon /></span>
+      <span class="empty-file" aria-hidden="true"><troglodaw-icon /></span>
     }
   </div>`,
 })
@@ -249,10 +249,10 @@ export class DownloadComponent {
 }
 
 @Component({
-  selector: 'mm-audio',
+  selector: 'troglodaw-audio',
   imports: [FormsModule, IconComponent],
   template: `<div class="audio-panel" [class.has-audio]="media">
-    <span class="corner-label"><mm-icon name="note" />{{ label }}</span>
+    <span class="corner-label"><troglodaw-icon name="note" />{{ label }}</span>
     @if (media) {
       <a
         class="audio-download"
@@ -296,7 +296,7 @@ export class DownloadComponent {
           (click)="player.muted = !player.muted"
           [attr.aria-label]="'Mute ' + label"
         >
-          <mm-icon name="volume" />
+          <troglodaw-icon name="volume" />
         </button>
         <select
           aria-label="Playback speed"
@@ -322,7 +322,7 @@ export class DownloadComponent {
         </div>
       </div>
     } @else {
-      <span class="empty-note" aria-hidden="true"><mm-icon name="note" /></span>
+      <span class="empty-note" aria-hidden="true"><troglodaw-icon name="note" /></span>
     }
   </div>`,
 })

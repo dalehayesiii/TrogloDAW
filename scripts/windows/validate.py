@@ -6,7 +6,7 @@ import pefile
 from packaging.requirements import Requirement
 from packaging.utils import canonicalize_name
 
-root = Path(sys.argv[1])  # .../MusicMaker
+root = Path(sys.argv[1])  # .../TrogloDAW
 py = root / "python"
 sp = py / "Lib" / "site-packages"
 problems = []

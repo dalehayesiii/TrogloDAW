@@ -113,14 +113,17 @@
                 @if(inputHelp){
                 <p id="audio-guidance" role="tooltip">
                   Audio inputs are intended to be vocal recordings. Previously generated songs can
-                  also be used and may benefit from prior-song presets.
+                  also be used and may benefit from prior-song presets. Each original clip is
+                  automatically cut into smaller samples, individually transformed and arranged into
+                  one full-song audio guide before generation.
                 </p>
                 }
               </div>
             </div>
             <p class="muted">
-              Turn recordings into samples for a new song. Audio is optional when you provide lyrics
-              or styles.
+              Add original recordings. We select a budget of smaller samples from each one,
+              transform them individually and arrange them into one full-song audio guide. Audio is
+              optional when you provide lyrics or styles.
             </p>
             <label for="audio-files">Add audio files</label
             ><input
@@ -191,7 +194,7 @@
                 {{clip.source_type === 'prior-song' ? 'Prior song — resample its finished audio' :
                 clip.source_type === 'microphone' ? 'Accepted microphone take' : 'Audio recording'}}
               </p>
-              <mm-audio [label]="clip.label" [media]="clip.audio || null" />
+              <troglodaw-audio [label]="clip.label" [media]="clip.audio || null" />
               <div class="actions">
                 @if (clip.source_type==='microphone') {<button
                   type="button"
@@ -205,8 +208,8 @@
                 <summary>Clip adjustments</summary>
                 <div class="stack options">
                   <p class="muted">
-                    Adjust this input clip’s pitch, speed and volume before it is arranged in the
-                    song.
+                    Set the starting pitch, speed and volume for samples automatically selected from
+                    this original clip. Each sample receives its own additional transformation.
                   </p>
                   <label [for]="'replace-clip-'+index">Replace this clip with a file</label>
                   <input
@@ -315,7 +318,7 @@
             <details>
               <summary>More Options</summary>
               <div class="stack options">
-                @for (control of generationFields; track control.key) {<mm-field
+                @for (control of generationFields; track control.key) {<troglodaw-field
                   [field]="control"
                   [value]="draft.options[control.key]"
                   [options]="control.key==='gender' ? [{label:'Default',value:''},{label:'Male',value:'Male'},{label:'Female',value:'Female'}] : []"
@@ -353,7 +356,8 @@
           @for (result of results; track result.index) {
           <article class="group">
             @if(result.status==='complete'){
-            <h3>{{result.song.name}}</h3>
+            <h3>Song generation output</h3>
+            <p class="song-output-title">{{result.song.name}}</p>
             <p>Styles: {{result.effective_styles}}</p>
             @if(result.generation_mode?.effective_mode==='conditioned'){
             <p class="muted">
@@ -365,7 +369,7 @@
               Samples mixed after generation. {{result.generation_mode.fallback_reason || ''}}
             </p>
             }
-            <mm-audio [label]="result.song.name" [media]="result.audio" /><mm-download
+            <troglodaw-audio [label]="result.song.name" [media]="result.audio" /><troglodaw-download
               label="MP3"
               [media]="result.download"
             />
@@ -376,7 +380,10 @@
                 The complete arrangement before music generation or post-generation mixing. Original
                 clips and individual samples are also available in Library.
               </p>
-              <mm-audio label="Transformed sample arrangement" [media]="result.arrangement_audio" />
+              <troglodaw-audio
+                label="Transformed sample arrangement"
+                [media]="result.arrangement_audio"
+              />
             </details>
             }
             <div class="actions">
@@ -453,7 +460,7 @@
               <span>Unearthed from your library</span><span aria-hidden="true">↗</span>
             </div>
             <h3>{{song.name}}</h3>
-            <mm-audio [label]="song.name" [media]="libraryAudio" /><button
+            <troglodaw-audio [label]="song.name" [media]="libraryAudio" /><button
               type="button"
               class="primary"
               (click)="addAudio(song)"
@@ -480,7 +487,7 @@
             <details class="code-panel">
               <summary>Inspect saved recipe and audio assets</summary>
               <pre>{{selectedRecipe}}</pre>
-              @for(asset of libraryAssets;track asset.label){ @if(asset.media){<mm-audio
+              @for(asset of libraryAssets;track asset.label){ @if(asset.media){<troglodaw-audio
                 [label]="asset.label"
                 [media]="asset.media"
               />}@else{
@@ -527,7 +534,10 @@
               @for(group of fx.groups;track group.id){
               <option [value]="group.id">{{group.name}}</option>
               }</select
-            ><mm-audio label="Solo selected voice group" [media]="currentGroup?.audio || null" />
+            ><troglodaw-audio
+              label="Solo selected voice group"
+              [media]="currentGroup?.audio || null"
+            />
           </div>
           <details class="group">
             <summary>Correct voice groups</summary>
@@ -560,7 +570,7 @@
               Only the selected group changes. Stretch and trim keep fixed timeline slots; tails end
               at their slot boundary.
             </p>
-            @for(control of fxFields.slice(0,3);track control.key){<mm-field
+            @for(control of fxFields.slice(0,3);track control.key){<troglodaw-field
               [field]="control"
               [value]="fxValue(control)"
               (valueChange)="setFx(control.key,$event)"
@@ -568,7 +578,7 @@
             <details>
               <summary>Detailed effects</summary>
               <div class="stack options">
-                @for(control of fxFields.slice(3);track control.key){<mm-field
+                @for(control of fxFields.slice(3);track control.key){<troglodaw-field
                   [field]="control"
                   [value]="fxValue(control)"
                   (valueChange)="setFx(control.key,$event)"
@@ -585,7 +595,7 @@
               </button>
             </div>
           </div>
-          <mm-audio label="FX remix" [media]="fxPreview || fx.audio" />
+          <troglodaw-audio label="FX remix" [media]="fxPreview || fx.audio" />
         </div>
       </div>
       }

@@ -1,5 +1,5 @@
 [project]
-name = "musicmaker"
+name = "troglodaw"
 version = "0.0.0" # Development metadata; released installer versions come from semantic-release.
 requires-python = ">=3.12,<3.13"
 dependencies = [

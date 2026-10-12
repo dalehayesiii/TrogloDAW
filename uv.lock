@@ -454,96 +454,6 @@ wheels = [
 ]
 
 [[package]]
-name = "musicmaker"
-version = "0.0.0"
-source = { virtual = "." }
-dependencies = [
-    { name = "fastapi" },
-    { name = "imageio-ffmpeg" },
-    { name = "numpy" },
-    { name = "pedalboard" },
-    { name = "python-multipart" },
-    { name = "scipy" },
-    { name = "soundfile" },
-    { name = "uvicorn" },
-]
-
-[package.optional-dependencies]
-inference = [
-    { name = "accelerate" },
-    { name = "diffusers" },
-    { name = "einops" },
-    { name = "huggingface-hub" },
-    { name = "loguru" },
-    { name = "numba" },
-    { name = "psutil" },
-    { name = "pyyaml" },
-    { name = "speechbrain" },
-    { name = "torch", version = "2.7.1", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform != 'win32'" },
-    { name = "torch", version = "2.7.1+cu128", source = { registry = "https://download.pytorch.org/whl/cu128" }, marker = "sys_platform == 'win32'" },
-    { name = "torchaudio", version = "2.7.1", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform != 'win32'" },
-    { name = "torchaudio", version = "2.7.1+cu128", source = { registry = "https://download.pytorch.org/whl/cu128" }, marker = "sys_platform == 'win32'" },
-    { name = "torchvision", version = "0.22.1", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform != 'win32'" },
-    { name = "torchvision", version = "0.22.1+cu128", source = { registry = "https://download.pytorch.org/whl/cu128" }, marker = "sys_platform == 'win32'" },
-    { name = "transformers" },
-    { name = "vector-quantize-pytorch" },
-]
-
-[package.dev-dependencies]
-dev = [
-    { name = "httpx" },
-    { name = "packaging" },
-    { name = "pefile" },
-    { name = "pillow" },
-    { name = "pytest" },
-    { name = "ruff" },
-    { name = "ty" },
-    { name = "uv" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "accelerate", marker = "extra == 'inference'", specifier = "==1.15.0" },
-    { name = "diffusers", marker = "extra == 'inference'", specifier = "==0.39.0" },
-    { name = "einops", marker = "extra == 'inference'", specifier = "==0.8.2" },
-    { name = "fastapi", specifier = ">=0.115,<1" },
-    { name = "huggingface-hub", marker = "extra == 'inference'", specifier = "==0.36.2" },
-    { name = "imageio-ffmpeg", specifier = ">=0.5" },
-    { name = "loguru", marker = "extra == 'inference'", specifier = "==0.7.3" },
-    { name = "numba", marker = "extra == 'inference'", specifier = "==0.63.1" },
-    { name = "numpy", specifier = ">=1.26" },
-    { name = "pedalboard", specifier = ">=0.9.8" },
-    { name = "psutil", marker = "extra == 'inference'", specifier = "==7.2.2" },
-    { name = "python-multipart", specifier = ">=0.0.18,<1" },
-    { name = "pyyaml", marker = "extra == 'inference'", specifier = "==6.0.3" },
-    { name = "scipy", specifier = ">=1.11" },
-    { name = "soundfile", specifier = ">=0.12" },
-    { name = "speechbrain", marker = "extra == 'inference'", specifier = "==1.0.3" },
-    { name = "torch", marker = "sys_platform == 'win32' and extra == 'inference'", specifier = "==2.7.1", index = "https://download.pytorch.org/whl/cu128" },
-    { name = "torch", marker = "sys_platform != 'win32' and extra == 'inference'", specifier = "==2.7.1" },
-    { name = "torchaudio", marker = "sys_platform == 'win32' and extra == 'inference'", specifier = "==2.7.1", index = "https://download.pytorch.org/whl/cu128" },
-    { name = "torchaudio", marker = "sys_platform != 'win32' and extra == 'inference'", specifier = "==2.7.1" },
-    { name = "torchvision", marker = "sys_platform == 'win32' and extra == 'inference'", specifier = "==0.22.1", index = "https://download.pytorch.org/whl/cu128" },
-    { name = "torchvision", marker = "sys_platform != 'win32' and extra == 'inference'", specifier = "==0.22.1" },
-    { name = "transformers", marker = "extra == 'inference'", specifier = "==4.57.6" },
-    { name = "uvicorn", specifier = ">=0.30,<1" },
-    { name = "vector-quantize-pytorch", marker = "extra == 'inference'", specifier = "==1.31.6" },
-]
-provides-extras = ["inference"]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "httpx", specifier = "==0.28.1" },
-    { name = "packaging", specifier = "==26.3" },
-    { name = "pefile", specifier = "==2024.8.26" },
-    { name = "pillow", specifier = "==12.3.0" },
-    { name = "pytest", specifier = "==8.4.2" },
-    { name = "ruff", specifier = "==0.14.0" },
-    { name = "ty", specifier = "==0.0.86" },
-    { name = "uv", specifier = "==0.13.0" },
-]
-
-[[package]]
 name = "networkx"
 version = "3.7"
 source = { registry = "https://pypi.org/simple" }
@@ -1352,6 +1262,96 @@ dependencies = [
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/24/5f/950fb373bf9c01ad4eb5a8cd5eaf32cdf9e238c02f9293557a2129b9c4ac/triton-3.3.1-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:9999e83aba21e1a78c1f36f21bce621b77bcaa530277a50484a7cb4a822f6e43", size = 155669138, upload-time = "2025-05-29T23:39:51.771Z" },
+]
+
+[[package]]
+name = "troglodaw"
+version = "0.0.0"
+source = { virtual = "." }
+dependencies = [
+    { name = "fastapi" },
+    { name = "imageio-ffmpeg" },
+    { name = "numpy" },
+    { name = "pedalboard" },
+    { name = "python-multipart" },
+    { name = "scipy" },
+    { name = "soundfile" },
+    { name = "uvicorn" },
+]
+
+[package.optional-dependencies]
+inference = [
+    { name = "accelerate" },
+    { name = "diffusers" },
+    { name = "einops" },
+    { name = "huggingface-hub" },
+    { name = "loguru" },
+    { name = "numba" },
+    { name = "psutil" },
+    { name = "pyyaml" },
+    { name = "speechbrain" },
+    { name = "torch", version = "2.7.1", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform != 'win32'" },
+    { name = "torch", version = "2.7.1+cu128", source = { registry = "https://download.pytorch.org/whl/cu128" }, marker = "sys_platform == 'win32'" },
+    { name = "torchaudio", version = "2.7.1", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform != 'win32'" },
+    { name = "torchaudio", version = "2.7.1+cu128", source = { registry = "https://download.pytorch.org/whl/cu128" }, marker = "sys_platform == 'win32'" },
+    { name = "torchvision", version = "0.22.1", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform != 'win32'" },
+    { name = "torchvision", version = "0.22.1+cu128", source = { registry = "https://download.pytorch.org/whl/cu128" }, marker = "sys_platform == 'win32'" },
+    { name = "transformers" },
+    { name = "vector-quantize-pytorch" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "httpx" },
+    { name = "packaging" },
+    { name = "pefile" },
+    { name = "pillow" },
+    { name = "pytest" },
+    { name = "ruff" },
+    { name = "ty" },
+    { name = "uv" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "accelerate", marker = "extra == 'inference'", specifier = "==1.15.0" },
+    { name = "diffusers", marker = "extra == 'inference'", specifier = "==0.39.0" },
+    { name = "einops", marker = "extra == 'inference'", specifier = "==0.8.2" },
+    { name = "fastapi", specifier = ">=0.115,<1" },
+    { name = "huggingface-hub", marker = "extra == 'inference'", specifier = "==0.36.2" },
+    { name = "imageio-ffmpeg", specifier = ">=0.5" },
+    { name = "loguru", marker = "extra == 'inference'", specifier = "==0.7.3" },
+    { name = "numba", marker = "extra == 'inference'", specifier = "==0.63.1" },
+    { name = "numpy", specifier = ">=1.26" },
+    { name = "pedalboard", specifier = ">=0.9.8" },
+    { name = "psutil", marker = "extra == 'inference'", specifier = "==7.2.2" },
+    { name = "python-multipart", specifier = ">=0.0.18,<1" },
+    { name = "pyyaml", marker = "extra == 'inference'", specifier = "==6.0.3" },
+    { name = "scipy", specifier = ">=1.11" },
+    { name = "soundfile", specifier = ">=0.12" },
+    { name = "speechbrain", marker = "extra == 'inference'", specifier = "==1.0.3" },
+    { name = "torch", marker = "sys_platform == 'win32' and extra == 'inference'", specifier = "==2.7.1", index = "https://download.pytorch.org/whl/cu128" },
+    { name = "torch", marker = "sys_platform != 'win32' and extra == 'inference'", specifier = "==2.7.1" },
+    { name = "torchaudio", marker = "sys_platform == 'win32' and extra == 'inference'", specifier = "==2.7.1", index = "https://download.pytorch.org/whl/cu128" },
+    { name = "torchaudio", marker = "sys_platform != 'win32' and extra == 'inference'", specifier = "==2.7.1" },
+    { name = "torchvision", marker = "sys_platform == 'win32' and extra == 'inference'", specifier = "==0.22.1", index = "https://download.pytorch.org/whl/cu128" },
+    { name = "torchvision", marker = "sys_platform != 'win32' and extra == 'inference'", specifier = "==0.22.1" },
+    { name = "transformers", marker = "extra == 'inference'", specifier = "==4.57.6" },
+    { name = "uvicorn", specifier = ">=0.30,<1" },
+    { name = "vector-quantize-pytorch", marker = "extra == 'inference'", specifier = "==1.31.6" },
+]
+provides-extras = ["inference"]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "httpx", specifier = "==0.28.1" },
+    { name = "packaging", specifier = "==26.3" },
+    { name = "pefile", specifier = "==2024.8.26" },
+    { name = "pillow", specifier = "==12.3.0" },
+    { name = "pytest", specifier = "==8.4.2" },
+    { name = "ruff", specifier = "==0.14.0" },
+    { name = "ty", specifier = "==0.0.86" },
+    { name = "uv", specifier = "==0.13.0" },
 ]
 
 [[package]]

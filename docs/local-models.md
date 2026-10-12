@@ -4,7 +4,7 @@ Generation uses ACE-Step 1.5 Base locally. The Windows installer contains the
 browser interface, Python, core DSP and the pinned uv setup tool; it does not
 contain model weights. On first launch, Settings offers explicit model setup.
 Choose the model folder before installing. By default it is `models` beside the
-configured library (Windows: `Documents/MusicMaker/models`). Library and model
+configured library (Windows: `Documents/TrogloDAW/models`). Library and model
 storage may use different drives. All provider/runtime caches follow the model
 folder. No cloud generation, audio upload or API key is involved.
 
@@ -32,7 +32,7 @@ Opening another model folder verifies/reuses its assets. Relocation copies and
 hash-verifies the complete folder before changing the preference, retaining the
 original recovery copy. Shared co-owner manifests stay associated with the old
 root. Do not delete the recovery copy until the new location works. The app
-cannot change a library location while an explicit `MM_LIBRARY` override applies.
+cannot change a library location while an explicit `TROGLODAW_LIBRARY` override applies.
 Uninstall offers **Remove installed model assets**, checked by default. Cleanup
 removes only unchanged files recorded as owned by this installation, including
 owned runtime/cache files. Other installations' references, externally supplied

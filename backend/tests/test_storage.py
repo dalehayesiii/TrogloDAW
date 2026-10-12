@@ -40,9 +40,9 @@ def test_interrupted_relocation_keeps_original(tmp_path):
 
 def test_storage_preferences_survive_restart(core, tmp_path, monkeypatch):
     storage = Storage(core)
-    with pytest.raises(ValueError, match="MM_LIBRARY"):
+    with pytest.raises(ValueError, match="TROGLODAW_LIBRARY"):
         storage.change("library", str(tmp_path / "elsewhere"), "open", lambda *_: None)
-    monkeypatch.delenv("MM_LIBRARY")
+    monkeypatch.delenv("TROGLODAW_LIBRARY")
     new = tmp_path / "new library"
     storage.change("library", str(new), "relocate", lambda *_: None)
     models = tmp_path / "model folder"

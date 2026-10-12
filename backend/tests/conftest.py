@@ -13,12 +13,12 @@ from songs import Songs
 
 @pytest.fixture
 def core(tmp_path, monkeypatch):
-    monkeypatch.setenv("MM_LIBRARY", str(tmp_path / "library"))
-    monkeypatch.setenv("MM_CONFIG_DIR", str(tmp_path))
-    for key in ("MM_FFMPEG", "MM_HOST", "MM_PORT"):
+    monkeypatch.setenv("TROGLODAW_LIBRARY", str(tmp_path / "library"))
+    monkeypatch.setenv("TROGLODAW_CONFIG_DIR", str(tmp_path))
+    for key in ("TROGLODAW_FFMPEG", "TROGLODAW_HOST", "TROGLODAW_PORT"):
         monkeypatch.delenv(key, raising=False)
-    sys.modules.pop("mmcore", None)
-    return importlib.import_module("mmcore")
+    sys.modules.pop("troglocore", None)
+    return importlib.import_module("troglocore")
 
 
 @pytest.fixture

@@ -11,14 +11,14 @@ PYTHON=python3
 [[ "$OSTYPE" == msys* ]] && PYTHON=python
 cfg() { "$PYTHON" "$HERE/cfg.py" "$REPO" "$1" "$2" "$3"; }
 
-VENV="$(cfg build.venv MM_BUILD_VENV "$REPO/.venv")"
-WORK="$(cfg build.work_dir MM_BUILD_WORK_DIR "$HERE/work")"
-CACHE="$(cfg build.cache_dir MM_BUILD_CACHE_DIR "$HERE/cache")"
-OUT="$(cfg build.output MM_BUILD_OUTPUT "$REPO/dist/TrogloDAW-Setup.exe")"
-PARTS="$(cfg build.parts_dir MM_BUILD_PARTS_DIR "")"
-PYV="$(cfg build.python_embed_version MM_PYTHON_EMBED_VERSION "3.12.10")"
-VERSION="${MM_VERSION:-0.0.0}"
-[[ "$VERSION" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] || { echo "MM_VERSION must be a stable semantic version"; exit 1; }
+VENV="$(cfg build.venv TROGLODAW_BUILD_VENV "$REPO/.venv")"
+WORK="$(cfg build.work_dir TROGLODAW_BUILD_WORK_DIR "$HERE/work")"
+CACHE="$(cfg build.cache_dir TROGLODAW_BUILD_CACHE_DIR "$HERE/cache")"
+OUT="$(cfg build.output TROGLODAW_BUILD_OUTPUT "$REPO/dist/TrogloDAW-Setup.exe")"
+PARTS="$(cfg build.parts_dir TROGLODAW_BUILD_PARTS_DIR "")"
+PYV="$(cfg build.python_embed_version TROGLODAW_PYTHON_EMBED_VERSION "3.12.10")"
+VERSION="${TROGLODAW_VERSION:-0.0.0}"
+[[ "$VERSION" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] || { echo "TROGLODAW_VERSION must be a stable semantic version"; exit 1; }
 PY="$VENV/bin/python"; UV="$VENV/bin/uv"
 if [[ -f "$VENV/Scripts/python.exe" ]]; then
     PY="$VENV/Scripts/python.exe"; UV="$VENV/Scripts/uv.exe"
@@ -30,7 +30,7 @@ mkdir -p "$CACHE" "$WORK" "$(dirname "$OUT")"
 ZIP="$CACHE/python-$PYV-embed-amd64.zip"
 [ -f "$ZIP" ] || curl -fL -o "$ZIP" "https://www.python.org/ftp/python/$PYV/python-$PYV-embed-amd64.zip"
 
-S="$WORK/stage/MusicMaker"; SP="$S/python/Lib/site-packages"
+S="$WORK/stage/TrogloDAW"; SP="$S/python/Lib/site-packages"
 rm -rf "$WORK/stage" && mkdir -p "$S/python" "$S/app"
 "$PY" -m zipfile -e "$ZIP" "$S/python"
 PTH=$(ls "$S/python"/python3*._pth)
@@ -45,7 +45,7 @@ rm -rf "$SP/bin"; find "$SP/numpy" "$SP/scipy" -type d -name tests -prune -exec 
 cp "$SP"/numpy.libs/msvcp140-*.dll "$S/python/msvcp140.dll"
 
 mkdir -p "$S/app/backend"
-cp "$REPO/backend"/{mmcore.py,cli.py,app.py,storage.py,models.py,songs.py,arrangement.py,inference_runner.py} "$S/app/backend/"
+cp "$REPO/backend"/{troglocore.py,cli.py,app.py,storage.py,models.py,songs.py,arrangement.py,inference_runner.py} "$S/app/backend/"
 mkdir -p "$S/app/config"
 cp "$REPO/config/model-manifest.json" "$S/app/config/"
 cp "$REPO"/{pyproject.toml,uv.lock} "$S/app/"
@@ -58,7 +58,7 @@ cp -r "$REPO/frontend/dist/browser" "$S/app/frontend/dist/"
 mkdir -p "$S/app/docs"
 cp -r "$REPO/docs/licenses" "$S/app/docs/licenses"
 cp "$REPO"/cicd/windows/launchers/* "$S/"
-"$PY" "$HERE/make_icon.py" "$S/musicmaker.ico"
+"$PY" "$HERE/make_icon.py" "$S/troglodaw.ico"
 "$PY" "$HERE/validate.py" "$S"
 
 [[ "${1:-}" == --stage-only ]] && exit 0
@@ -66,6 +66,6 @@ cp "$REPO"/cicd/windows/launchers/* "$S/"
 ls -la "$OUT"; sha256sum "$OUT"
 if [ -n "$PARTS" ]; then
     rm -rf "$PARTS" && mkdir -p "$PARTS"
-    split -b 15M -d -a 2 "$OUT" "$PARTS/mm.part"
+    split -b 15M -d -a 2 "$OUT" "$PARTS/troglodaw.part"
     ls -l "$PARTS"
 fi

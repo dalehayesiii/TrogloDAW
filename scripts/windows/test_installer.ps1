@@ -1,14 +1,14 @@
 # Exercise native install/upgrade/uninstall and the actual embedded browser service.
 $ErrorActionPreference = 'Stop'
 $testWork = if ($env:RUNNER_TEMP) { $env:RUNNER_TEMP } else { [System.IO.Path]::GetTempPath() }
-$testRoot = [System.IO.Path]::GetFullPath((Join-Path $testWork ('MusicMaker-check-' + [System.Guid]::NewGuid().ToString('N'))))
+$testRoot = [System.IO.Path]::GetFullPath((Join-Path $testWork ('TrogloDAW-check-' + [System.Guid]::NewGuid().ToString('N'))))
 if (-not $testRoot.StartsWith([System.IO.Path]::GetFullPath($testWork).TrimEnd('\') + '\')) { throw 'Unsafe installer test root' }
 $installRoot = Join-Path $testRoot 'installed'
 $modelRoot = Join-Path $testRoot 'models with spaces'
 $libraryRoot = Join-Path $testRoot 'library'
 New-Item -ItemType Directory -Path $testRoot,$modelRoot,$libraryRoot -Force | Out-Null
 # Restore pre-existing registration and shortcuts even after a failed test.
-$registryPaths = @('HKCU:/Software/MusicMaker','HKCU:/Software/Microsoft/Windows/CurrentVersion/Uninstall/MusicMaker')
+$registryPaths = @('HKCU:/Software/TrogloDAW','HKCU:/Software/Microsoft/Windows/CurrentVersion/Uninstall/TrogloDAW')
 $registryBackup = @{}
 foreach ($path in $registryPaths) {
     if (Test-Path -LiteralPath $path) {
@@ -18,7 +18,7 @@ foreach ($path in $registryPaths) {
 }
 $desktopRoot = [Environment]::GetFolderPath('Desktop')
 $programsRoot = [Environment]::GetFolderPath('Programs')
-$shortcutPaths = @((Join-Path $desktopRoot 'Music Maker.lnk'),(Join-Path $programsRoot 'Music Maker'),(Join-Path $desktopRoot 'TrogloDAW.lnk'),(Join-Path $programsRoot 'TrogloDAW'))
+$shortcutPaths = @((Join-Path $desktopRoot 'TrogloDAW.lnk'),(Join-Path $programsRoot 'TrogloDAW'))
 foreach ($path in $shortcutPaths) {
     $parent = [System.IO.Path]::GetDirectoryName([System.IO.Path]::GetFullPath($path))
     if ($parent -notin @($desktopRoot,$programsRoot)) { throw 'Unsafe shortcut test path' }
@@ -43,26 +43,21 @@ function Uninstall-TestApp($keepModels) {
     if ($process.ExitCode -or (Test-Path (Join-Path $installRoot 'python'))) { throw 'Native uninstall failed' }
 }
 try {
-    if ((Get-FileHash ./dist/TrogloDAW-Setup.exe).Hash -ne (Get-FileHash ./dist/MusicMaker-Setup.exe).Hash) { throw 'Compatibility installer differs' }
-    $legacyFolder = Join-Path $programsRoot 'Music Maker'
-    New-Item -ItemType Directory -Path $legacyFolder -Force | Out-Null
-    $shell = New-Object -ComObject WScript.Shell
-    $legacyShortcut = $shell.CreateShortcut((Join-Path $legacyFolder 'Music Maker.lnk'))
-    $legacyShortcut.TargetPath = Join-Path $installRoot 'python/pythonw.exe'
-    $legacyShortcut.Save()
-    $customShortcut = Join-Path $legacyFolder 'Custom entry.txt'
-    [System.IO.File]::WriteAllText($customShortcut,'Synthetic custom entry; preserved during branding migration')
+    $programFolder = Join-Path $programsRoot 'TrogloDAW'
+    New-Item -ItemType Directory -Path $programFolder -Force | Out-Null
+    $customShortcut = Join-Path $programFolder 'Custom entry.txt'
+    [System.IO.File]::WriteAllText($customShortcut,'Synthetic custom entry; preserved during installation')
     Install-TestApp
-    if ((Test-Path (Join-Path $legacyFolder 'Music Maker.lnk')) -or -not (Test-Path $customShortcut) -or -not (Test-Path (Join-Path $desktopRoot 'TrogloDAW.lnk'))) { throw 'Shortcut branding migration failed' }
+    if (-not (Test-Path (Join-Path $programFolder 'TrogloDAW.lnk')) -or -not (Test-Path $customShortcut) -or -not (Test-Path (Join-Path $desktopRoot 'TrogloDAW.lnk'))) { throw 'TrogloDAW shortcut installation failed' }
     if ((Get-ItemProperty $registryPaths[1]).DisplayName -ne 'TrogloDAW') { throw 'Uninstall display branding differs' }
     $python = Join-Path $installRoot 'python/python.exe'
-    $env:MM_LIBRARY = $libraryRoot
-    & (Join-Path $installRoot 'mm.bat') demo
+    $env:TROGLODAW_LIBRARY = $libraryRoot
+    & (Join-Path $installRoot 'troglodaw.bat') demo
     if ($LASTEXITCODE) { throw 'Embedded CLI demo failed' }
     & $python scripts/smoke_producer.py
     if ($LASTEXITCODE) { throw 'Embedded producer failed' }
-    $env:MM_TEST_PYTHON = $python
-    $env:MM_TEST_APP = Join-Path $installRoot 'app/backend/app.py'
+    $env:TROGLODAW_TEST_PYTHON = $python
+    $env:TROGLODAW_TEST_APP = Join-Path $installRoot 'app/backend/app.py'
     npm run e2e
     if ($LASTEXITCODE) { throw 'Installed Angular UI / Python service failed' }
     $manifest = Get-Content dist/release.json -Raw | ConvertFrom-Json
@@ -104,5 +99,5 @@ try {
         if (Test-Path -LiteralPath $path) { Remove-Item -LiteralPath $path -Recurse -Force }
         if ($shortcutBackup.ContainsKey($path)) { Copy-Item -LiteralPath $shortcutBackup[$path] -Destination $path -Recurse }
     }
-    Remove-Item Env:MM_TEST_PYTHON,Env:MM_TEST_APP -ErrorAction SilentlyContinue
+    Remove-Item Env:TROGLODAW_TEST_PYTHON,Env:TROGLODAW_TEST_APP -ErrorAction SilentlyContinue
 }

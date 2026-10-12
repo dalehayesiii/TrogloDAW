@@ -6,7 +6,7 @@ from fastapi.testclient import TestClient
 
 from app import create_app
 
-HEADERS = {"X-MusicMaker-Request": "1"}
+HEADERS = {"X-TrogloDAW-Request": "1"}
 
 
 def job(client, action, values):

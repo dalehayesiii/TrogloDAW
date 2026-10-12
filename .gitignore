@@ -84,9 +84,10 @@ parts/
 *.ico
 *.png
 *.jpg
-mm.part*
+troglodaw.part*
 winetricks
 !docs/ui-parity/**/*.png
+!docs/assets/*.png
 
 # ---- editors / OS ----
 .vscode/
