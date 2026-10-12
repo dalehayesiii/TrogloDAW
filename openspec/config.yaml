@@ -4,7 +4,8 @@ context: |
   Runtime stays offline Python/FastAPI with local DSP and compiled Angular/Tailwind.
   Preserve Generation, Library and Vocal FX; detailed controls use progressive disclosure.
   Runtime inference is offline after explicit verified setup in selected model storage.
-  Visual theming and calibrated ETAs follow the separate roadmap changes.
+  TrogloDAW uses semantic light/dark themes; preserve requested workflow controls.
+  Calibrated ETAs and startup updates follow their separate roadmap changes.
   Windows target is x64 embedded Python 3.12.10; Node builds static assets only.
   Use uv/pyproject/uv.lock, Ruff/ty/pytest and ESLint/Vitest/Playwright.
   Code: frontend/ and backend/; helpers: scripts/; dev config: config/;

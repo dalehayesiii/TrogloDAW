@@ -1,4 +1,4 @@
-# Local model setup and measured limits
+# TrogloDAW Local model setup and measured limits
 
 Generation uses ACE-Step 1.5 Base locally. The Windows installer contains the
 browser interface, Python, core DSP and the pinned uv setup tool; it does not

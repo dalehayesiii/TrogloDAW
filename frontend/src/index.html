@@ -2,7 +2,24 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <title>musicmaker</title>
+    <title>TrogloDAW</title>
+    <meta
+      name="description"
+      content="Local music creation, song libraries and vocal effects with TrogloDAW."
+    />
+    <script>
+      (() => {
+        let mode = 'system';
+        try {
+          mode = localStorage.getItem('troglodaw-theme') || 'system';
+        } catch {}
+        const dark =
+          mode === 'dark' ||
+          (mode !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches);
+        document.documentElement.classList.toggle('dark', dark);
+        document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+      })();
+    </script>
     <base href="/" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
   </head>

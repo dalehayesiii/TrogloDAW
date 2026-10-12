@@ -1,4 +1,4 @@
-# CI and releases
+# TrogloDAW CI and releases
 
 ```mermaid
 flowchart LR
@@ -82,12 +82,12 @@ releases. The initial main attempt failed in note rendering before any tag was m
 | File | Project-specific contract | Reused tools underneath |
 | --- | --- | --- |
 | `scripts/check_specs.py` | Completed change must be archived in the implementation PR; proposal-only label is exceptional; no unfinished archived tasks | OpenSpec CLI separately validates spec structure; it does not enforce this delivery policy |
-| `scripts/smoke_producer.py` | A synthetic vocal must produce a finished song in this app | Music Maker's own DSP/CLI |
+| `scripts/smoke_producer.py` | A synthetic vocal must produce a finished song in this app | TrogloDAW's own DSP/CLI |
 | `scripts/windows/build.sh` | Assemble this app's embedded Python, static UI, licenses, ffmpeg and MSVC runtime | uv's locked export/hash/wheel installation, Python zipfile, NSIS |
 | `scripts/windows/package.py` | Give NSIS the official version and checked payload with native arguments, then record the artifact | NSIS, Python subprocess, semantic-release exec, SHA-256 |
 | `scripts/windows/test_installer.ps1` | Install this EXE; prove its CLI, producer, UI and displayed version work | NSIS silent install and Playwright |
 | `scripts/windows/validate.py` | Existing embedded-bundle architecture/DLL/ffmpeg checks | pefile and packaging |
-| `scripts/windows/cfg.py` / `make_icon.py` | Existing local build settings and Music Maker icon | Python JSON and Pillow |
+| `scripts/windows/cfg.py` / `make_icon.py` | Existing local build settings and TrogloDAW icon | Python JSON and Pillow |
 | `scripts/build_manifest.py` / `release-guard.mjs` | Associate this EXE with checked source/version and reject changed/mismatched artifacts before tagging | SHA-256, Git, semantic-release prepare lifecycle |
 
 The custom Python PR validator and custom next-version planner were removed.

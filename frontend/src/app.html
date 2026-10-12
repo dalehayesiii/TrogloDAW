@@ -1,8 +1,17 @@
 <main class="flex min-h-screen flex-col" (input)="saveDraft()">
   <header class="app-header">
     <div>
-      <h1>🎛️ musicmaker</h1>
-      <p>Create a song · organize your library · shape each voice</p>
+      <div class="identity">
+        <svg class="brand-mark" viewBox="0 0 64 64" aria-hidden="true" focusable="false">
+          <path class="brand-stone" d="M8 53 5 32 13 12 31 5 51 12 59 34 55 54 40 59 22 57Z" />
+          <path class="brand-cave" d="M18 49V34C18 15 47 15 47 34V49Z" />
+          <path class="brand-wave" d="M23 35V42M29 29V47M35 33V44M41 36V41" />
+        </svg>
+        <div>
+          <h1>TrogloDAW</h1>
+          <p>Make a song. Keep the good bits.</p>
+        </div>
+      </div>
     </div>
     <div class="actions">
       <button type="button" (click)="openDialog('storage')">Settings</button
@@ -288,6 +297,7 @@
                 type="button"
                 class="song-row"
                 [class.selected]="selectedSong===song.id"
+                [attr.aria-pressed]="selectedSong===song.id"
                 (click)="selectSong(song)"
               >
                 <strong>{{song.name}}</strong
@@ -464,6 +474,12 @@
     }
     <div class="stack">
       @switch(dialogKind){ @case('storage'){
+      <div class="appearance-choice">
+        <span>Appearance: {{theme}} {{appearance==='system' ? '(system)' : '(saved choice)'}}</span
+        ><button type="button" (click)="useSystemTheme()" [disabled]="appearance==='system'">
+          Use system theme
+        </button>
+      </div>
       <p>
         {{library.models.ready ? 'The selected model is ready for local generation.' : 'Install a
         local model once. Generation then works offline. You can use the app and return to setup

@@ -6,7 +6,7 @@ set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"; REPO="$(cd "$HERE/../.." && pwd)"
 cfg() { python3 "$HERE/cfg.py" "$REPO" "$1" "$2" "$3"; }
 export WINEPREFIX="$(cfg build.wine_prefix MM_WINE_PREFIX "$HERE/work/wineprefix")" WINEDEBUG=-all
-OUT="$(cfg build.output MM_BUILD_OUTPUT "$REPO/dist/MusicMaker-Setup.exe")"
+OUT="$(cfg build.output MM_BUILD_OUTPUT "$REPO/dist/TrogloDAW-Setup.exe")"
 VOCAL="$(cfg build.test_vocal MM_TEST_VOCAL "")"
 CACHE="$(cfg build.cache_dir MM_BUILD_CACHE_DIR "$HERE/cache")"
 command -v wine >/dev/null || { echo "wine not installed"; exit 1; }

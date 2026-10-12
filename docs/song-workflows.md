@@ -1,6 +1,6 @@
-# Song workflows
+# TrogloDAW Song workflows
 
-The browser has three tabs: **Generation**, **Library** and **Vocal FX**. Settings
+TrogloDAW has three browser tabs: **Generation**, **Library** and **Vocal FX**. Settings
 contains the initial model setup and separate library/model locations. After setup,
 audio processing and storage work offline. See [model setup and measured limits](local-models.md).
 

@@ -1,4 +1,4 @@
-"""Version a checked Music Maker payload with native NSIS arguments, then record its checksum."""
+"""Version a checked TrogloDAW payload with native NSIS arguments, then record its checksum."""
 
 import os
 import re
@@ -21,7 +21,7 @@ def setting(key: str, env: str, default: str) -> str:
 
 work = Path(setting("build.work_dir", "MM_BUILD_WORK_DIR", str(repo / "scripts/windows/work")))
 stage = work / "stage/MusicMaker"
-output = Path(setting("build.output", "MM_BUILD_OUTPUT", str(repo / "dist/MusicMaker-Setup.exe")))
+output = Path(setting("build.output", "MM_BUILD_OUTPUT", str(repo / "dist/TrogloDAW-Setup.exe")))
 install = setting("windows.install_dir", "MM_WIN_INSTALL_DIR", r"$LOCALAPPDATA\MusicMaker")
 library = setting("windows.library_dir", "MM_WIN_LIBRARY_DIR", r"$DOCUMENTS\MusicMaker\library")
 if not (stage / "app/frontend/dist/browser/index.html").is_file():

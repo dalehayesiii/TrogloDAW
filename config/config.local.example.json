@@ -1,6 +1,6 @@
 {
   "_comment": "Copy to config.local.json (gitignored) for machine-specific settings. Precedence: env vars > config.local.json > config.json > defaults.",
-  "library_dir": "/path/to/your/musicmaker-library",
+  "library_dir": "/path/to/your/troglodaw-library",
   "ffmpeg": null,
   "host": "127.0.0.1",
   "port": 7860,
@@ -8,7 +8,7 @@
     "venv": "/path/to/a/venv-with-uv-pefile-packaging-pillow",
     "work_dir": "/path/to/build-work-dir",
     "cache_dir": "/path/to/download-cache",
-    "output": "/path/to/output/MusicMaker-Setup.exe",
+    "output": "/path/to/output/TrogloDAW-Setup.exe",
     "parts_dir": "",
     "python_embed_version": "3.12.10",
     "wine_prefix": "/path/to/wineprefix",

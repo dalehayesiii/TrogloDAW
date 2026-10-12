@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import AxeBuilder from '@axe-core/playwright';
 import { execFileSync } from 'node:child_process';
 
 const headers = { 'X-MusicMaker-Request': '1' };
@@ -223,6 +224,68 @@ test('real browser recording supports keep, discard and individual retakes', asy
   await page.getByRole('button', { name: 'Keep this take', exact: true }).click();
   await expect(page.locator('.clip-card')).toHaveCount(1);
   await context.close();
+});
+
+test('system appearance, saved override, waveform repaint and accessible themed workflows', async ({
+  page,
+  request,
+}) => {
+  await seed(request);
+  await page.emulateMedia({ colorScheme: 'dark' });
+  await open(page);
+  await expect(page).toHaveTitle('TrogloDAW');
+  await expect(page.getByRole('heading', { name: 'TrogloDAW', exact: true })).toBeVisible();
+  await expect(page.locator('html')).toHaveClass(/dark/);
+  await page.getByLabel('Input Styles', { exact: true }).fill('Keep this theme-test draft');
+  await page.getByRole('button', { name: 'Light mode', exact: true }).click();
+  await page.reload();
+  await page.getByRole('button', { name: 'Set up later', exact: true }).click();
+  await expect(page.locator('html')).not.toHaveClass(/dark/);
+  await expect(page.getByLabel('Input Styles', { exact: true })).toHaveValue(
+    'Keep this theme-test draft',
+  );
+  await page.emulateMedia({ colorScheme: 'light' });
+  await page.emulateMedia({ colorScheme: 'dark' });
+  await expect(page.locator('html')).not.toHaveClass(/dark/);
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await page.getByRole('button', { name: 'Use system theme', exact: true }).click();
+  await expect(page.locator('html')).toHaveClass(/dark/);
+  await page.getByRole('button', { name: 'Set up later', exact: true }).click();
+  await page.emulateMedia({ colorScheme: 'light' });
+  await expect(page.locator('html')).not.toHaveClass(/dark/);
+  const audit = async () => {
+    const result = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21aa'])
+      .analyze();
+    expect(
+      result.violations.map((v) => ({ id: v.id, nodes: v.nodes.map((n) => n.target) })),
+    ).toEqual([]);
+  };
+  for (const theme of ['light', 'dark']) {
+    if (theme === 'dark')
+      await page.getByRole('button', { name: 'Dark mode', exact: true }).click();
+    await page.getByRole('tab', { name: 'Generation', exact: true }).click();
+    await audit();
+    await page.getByRole('button', { name: 'Settings', exact: true }).click();
+    await audit();
+    await page.getByRole('button', { name: 'Set up later', exact: true }).click();
+    await page.getByRole('tab', { name: 'Library', exact: true }).click();
+    await page
+      .getByRole('button', { name: /Synthetic browser song/ })
+      .first()
+      .click();
+    await audit();
+    await page.getByRole('button', { name: 'Edit Vocal FX', exact: true }).click();
+    await expect(page.getByLabel('Voice group', { exact: true })).toBeVisible();
+    await audit();
+  }
+  const canvas = page.locator('#panel-2 canvas').first();
+  const darkImage = await canvas.evaluate((el) => el.toDataURL());
+  await page.getByRole('button', { name: 'Light mode', exact: true }).click();
+  await expect.poll(() => canvas.evaluate((el) => el.toDataURL())).not.toBe(darkImage);
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+  await audit();
 });
 
 test('narrow layout and shutdown stay usable', async ({ page, request }) => {

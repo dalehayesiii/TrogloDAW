@@ -147,6 +147,8 @@ export class AppComponent {
   takeUrl = '';
   retakeIndex = -1;
   theme = 'light';
+  appearance = 'system';
+  private systemAppearance = window.matchMedia('(prefers-color-scheme: dark)');
   fxFields = fxFields;
   generationFields = [
     field('gender', 'Vocal Gender', 'select', '', undefined, undefined, undefined, [
@@ -161,6 +163,14 @@ export class AppComponent {
   ];
   private polling = new Set<string>();
   constructor() {
+    try {
+      this.appearance = localStorage.getItem('troglodaw-theme') || 'system';
+    } catch {}
+    if (!['light', 'dark', 'system'].includes(this.appearance)) this.appearance = 'system';
+    this.applyAppearance();
+    this.systemAppearance.addEventListener('change', () => {
+      if (this.appearance === 'system') this.applyAppearance();
+    });
     try {
       this.draft = {
         ...defaults(),
@@ -748,8 +758,28 @@ export class AppComponent {
     this.discardTake();
   }
   toggleTheme() {
-    this.theme = this.theme === 'light' ? 'dark' : 'light';
+    this.appearance = this.theme === 'light' ? 'dark' : 'light';
+    try {
+      localStorage.setItem('troglodaw-theme', this.appearance);
+    } catch {}
+    this.applyAppearance();
+  }
+  useSystemTheme() {
+    this.appearance = 'system';
+    try {
+      localStorage.removeItem('troglodaw-theme');
+    } catch {}
+    this.applyAppearance();
+  }
+  private applyAppearance() {
+    this.theme =
+      this.appearance === 'dark' || (this.appearance === 'system' && this.systemAppearance.matches)
+        ? 'dark'
+        : 'light';
     document.documentElement.classList.toggle('dark', this.theme === 'dark');
+    document.documentElement.dataset.theme = this.theme;
+    window.dispatchEvent(new Event('troglodaw-theme-change'));
+    this.cdr.markForCheck();
   }
   async quit() {
     this.cleanup();

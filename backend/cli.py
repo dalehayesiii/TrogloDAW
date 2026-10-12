@@ -1,4 +1,4 @@
-"""mm — musicmaker command line."""
+"""mm — TrogloDAW command line (compatible command name retained)."""
 import argparse
 import json
 import sys
@@ -46,7 +46,7 @@ def main(argv=None):
                 reconfigure(encoding="utf-8", errors="replace")
         except Exception:
             pass
-    ap = argparse.ArgumentParser(prog="mm", description="Personal music maker")
+    ap = argparse.ArgumentParser(prog="mm", description="TrogloDAW local music studio")
     sub = ap.add_subparsers(dest="cmd", required=True)
 
     p = sub.add_parser("import", help="import audio files/dirs (any format) into the library")

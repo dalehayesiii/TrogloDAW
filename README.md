@@ -1,4 +1,4 @@
-# musicmaker v1
+# TrogloDAW
 
 Developer workflow, CI, OpenSpec and automated Windows releases:
 [Development guide](docs/development.md). Repository owners should complete
@@ -11,8 +11,8 @@ and [model setup, hardware measurements and limits](docs/local-models.md).
 
 ## Easiest: Windows installer
 
-Run **`MusicMaker-Setup.exe`**. Python is included and no admin rights are needed. It installs to
-`%LOCALAPPDATA%\MusicMaker`, adds **Music Maker** to the Desktop and Start Menu, and keeps your files in
+Run **`TrogloDAW-Setup.exe`**. Python is included and no admin rights are needed. It installs to
+`%LOCALAPPDATA%\MusicMaker`, adds **TrogloDAW** to the Desktop and Start Menu, and keeps your files in
 `Documents\MusicMaker\library` (set in `%LOCALAPPDATA%\MusicMaker\app\config.json`). The app opens in your browser
 and has no console window. Use the **Quit** button to stop it. Initial setup installs the recommended
 model into a folder you choose; weights are not bundled. Uninstall offers removal
@@ -30,9 +30,9 @@ Windows: run **`scripts\launchers\start.bat`**. macOS/Linux: run
 `bash scripts/launchers/start.sh` (or double-click `scripts/launchers/start.command`
 on macOS). The launcher runs `uv sync --locked`, builds the Angular frontend if
 missing, then starts FastAPI and opens **http://127.0.0.1:7860** (or the next free port).
-The first setup needs internet. Leave the terminal open or use **Quit Music Maker**.
+The first setup needs internet. Leave the terminal open or use **Quit**.
 After frontend source changes, run `npm run build` before relaunching.
-The Windows installer includes the compiled UI, Python and its own setup tool;
+The TrogloDAW Windows installer includes the compiled UI, Python and its own setup tool;
 it needs no separately installed uv or Node. Generation needs verified initial
 model setup and the supported hardware described in the model guide.
 
@@ -149,7 +149,7 @@ their seed, so `rerender` reproduces them exactly.
 ## Building the Windows installer
 
 Run `uv sync --locked`, `npm ci --ignore-scripts`, and `npm run build` first.
-`scripts/windows/build.sh` makes a self-contained `MusicMaker-Setup.exe` with embedded
+`scripts/windows/build.sh` makes a self-contained `TrogloDAW-Setup.exe` with embedded
 Python, locked Windows wheels, bundled ffmpeg and the compiled Angular UI. It needs
 NSIS (`apt install nsis` on Linux or `choco install nsis --version=3.11.0` on Windows),
 Python and `curl`; Windows uses Git Bash. Linux cross-builds remain supported.
@@ -171,3 +171,8 @@ See [CI workflow and tool rationale](docs/ci.md).
   not re-timed to the groove. Key detection on speech is unreliable, so spoken vocals get a beat rooted on the speaker's median pitch.
   Pitch correction is a gentle per-note nudge, not hard autotune. Style choice is a heuristic on energy and tempo.
 - Pitch shift and time stretch quality is good for moderate amounts (about ±5 semitones, 0.75-1.3x).
+
+The canonical download is `TrogloDAW-Setup.exe`; `MusicMaker-Setup.exe` remains a
+byte-identical compatibility alias. Existing `%LOCALAPPDATA%\MusicMaker`,
+`Documents\MusicMaker`, `mm` and `MM_*` contracts are retained for upgrades.
+See the [branding and compatibility audit](docs/branding.md).

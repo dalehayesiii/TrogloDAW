@@ -1,7 +1,8 @@
 # user-interfaces Specification
 
 ## Purpose
-Describe the initial browser and command-line interfaces exposing the same offline music library and engine.
+
+Describe TrogloDAW's browser workflows and compatible command-line interface for local music creation, organization and voice editing.
 
 ## Requirements
 

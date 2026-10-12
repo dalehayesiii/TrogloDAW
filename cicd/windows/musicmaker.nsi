@@ -1,11 +1,11 @@
-; Music Maker - per-user Windows installer (no admin required)
+; TrogloDAW - per-user Windows installer (legacy install keys/roots retained)
 Unicode true
 SetCompressor /SOLID lzma
 SetCompressorDictSize 64
 ManifestDPIAware true
 RequestExecutionLevel user
 
-!define APPNAME "Music Maker"
+!define APPNAME "TrogloDAW"
 !define APPKEY "MusicMaker"
 !ifndef VERSION
   !define VERSION "0.0.0"
@@ -15,7 +15,7 @@ RequestExecutionLevel user
   !define STAGE "work\stage\MusicMaker"
 !endif
 !ifndef OUTFILE
-  !define OUTFILE "MusicMaker-Setup.exe"
+  !define OUTFILE "TrogloDAW-Setup.exe"
 !endif
 !ifndef INSTALL_DIR
   !define INSTALL_DIR "$LOCALAPPDATA\MusicMaker"
@@ -49,11 +49,11 @@ Var ModelsCheckbox
 !define MUI_ICON "${STAGE}\musicmaker.ico"
 !define MUI_UNICON "${STAGE}\musicmaker.ico"
 !define MUI_ABORTWARNING
-!define MUI_WELCOMEPAGE_TEXT "This will install ${APPNAME} on your computer.$\r$\n$\r$\nIt includes its own copy of Python, so you don't need to install anything else. No administrator rights are needed.$\r$\n$\r$\nYour recordings, beats and mixes are saved in Documents\MusicMaker\library.$\r$\n$\r$\nClick Next to continue."
+!define MUI_WELCOMEPAGE_TEXT "This will install ${APPNAME} on your computer.$\r$\n$\r$\nIt includes its own Python runtime. No administrator rights are needed. Initial app setup installs a local model into a folder you choose.$\r$\n$\r$\nInitial library folder: ${LIBRARY_DIR}$\r$\nYou can choose another library in Settings.$\r$\n$\r$\nClick Next to continue."
 !define MUI_FINISHPAGE_RUN
 !define MUI_FINISHPAGE_RUN_TEXT "Launch ${APPNAME}"
 !define MUI_FINISHPAGE_RUN_FUNCTION LaunchApp
-!define MUI_FINISHPAGE_TEXT "${APPNAME} is installed.$\r$\n$\r$\nUse the 'Music Maker' shortcut on your Desktop or Start Menu. It opens in your web browser (the first start can take up to a minute).$\r$\n$\r$\nLibrary folder: Documents\MusicMaker\library"
+!define MUI_FINISHPAGE_TEXT "${APPNAME} is installed.$\r$\n$\r$\nUse the '${APPNAME}' shortcut on your Desktop or Start Menu. It opens in your web browser. Initial setup installs a local model into the folder you choose.$\r$\n$\r$\nLibrary folder: ${LIBRARY_DIR}"
 
 !insertmacro MUI_PAGE_WELCOME
 !insertmacro MUI_PAGE_DIRECTORY
@@ -65,7 +65,7 @@ UninstPage custom un.ModelRemovalPage un.ModelRemovalLeave
 !insertmacro MUI_LANGUAGE "English"
 
 !macro StopRunning
-  ; stop any Music Maker instance started from this install folder (files would be locked)
+  ; stop any app instance started from this compatible install folder (files would be locked)
   nsExec::Exec 'powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "Get-Process python,pythonw,ffmpeg-win-x86_64-v7.1 -ErrorAction SilentlyContinue | Where-Object { $$_.Path -like \"$INSTDIR\*\" } | Stop-Process -Force"'
   Pop $0
   Sleep 500
@@ -149,12 +149,19 @@ Section "Install"
   DetailPrint "compileall exit code: $0"
 
   ; shortcuts (pythonw = no console window)
+  ; Replace only known old shortcuts, retaining unrelated custom Start Menu entries.
+  Delete "$DESKTOP\Music Maker.lnk"
+  Delete "$SMPROGRAMS\Music Maker\Music Maker.lnk"
+  Delete "$SMPROGRAMS\Music Maker\Music Maker (console, troubleshooting).lnk"
+  Delete "$SMPROGRAMS\Music Maker\Music Maker Library folder.lnk"
+  Delete "$SMPROGRAMS\Music Maker\Uninstall Music Maker.lnk"
+  RMDir "$SMPROGRAMS\Music Maker"
   SetOutPath "$INSTDIR"
   CreateShortCut "$DESKTOP\${APPNAME}.lnk" "$INSTDIR\python\pythonw.exe" '"$INSTDIR\app\backend\app.py"' "$INSTDIR\musicmaker.ico" 0 SW_SHOWNORMAL "" "Make music: voices, beats, mixes"
   CreateDirectory "$SMPROGRAMS\${APPNAME}"
   CreateShortCut "$SMPROGRAMS\${APPNAME}\${APPNAME}.lnk" "$INSTDIR\python\pythonw.exe" '"$INSTDIR\app\backend\app.py"' "$INSTDIR\musicmaker.ico" 0 SW_SHOWNORMAL "" "Make music: voices, beats, mixes"
   CreateShortCut "$SMPROGRAMS\${APPNAME}\${APPNAME} (console, troubleshooting).lnk" "$INSTDIR\Music Maker (console).bat" "" "$INSTDIR\musicmaker.ico" 0
-  CreateShortCut "$SMPROGRAMS\${APPNAME}\Music Maker Library folder.lnk" "${LIBRARY_DIR}"
+  CreateShortCut "$SMPROGRAMS\${APPNAME}\${APPNAME} Library folder.lnk" "${LIBRARY_DIR}"
   CreateShortCut "$SMPROGRAMS\${APPNAME}\Uninstall ${APPNAME}.lnk" "$INSTDIR\Uninstall.exe"
 
   ; uninstaller + Apps & Features entry (per-user)
@@ -162,7 +169,7 @@ Section "Install"
   WriteRegStr HKCU "Software\${APPKEY}" "InstallDir" "$INSTDIR"
   WriteRegStr HKCU "${UNINSTKEY}" "DisplayName" "${APPNAME}"
   WriteRegStr HKCU "${UNINSTKEY}" "DisplayVersion" "${VERSION}"
-  WriteRegStr HKCU "${UNINSTKEY}" "Publisher" "musicmaker"
+  WriteRegStr HKCU "${UNINSTKEY}" "Publisher" "TrogloDAW"
   WriteRegStr HKCU "${UNINSTKEY}" "DisplayIcon" "$INSTDIR\musicmaker.ico"
   WriteRegStr HKCU "${UNINSTKEY}" "InstallLocation" "$INSTDIR"
   WriteRegStr HKCU "${UNINSTKEY}" "UninstallString" '"$INSTDIR\Uninstall.exe"'
@@ -183,7 +190,11 @@ Section "Uninstall"
     ${EndIf}
   ${EndIf}
   Delete "$DESKTOP\${APPNAME}.lnk"
-  RMDir /r "$SMPROGRAMS\${APPNAME}"
+  Delete "$SMPROGRAMS\${APPNAME}\${APPNAME}.lnk"
+  Delete "$SMPROGRAMS\${APPNAME}\${APPNAME} (console, troubleshooting).lnk"
+  Delete "$SMPROGRAMS\${APPNAME}\${APPNAME} Library folder.lnk"
+  Delete "$SMPROGRAMS\${APPNAME}\Uninstall ${APPNAME}.lnk"
+  RMDir "$SMPROGRAMS\${APPNAME}"
   RMDir /r "$INSTDIR\python"
   RMDir /r "$INSTDIR\app"
   Delete "$INSTDIR\musicmaker.ico"

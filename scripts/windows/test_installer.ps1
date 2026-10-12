@@ -16,7 +16,13 @@ foreach ($path in $registryPaths) {
         $registryBackup[$path] = @($key.GetValueNames() | ForEach-Object { @{Name=$_; Value=$key.GetValue($_); Kind=$key.GetValueKind($_)} })
     }
 }
-$shortcutPaths = @((Join-Path ([Environment]::GetFolderPath('Desktop')) 'Music Maker.lnk'),(Join-Path ([Environment]::GetFolderPath('Programs')) 'Music Maker'))
+$desktopRoot = [Environment]::GetFolderPath('Desktop')
+$programsRoot = [Environment]::GetFolderPath('Programs')
+$shortcutPaths = @((Join-Path $desktopRoot 'Music Maker.lnk'),(Join-Path $programsRoot 'Music Maker'),(Join-Path $desktopRoot 'TrogloDAW.lnk'),(Join-Path $programsRoot 'TrogloDAW'))
+foreach ($path in $shortcutPaths) {
+    $parent = [System.IO.Path]::GetDirectoryName([System.IO.Path]::GetFullPath($path))
+    if ($parent -notin @($desktopRoot,$programsRoot)) { throw 'Unsafe shortcut test path' }
+}
 $shortcutBackup = @{}
 foreach ($path in $shortcutPaths) {
     if (Test-Path -LiteralPath $path) {
@@ -26,7 +32,7 @@ foreach ($path in $shortcutPaths) {
     }
 }
 function Install-TestApp {
-    $process = Start-Process -FilePath ./dist/MusicMaker-Setup.exe -ArgumentList @('/S', "/D=$installRoot") -Wait -PassThru -WindowStyle Hidden
+    $process = Start-Process -FilePath ./dist/TrogloDAW-Setup.exe -ArgumentList @('/S', "/D=$installRoot") -Wait -PassThru -WindowStyle Hidden
     if ($process.ExitCode) { throw 'Installer failed' }
 }
 function Uninstall-TestApp($keepModels) {
@@ -37,10 +43,21 @@ function Uninstall-TestApp($keepModels) {
     if ($process.ExitCode -or (Test-Path (Join-Path $installRoot 'python'))) { throw 'Native uninstall failed' }
 }
 try {
+    if ((Get-FileHash ./dist/TrogloDAW-Setup.exe).Hash -ne (Get-FileHash ./dist/MusicMaker-Setup.exe).Hash) { throw 'Compatibility installer differs' }
+    $legacyFolder = Join-Path $programsRoot 'Music Maker'
+    New-Item -ItemType Directory -Path $legacyFolder -Force | Out-Null
+    $shell = New-Object -ComObject WScript.Shell
+    $legacyShortcut = $shell.CreateShortcut((Join-Path $legacyFolder 'Music Maker.lnk'))
+    $legacyShortcut.TargetPath = Join-Path $installRoot 'python/pythonw.exe'
+    $legacyShortcut.Save()
+    $customShortcut = Join-Path $legacyFolder 'Custom entry.txt'
+    [System.IO.File]::WriteAllText($customShortcut,'Synthetic custom entry; preserved during branding migration')
     Install-TestApp
+    if ((Test-Path (Join-Path $legacyFolder 'Music Maker.lnk')) -or -not (Test-Path $customShortcut) -or -not (Test-Path (Join-Path $desktopRoot 'TrogloDAW.lnk'))) { throw 'Shortcut branding migration failed' }
+    if ((Get-ItemProperty $registryPaths[1]).DisplayName -ne 'TrogloDAW') { throw 'Uninstall display branding differs' }
     $python = Join-Path $installRoot 'python/python.exe'
     $env:MM_LIBRARY = $libraryRoot
-    & $python (Join-Path $installRoot 'app/backend/cli.py') demo
+    & (Join-Path $installRoot 'mm.bat') demo
     if ($LASTEXITCODE) { throw 'Embedded CLI demo failed' }
     & $python scripts/smoke_producer.py
     if ($LASTEXITCODE) { throw 'Embedded producer failed' }

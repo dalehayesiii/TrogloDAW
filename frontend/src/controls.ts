@@ -9,6 +9,8 @@ import {
   OnChanges,
   Output,
   ViewChild,
+  HostListener,
+  OnDestroy,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 
@@ -276,7 +278,14 @@ export class DownloadComponent {
       (loadedmetadata)="duration = player.duration"
     ></audio>
     @if (media) {
-      <canvas #wave width="1000" height="64" (click)="seek($event, player)"></canvas>
+      <canvas
+        #wave
+        width="1000"
+        height="64"
+        role="img"
+        [attr.aria-label]="label + ' waveform'"
+        (click)="seek($event, player)"
+      ></canvas>
       <div class="audio-timeline">
         <span>{{ clock(time) }}</span
         ><span>{{ clock(duration, true) }}</span>
@@ -317,16 +326,26 @@ export class DownloadComponent {
     }
   </div>`,
 })
-export class AudioComponent implements OnChanges, AfterViewInit {
+export class AudioComponent implements OnChanges, AfterViewInit, OnDestroy {
   private cdr = inject(ChangeDetectorRef);
   @Input() label = '';
   @Input() media: Media | null = null;
-  @ViewChild('wave') wave?: ElementRef<HTMLCanvasElement>;
+  wave?: ElementRef<HTMLCanvasElement>;
+  @ViewChild('wave') set waveformElement(element: ElementRef<HTMLCanvasElement> | undefined) {
+    this.resize?.disconnect();
+    this.wave = element;
+    if (element) {
+      this.resize = new ResizeObserver(() => this.draw());
+      this.resize.observe(element.nativeElement);
+      this.draw();
+    }
+  }
   playing = false;
   time = 0;
   duration = 0;
   rate = 1;
   samples?: Float32Array;
+  private resize?: ResizeObserver;
   async ngOnChanges() {
     this.playing = false;
     this.time = 0;
@@ -353,12 +372,18 @@ export class AudioComponent implements OnChanges, AfterViewInit {
   ngAfterViewInit() {
     this.draw();
   }
+  ngOnDestroy() {
+    this.resize?.disconnect();
+    this.wave = undefined;
+  }
   draw() {
     const canvas = this.wave?.nativeElement;
     if (!canvas || !this.samples) return;
+    if (canvas.getBoundingClientRect().width <= 0) return;
     const context = canvas.getContext('2d')!;
     context.clearRect(0, 0, canvas.width, canvas.height);
-    context.fillStyle = '#9ca3af';
+    context.fillStyle =
+      getComputedStyle(document.documentElement).getPropertyValue('--waveform').trim() || '#9ca3af';
     const bars = Math.max(1, Math.floor(canvas.getBoundingClientRect().width / 5));
     const width = canvas.width / bars;
     for (let bar = 0; bar < bars; bar++) {
@@ -370,6 +395,9 @@ export class AudioComponent implements OnChanges, AfterViewInit {
       context.fillRect(bar * width, (64 - height) / 2, width * 0.4, height);
     }
     this.cdr.markForCheck();
+  }
+  @HostListener('window:troglodaw-theme-change') themeChanged() {
+    this.draw();
   }
   async play(player: HTMLAudioElement) {
     if (this.playing) {
