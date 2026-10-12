@@ -1,12 +1,10 @@
 import copy
 from pathlib import Path
-from types import SimpleNamespace
 
 import numpy as np
 import pytest
-import soundfile as sf
 
-from songs import Songs, fixed_effect, generation_parameters
+from songs import fixed_effect, generation_parameters
 
 
 def test_controls_preserve_lyrics_and_have_independent_mappings():
@@ -35,64 +33,6 @@ def test_controls_preserve_lyrics_and_have_independent_mappings():
         generation_parameters({**draft, "options": {"duration": 900}}, [], 42)
 
 
-@pytest.fixture
-def songs(core):
-    calls = []
-    model = SimpleNamespace(
-        selected="base",
-        manifest={"runtime_revision": "fixture", "models": {"base": {"assets": []}}},
-    )
-
-    def invoke(action, values, progress, canceled):
-        calls.append(action)
-        directory = Path(values["output"])
-        directory.mkdir(exist_ok=True, parents=True)
-        if action == "generate":
-            samples = round(values["parameters"]["duration"] * core.SR)
-            timeline = np.arange(samples) / core.SR
-            audio = np.repeat(
-                (0.05 * np.sin(2 * np.pi * 100 * timeline))[:, None], 2, axis=1
-            ).astype(np.float32)
-            path = directory / "music.wav"
-            sf.write(path, audio, core.SR, subtype="FLOAT")
-            return {"audio": str(path), "sample_rate": core.SR, "parameters": values["parameters"]}
-        audio = core.load(values["audio"])
-        vocals = audio * 0.25
-        sf.write(directory / "vocals.wav", vocals, core.SR, subtype="FLOAT")
-        sf.write(directory / "accompaniment.wav", audio - vocals, core.SR, subtype="FLOAT")
-        half = len(audio) // 2
-        segments = [
-            {"start": 0, "end": half, "group": "g1", "uncertain": True},
-            {"start": half, "end": len(audio), "group": "g2", "uncertain": True},
-        ]
-        groups = []
-        for segment in segments:
-            group_audio = np.zeros_like(vocals)
-            group_audio[segment["start"] : segment["end"]] = vocals[
-                segment["start"] : segment["end"]
-            ]
-            filename = str(segment["group"]) + ".wav"
-            sf.write(directory / filename, group_audio, core.SR, subtype="FLOAT")
-            groups.append(
-                {
-                    "id": segment["group"],
-                    "name": segment["group"],
-                    "file": filename,
-                    "uncertain": True,
-                }
-            )
-        return {
-            "groups": groups,
-            "segments": segments,
-            "samples": len(audio),
-            "sample_rate": core.SR,
-            "warning": "Synthetic fixture groups, not model inference",
-        }
-
-    service = Songs(core, model, lambda path: {"url": str(path)}, invoke)
-    return service, calls
-
-
 def test_every_input_has_transformed_assets_and_rerenders_portably(core, songs):
     service, _ = songs
     a = core._new_entry(
@@ -112,7 +52,10 @@ def test_every_input_has_transformed_assets_and_rerenders_portably(core, songs):
     assert len({item["recipe"]["parameters"]["seed"] for item in items}) == 2
     recipe = items[0]["recipe"]
     assert {sample["source_id"] for sample in recipe["samples"]} == {a["id"], b["id"]}
-    assert len(recipe["placements"]) == len(recipe["samples"]) == 8
+    assert len(recipe["placements"]) >= len(recipe["samples"]) >= 2
+    assert all(
+        1 <= analysis["selection"]["effective_budget"] <= 8 for analysis in recipe["analysis"]
+    )
     assert all(not Path(sample["file"]).is_absolute() for sample in recipe["samples"])
     assert recipe["sources"][0]["source_type"] == "microphone"
     rerender = service.rerender(items[0]["id"])

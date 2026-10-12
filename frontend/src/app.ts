@@ -26,6 +26,8 @@ interface Draft {
   title: string;
   count: number;
   options: Record<string, Value>;
+  audio_mode: 'conditioned' | 'postmix';
+  audio_adherence: number;
   arrangement?: any;
 }
 interface Item {
@@ -53,6 +55,8 @@ const defaults = (): Draft => ({
   styles: '',
   title: '',
   count: 1,
+  audio_mode: 'conditioned',
+  audio_adherence: 75,
   options: {
     gender: '',
     duration: 'auto',
@@ -104,6 +108,13 @@ export class AppComponent {
   tabs = ['Generation', 'Library', 'Vocal FX'];
   tab = 0;
   draft = defaults();
+  audioImports = 0;
+  get audioConditioningSupported() {
+    const model = this.library.models;
+    return model.choices.some(
+      (choice: any) => choice.id === model.selected && choice.conditioning?.includes('cover'),
+    );
+  }
   library: any = {
     items: [],
     folders: [],
@@ -235,7 +246,7 @@ export class AppComponent {
     return ['queued', 'running'].includes(job.status);
   }
   get busy() {
-    return this.jobs.some((job) => this.active(job));
+    return this.audioImports > 0 || this.jobs.some((job) => this.active(job));
   }
   get songs(): Item[] {
     return this.library.items.filter((item: Item) => ['generated', 'mix'].includes(item.type));
@@ -368,10 +379,14 @@ export class AppComponent {
     const input = event.target as HTMLInputElement;
     const files = Array.from(input.files || []);
     input.value = '';
+    this.audioImports++;
     try {
       for (const file of files) await this.acceptFile(file, 'upload');
     } catch (error) {
       this.fail(error);
+    } finally {
+      this.audioImports--;
+      this.cdr.markForCheck();
     }
   }
   async acceptFile(file: File, type: string, replace = -1) {
@@ -550,6 +565,8 @@ export class AppComponent {
           lyrics: 'Lyrics',
           title: 'Title',
           options: 'Generation controls',
+          audio_mode: 'Input audio generation mode',
+          audio_adherence: 'Audio adherence',
           arrangement: 'Sample transformations and placements',
         } as Record<string, string>
       )[key] || key

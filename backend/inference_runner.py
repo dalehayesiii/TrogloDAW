@@ -7,6 +7,8 @@ import inspect
 import os
 import sys
 import time
+import textwrap
+from types import MethodType
 from importlib import import_module
 from pathlib import Path
 
@@ -17,15 +19,37 @@ def emit(stage, fraction=0, **values):
     )
 
 
-def adapt_generation(model):
+def adapt_generation(model, conditioned=False):
     """The pinned Base/SFT checkpoint uses an older misspelled CFG argument."""
     original = model.generate_audio
     parameters = inspect.signature(original).parameters
     if "diffusion_guidance_sale" in parameters and "diffusion_guidance_scale" not in parameters:
+        if conditioned:
+            # The verified pinned checkpoint repeats this switch, doubling CFG tensors
+            # again each step. Switch exactly once. Assets and their hashes stay intact.
+            source = textwrap.dedent(inspect.getsource(original))
+            marker = "if step_idx >= cover_steps:"
+            if (
+                source.count(marker) != 1
+                or "cover_steps = int(infer_steps * audio_cover_strength)" not in source
+            ):
+                raise RuntimeError("This checkpoint's partial audio conditioning is incompatible.")
+            namespace = {}
+            exec(
+                compile(
+                    source.replace(marker, "if step_idx == cover_steps:"),
+                    "<verified-checkpoint-cover-adapter>",
+                    "exec",
+                ),
+                original.__func__.__globals__,
+                namespace,
+            )
+            original = MethodType(namespace[original.__name__], model)
 
         def generate_audio(**values):
             if "diffusion_guidance_scale" in values:
                 values["diffusion_guidance_sale"] = values.pop("diffusion_guidance_scale")
+            values["use_progress_bar"] = False
             return original(**values)
 
         model.generate_audio = generate_audio
@@ -72,7 +96,9 @@ def generate(request):
     )
     if not success:
         raise RuntimeError(status)
-    adapt_generation(handler.model)
+    parameters = request["parameters"]
+    conditioned = parameters.get("effective_mode") == "conditioned"
+    adapt_generation(handler.model, conditioned=conditioned)
     emit(
         "generating",
         device="cuda",
@@ -81,8 +107,12 @@ def generate(request):
         offload="cpu+dit",
         checkpoint=request["model"],
     )
-    parameters = request["parameters"]
     params = GenerationParams(
+        task_type="cover" if conditioned else "text2music",
+        src_audio=request.get("conditioning_audio") if conditioned else None,
+        audio_cover_strength=parameters.get("effective_audio_adherence", 1.0)
+        if conditioned
+        else 1.0,
         caption=parameters["caption"],
         lyrics=parameters["lyrics"],
         instrumental=not bool(parameters["lyrics"].strip()),
@@ -122,11 +152,13 @@ def generate(request):
         result={
             "audio": first["path"],
             "sample_rate": first.get("sample_rate", 48000),
-            "parameters": first.get("params", {}),
+            "parameters": {**parameters, "task_type": params.task_type},
             "seconds": time.monotonic() - started,
             "peak_vram": torch.cuda.max_memory_allocated(),
             "device": "cuda",
             "offload": "cpu+dit",
+            "conditioning": "cover" if conditioned else "text2music",
+            "audio_cover_strength": params.audio_cover_strength if conditioned else None,
         },
     )
 

@@ -140,7 +140,8 @@
           "revision": "e432212fec32b8965a14ffa57ae653438d6abd14",
           "repo": "ACE-Step/acestep-v15-base"
         }
-      ]
+      ],
+      "conditioning": ["cover"]
     },
     "acestep-v15-sft": {
       "name": "ACE-Step 1.5 SFT",

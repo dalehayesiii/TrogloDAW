@@ -279,6 +279,7 @@ class Models:
                     if key == "acestep-v15-base"
                     else "Compatible Base-family alternative; not separately benchmarked",
                     "role": "Local music generation",
+                    "conditioning": value.get("conditioning", []),
                 }
                 for key, value in self.manifest["models"].items()
             ],
