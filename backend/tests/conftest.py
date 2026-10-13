@@ -26,7 +26,10 @@ def songs(core):
     calls = []
     model = SimpleNamespace(
         selected="base",
-        manifest={"runtime_revision": "fixture", "models": {"base": {"assets": []}}},
+        manifest={
+            "runtime_revision": "fixture",
+            "models": {"base": {"assets": [], "recording_conditioning": "cover-nofsq"}},
+        },
     )
 
     def invoke(action, values, progress, canceled):

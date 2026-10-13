@@ -26,11 +26,20 @@ and the model's ability to deliver the requested words remain technical constrai
 
 ## Generation
 
-The **Generation workflow** selector offers model-generated songs or
-**Arrange recordings over an existing song**. The latter keeps one Library backing,
-uses separate sampled inputs, and works without a model. Model-specific controls
-are hidden but their drafts remain. See [WAV import and backing arrangements](backing-arrangements.md)
-for lengths, musical context, portable replay and measured limitations.
+The **Generation workflow** selector offers **Generate a new song**, **Arrange
+recordings over an existing song**, and **Recording + style**. Each preserves its
+own draft across switching and reload. The backing workflow keeps one Library song,
+uses separate sampled inputs, and works without a model. Model controls are hidden
+but their drafts remain. See [WAV import and backing arrangements](backing-arrangements.md).
+
+**Recording + style** accepts exactly one uploaded or microphone recording and
+style instructions. Accepting another file/take replaces it; failed/discarded retakes
+keep the previous recording. It uses the complete recording at its original length
+(1–300 seconds), without sample cuts, guide enhancement or a second audio overlay.
+Lyrics, lyric writing, Library priors and Prior Song Reference are unavailable.
+Blank lyrics do not suppress source vocals. The validated Base latent source path
+retains more vocal detail than ordinary Cover in the bounded comparison, but voices,
+words and stylistic changes remain model-dependent. See [native validation](three-generation-workflows.md).
 
 Add multiple uploaded clips, microphone takes or Library songs. Each clip can be
 previewed, labeled, removed, replaced or retaken independently. A new recording
@@ -73,10 +82,11 @@ clip gain, and individual variants and the combined guide are attenuated if nece
 to retain a 0.8 peak ceiling. This protects against clipping without unlimited quiet
 source/noise amplification. It does not make all recordings equally loud.
 
-Fresh drafts enable **Mix samples after generation**. The model generates music
-independently, then the transformed samples are mixed into it. Saved explicit mode
-choices remain unchanged. Without input clips, generation uses lyrics/styles directly
-and these Input Audio settings are hidden.
+Fresh sampled drafts leave **Mix samples after generation** unchecked: the complete
+sample arrangement guides the model. Checking it generates music independently,
+then mixes transformed samples into it. Saved explicit choices remain unchanged.
+The checkbox and Audio adherence have hover/focus/tap guidance. Without clips,
+generation uses lyrics/styles directly and Input Audio settings are hidden.
 
 Postmix gestures automatically match estimated generated-vocal loudness. Instrumental
 requests use the generated song instead. With lyrics, the installed local HDemucs
@@ -93,7 +103,7 @@ Explicit saved offsets remain unchanged. Recipes retain reference, measurements 
 effective placement gains; replay needs no new separation. Final bus mastering can
 change perceived balance. Existing songs replay their original gains.
 
-Disable **Mix samples after generation** to use the complete arrangement WAV before
+Leave **Mix samples after generation** unchecked to use the complete arrangement WAV before
 inference on a compatible model. The model produces the whole mix without a second
 sample overlay or postmix loudness matching. **Audio adherence** (default 75%) maps
 to source-conditioned diffusion steps out of 32; 0% disables that influence, 100% uses

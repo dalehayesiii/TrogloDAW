@@ -592,7 +592,7 @@ test('setup and Settings identify writing and voice models separately from readi
         await expect(dialog.getByText('Lyric writing model', { exact: true })).toBeVisible();
         await expect(dialog.getByText('Qwen3 0.6B', { exact: true })).toBeVisible();
         await expect(
-          dialog.getByText('Automatic song length model', { exact: true }),
+          dialog.getByText('Automatic song length / musical blueprint model', { exact: true }),
         ).toBeVisible();
         await expect(dialog.getByText('ACE-Step 5Hz LM 1.7B', { exact: true })).toBeVisible();
         await expect(

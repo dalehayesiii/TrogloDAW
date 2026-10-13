@@ -20,6 +20,7 @@ import numpy as np
 import soundfile as sf
 
 import guide_enhance
+from planning import validated_blueprint
 
 from arrangement import (
     PLANNER_VERSION,
@@ -56,10 +57,11 @@ def sample_loudness(core, audio):
 
 
 def generation_mode(draft, models, has_samples):
-    requested = draft.get("audio_mode", "postmix")
+    recording = draft.get("workflow") == "recording-style"
+    requested = "conditioned" if recording else draft.get("audio_mode", "conditioned")
     if requested not in {"conditioned", "postmix"}:
         raise ValueError("Choose audio-conditioned generation or post-generation sample mixing")
-    adherence = draft.get("audio_adherence", 75)
+    adherence = 100 if recording else draft.get("audio_adherence", 75)
     if (
         isinstance(adherence, bool)
         or not isinstance(adherence, (int, float))
@@ -85,8 +87,30 @@ def generation_mode(draft, models, has_samples):
     }
 
 
+def validate_recording_request(draft):
+    """Direct recordings have no lyric, prior/reference, arrangement or postmix inputs."""
+    if len(draft.get("clips", [])) != 1:
+        raise ValueError("Recording + style requires exactly one uploaded or microphone recording")
+    for key in ("lyrics", "lyric_idea", "backing_song_id", "arrangement"):
+        if draft.get(key):
+            raise ValueError(
+                "Recording + style does not accept lyrics, prior songs or arrangements"
+            )
+    if draft.get("audio_mode", "conditioned") != "conditioned":
+        raise ValueError("Recording + style requires direct audio conditioning, not postmix")
+    if not str(draft.get("styles", "")).strip():
+        raise ValueError("Add style instructions for the recording")
+
+
 def generation_parameters(draft: dict, sources: list[dict], seed: int):
     options: dict = {**OPTIONS, **draft.get("options", {})}
+    recording = draft.get("workflow") == "recording-style"
+    if recording:
+        validate_recording_request(draft)
+        if len(sources) != 1 or sources[0]["source_type"] not in {"upload", "microphone"}:
+            raise ValueError("Recording + style accepts an original recording, not a prior song")
+        # Source structure and length are authoritative; hidden sampled-mode controls are inert.
+        options.update(gender="", variety=0, duration="source")
     if options["duration"] in (None, "") or str(options["duration"]).lower() == "auto":
         options["duration"] = "auto"
     if options["gender"] not in {"", "Male", "Female"}:
@@ -103,7 +127,12 @@ def generation_parameters(draft: dict, sources: list[dict], seed: int):
         raise ValueError("Use at most 4096 lyric characters and 400 style characters")
     if not styles.strip() and not lyrics.strip() and not sources:
         raise ValueError("Add audio, lyrics or styles before generating")
-    if options["duration"] == "auto":
+    if recording:
+        duration = float(sources[0]["duration"])
+        if not math.isfinite(duration) or not 1 <= duration <= 300:
+            raise ValueError("Recording + style supports intact recordings from 1–300 seconds")
+        derivation = {"method": "source-recording", "source_seconds": duration}
+    elif options["duration"] == "auto":
         words = len(re.findall(r"\w+", lyrics))
         source_duration = max(
             (
@@ -126,7 +155,7 @@ def generation_parameters(draft: dict, sources: list[dict], seed: int):
         duration, derivation = float(options["duration"]), None
     if options["duration"] == "auto":
         duration = min(300, duration)
-    if not math.isfinite(duration) or not 10 <= duration <= 300:
+    if not recording and (not math.isfinite(duration) or not 10 <= duration <= 300):
         raise ValueError(
             "This configuration supports 10–300 seconds. Choose a duration in that range"
         )
@@ -153,6 +182,8 @@ def generation_parameters(draft: dict, sources: list[dict], seed: int):
     return {
         "caption": caption,
         "lyrics": lyrics,
+        "instrumental": not recording and not bool(lyrics.strip()),
+        "workflow": "recording-style" if recording else "model",
         "duration": duration,
         "seed": seed,
         "steps": 32,
@@ -309,13 +340,12 @@ class Songs:
             else:
                 item = self.core.get_item(clip["id"])
             prior = song_item(item)
+            clip_settings = (
+                {} if draft.get("workflow") == "recording-style" else clip.get("settings", {})
+            )
             settings = {
                 **CLIP_DEFAULTS,
-                **{
-                    key: value
-                    for key, value in clip.get("settings", {}).items()
-                    if value is not None
-                },
+                **{key: value for key, value in clip_settings.items() if value is not None},
             }
             if (
                 not 0.25 <= float(settings["sample_seconds"]) <= 8
@@ -656,6 +686,51 @@ class Songs:
                 "or choose an explicit duration between 10 and 300 seconds."
             )
 
+    def musical_blueprint(self, parameters, mode, directory, progress, canceled):
+        """Never let text-generated codes pre-empt source conditioning or rewrite inputs."""
+        if mode["effective_mode"] == "conditioned":
+            return {"status": "bypassed", "reason": "source_audio_supplies_structure"}, None
+        model = self.models.manifest["models"][self.models.selected]
+        if "musical_metadata" not in model.get("planning", []):
+            return {
+                "status": "unsupported",
+                "reason": "model_has_no_validated_blueprint_input",
+            }, None
+        if not getattr(self.models, "planner_ready", lambda: False)():
+            return {"status": "unavailable", "reason": "optional_planner_not_installed"}, None
+        try:
+            result = self.invoke("plan_blueprint", {"parameters": parameters}, progress, canceled)
+            blueprint = validated_blueprint(result, parameters)
+            filename = directory / "music-blueprint.json"
+            atomic_json(filename, blueprint)
+            return {
+                "status": "applied",
+                "file": self.relative(filename),
+                **{
+                    key: blueprint[key]
+                    for key in (
+                        "version",
+                        "planner",
+                        "runtime_revision",
+                        "seed",
+                        "duration",
+                        "strategy",
+                        "seconds",
+                        "peak_vram",
+                    )
+                },
+            }, blueprint["constraints"]
+        except Canceled:
+            raise
+        except Exception as error:
+            reason = str(error)
+            progress(
+                "Music blueprint unavailable; generating from original inputs. " + reason,
+                0,
+                stage="planning_fallback",
+            )
+            return {"status": "failed", "reason": reason}, None
+
     def lyrics(self, values, progress, canceled):
         prompt = str(values.get("prompt", "")).strip()
         language = str(values.get("language", "en"))
@@ -922,14 +997,24 @@ class Songs:
         workflow = draft.get("workflow", "model")
         if workflow == "arrange-over-song":
             return self.arrange_over_song(draft, progress, canceled)
-        if workflow != "model":
+        recording = workflow == "recording-style"
+        if workflow not in {"model", "recording-style"}:
             raise ValueError("Choose a supported Generation workflow")
+        if recording:
+            validate_recording_request(draft)
+            if (
+                self.models.manifest["models"][self.models.selected].get("recording_conditioning")
+                != "cover-nofsq"
+            ):
+                raise ValueError("This model does not support direct recording conditioning")
         if self.local_inference and not self.models.ready():
             raise ValueError("Install or verify a music model in Settings before this operation")
         count = draft.get("count", 2)
         if isinstance(count, bool) or not isinstance(count, int) or not 1 <= count <= 32:
             raise ValueError("Number of Generations must be an integer between 1 and 32")
-        enhancement_settings = guide_enhance.settings(draft)
+        enhancement_settings = guide_enhance.settings(
+            {"guide_enhancement": "off"} if recording else draft
+        )
         sources = self.collect_sources(draft)
         if generation_parameters(draft, sources, 0)["requested"]["duration"] == "auto":
             self.require_planner()
@@ -1013,14 +1098,35 @@ class Songs:
                             "duration_mode": "auto",
                         },
                     )
-                layer, samples, placements, analyses = self.arrange(
-                    current_sources,
-                    directory,
-                    parameters,
-                    item_progress,
-                    canceled,
-                    {s["source_id"] for s in (draft.get("arrangement") or {}).get("samples", [])},
-                )
+                if recording:
+                    source = current_sources[0]
+                    layer = (
+                        self.core.load(self.asset(source["saved_file"]))
+                        if source.get("saved_file")
+                        else self.core.load_item(source["id"])
+                    )
+                    if not np.isfinite(layer).all() or np.max(np.abs(layer), initial=0) < 1e-5:
+                        raise ValueError("The recording has no usable audible audio")
+                    input_file = directory / "inputs" / "recording.wav"
+                    input_file.parent.mkdir(parents=True)
+                    sf.write(input_file, layer, self.core.SR, subtype="FLOAT")
+                    source["file"] = self.relative(input_file)
+                    samples, placements = [], []
+                    analyses = [{"source_id": source["id"], "method": "intact-recording"}]
+                    parameters["duration"] = len(layer) / self.core.SR
+                    item_progress("Prepared intact recording", 1, stage="encoding")
+                else:
+                    layer, samples, placements, analyses = self.arrange(
+                        current_sources,
+                        directory,
+                        parameters,
+                        item_progress,
+                        canceled,
+                        {
+                            s["source_id"]
+                            for s in (draft.get("arrangement") or {}).get("samples", [])
+                        },
+                    )
                 if draft.get("arrangement"):
                     imported = draft["arrangement"]
                     reused_source_ids = {sample["source_id"] for sample in imported["samples"]}
@@ -1071,17 +1177,19 @@ class Songs:
                         )
                         placements.append({**old_placement, "sample_id": sample["id"]})
                 peak = float(np.max(np.abs(layer), initial=0))
-                if peak > 0.8:
+                if peak > 0.8 and not recording:
                     gain = 0.8 / peak
                     layer *= gain
                     for placement in placements:
                         placement["gain"] = placement.get("gain", 1) * gain
-                mode = generation_mode(draft, self.models, bool(samples))
+                mode = generation_mode(
+                    draft, self.models, bool(current_sources) if recording else bool(samples)
+                )
                 parameters.update(mode)
                 arrangement_file = directory / "sample-arrangement.wav"
                 raw_arrangement_file = directory / "sample-arrangement.raw.wav"
                 guide, enhancement = layer, None
-                if mode["effective_mode"] == "conditioned":
+                if mode["effective_mode"] == "conditioned" and not recording:
                     # Postmix keeps mixing the unchanged layer; only the model guide is enhanced.
                     guide, enhancement = self.enhance_guide(
                         layer, enhancement_settings, item_progress
@@ -1092,6 +1200,9 @@ class Songs:
                 sf.write(arrangement_file, guide, self.core.SR, subtype="FLOAT")
                 if mode["fallback_reason"]:
                     item_progress(mode["fallback_reason"], 0, stage="conditioning_fallback")
+                planning, blueprint_metadata = self.musical_blueprint(
+                    parameters, mode, directory, item_progress, canceled
+                )
                 inferred = self.invoke(
                     "generate",
                     {
@@ -1100,6 +1211,7 @@ class Songs:
                         "conditioning_audio": str(arrangement_file)
                         if mode["effective_mode"] == "conditioned"
                         else None,
+                        "blueprint_metadata": blueprint_metadata,
                     },
                     item_progress,
                     canceled,
@@ -1151,6 +1263,8 @@ class Songs:
                 recipe = {
                     "op": "song",
                     "version": 2,
+                    "workflow": workflow,
+                    "planning": planning,
                     "render_mode": mode["effective_mode"],
                     "conditioning_file": self.relative(arrangement_file),
                     **({"guide_enhancement": enhancement} if enhancement is not None else {}),
@@ -1232,6 +1346,9 @@ class Songs:
                         "download": self.media(mp3),
                         "effective_styles": parameters["effective_styles"],
                         "generation_mode": mode,
+                        "workflow": workflow,
+                        "planning": planning,
+                        "recording_audio": self.media(input_file) if recording else None,
                         "arrangement_audio": self.media(arrangement_file) if samples else None,
                         "arrangement_raw_audio": self.media(raw_arrangement_file)
                         if enhancement and enhancement["applied"]

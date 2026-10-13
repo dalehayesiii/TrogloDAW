@@ -9,7 +9,11 @@ The fresh default is **two songs**, generated sequentially with separate random 
 and fresh inference processes. Change the count to one when preferred. Existing saved
 draft counts remain unchanged. Duration defaults to **auto**: the local ACE planner
 uses your styling and lyrics to suggest a length, bounded to 10–300 seconds. Enter an
-explicit number to bypass planning. Original lyrics and styles remain unchanged;
+explicit number to bypass length planning. A compatible installed planner can still
+produce an internal musical metadata blueprint for text-driven/postmix rendering;
+source-conditioned flows retain their recording structure. This never rewrites
+lyrics/styles and has no planning controls. See [native comparisons](three-generation-workflows.md).
+Original lyrics and styles remain unchanged;
 recipes record the raw length suggestion, effective length and planner provenance.
 The app does not silently substitute a fixed one-minute song when planning fails.
 

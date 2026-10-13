@@ -3,6 +3,8 @@ import pytest
 from inference_runner import adapt_generation, gpu_memory
 from types import SimpleNamespace
 import inference_runner
+import numpy as np
+import soundfile as sf
 
 
 def test_old_checkpoint_cfg_argument_receives_requested_value():
@@ -87,3 +89,21 @@ def test_missing_driver_query_preserves_cuda_budget_without_a_dependency(monkeyp
     )
     monkeypatch.setattr(inference_runner.shutil, "which", lambda _: None)
     assert gpu_memory(torch) == (7, 8, "cuda")
+
+
+def test_direct_result_removes_decoder_padding_without_cutting_source_timeline(tmp_path):
+    path = tmp_path / "model.wav"
+    audio = np.arange(5120, dtype=np.float32)[:, None] / 10000
+    sf.write(path, audio, 1000, subtype="FLOAT")
+    params = {"workflow": "recording-style", "duration": 1}
+    first = {"path": str(path)}
+    assert inference_runner.trim_recording_padding(first, params, True) == 4120
+    rendered, sr = sf.read(path, dtype="float32", always_2d=True)
+    assert sr == 1000
+    np.testing.assert_array_equal(rendered, audio[:1000])
+    assert inference_runner.trim_recording_padding(first, params, True) == 0
+    with pytest.raises(RuntimeError, match="complete recording timeline"):
+        inference_runner.trim_recording_padding(first, {**params, "duration": 2}, True)
+    assert (
+        inference_runner.trim_recording_padding(first, {**params, "workflow": "model"}, True) == 0
+    )
