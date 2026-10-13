@@ -15,6 +15,11 @@ writeFileSync(
 export default defineConfig({
   testDir: '../tests/e2e',
   workers: 1,
+  // Quit owns the shared service's final lifecycle; file order must not stop later app tests.
+  projects: [
+    { name: 'app', testIgnore: '**/shutdown.spec.mjs' },
+    { name: 'shutdown', testMatch: '**/shutdown.spec.mjs', dependencies: ['app'] },
+  ],
   timeout: 120_000,
   expect: { timeout: 30_000 },
   use: {

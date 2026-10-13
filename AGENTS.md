@@ -1,5 +1,11 @@
 # Agent instructions
 
+## Frontend review
+- For frontend interaction, layout, controls or feedback changes, follow
+  `frontend/AGENTS.md` and the repository-local `.agents/skills/ui-ux-audit/SKILL.md`.
+  Apply it to the affected flow; unrelated backend/docs/test maintenance does not
+  require a full browser audit. Prioritize practical usability per user direction.
+
 ## Delivery
 - Work on a feature branch and deliver changes through a PR. Never push directly
   to main, create release tags manually, or publish releases locally.

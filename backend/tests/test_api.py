@@ -9,6 +9,49 @@ from app import create_app
 HEADERS = {"X-TrogloDAW-Request": "1"}
 
 
+def test_model_role_identities_follow_configured_models_without_installing(core):
+    app = create_app(core)
+    with TestClient(app) as client:
+        described = client.get("/api/library").json()["models"]
+        assert not described["ready"] and not described["planner"]["ready"]
+        assert described["planner"]["models"] == [
+            {"role": "Lyric writing", "id": "Qwen3-0.6B-lyrics", "name": "Qwen3 0.6B"},
+            {
+                "role": "Automatic song length",
+                "id": "acestep-5Hz-lm-1.7B",
+                "name": "ACE-Step 5Hz LM 1.7B",
+            },
+        ]
+        assert described["voice_models"] == [
+            {"role": "Vocal separation", "name": "HDemucs High"},
+            {"role": "Voice grouping", "name": "SpeechBrain ECAPA-TDNN"},
+        ]
+        manager = app.state.service.models
+        manager.manifest["models"]["fixture-music"] = {
+            "name": "Fixture music",
+            "assets": [],
+            "planner": "fixture-length-model",
+        }
+        manager.manifest["planners"]["fixture-length-model"] = {
+            "name": "Fixture writing tools",
+            "assets": [],
+            "writer": "fixture-lyric-model",
+        }
+        manager.storage.preferences["music_model"] = "fixture-music"
+        changed = client.get("/api/library").json()["models"]
+        assert changed["selected"] == "fixture-music"
+        assert [model["id"] for model in changed["planner"]["models"]] == [
+            "fixture-lyric-model",
+            "fixture-length-model",
+        ]
+        assert [model["name"] for model in changed["planner"]["models"]] == [
+            "fixture-lyric-model",
+            "fixture-length-model",
+        ]
+        assert not changed["planner"]["ready"]
+        assert client.get("/api/jobs").json()["jobs"] == []
+
+
 def job(client, action, values):
     response = client.post("/api/jobs", json={"action": action, "values": values}, headers=HEADERS)
     assert response.status_code == 200

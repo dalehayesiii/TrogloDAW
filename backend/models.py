@@ -434,17 +434,40 @@ class Models:
         ]
 
     def describe(self):
+        planner = self.planner()
+        planner_id = self.manifest["models"][self.selected].get("planner")
+        writer_id = planner.get("writer") if planner else None
         return {
             "selected": self.selected,
             "ready": bool(self.ready()),
             "destination": str(self.storage.models),
             "planner": {
                 "ready": bool(self.planner_ready()),
-                "name": self.planner()["name"],
-                "bytes": sum(asset["bytes"] for asset in self.planner()["assets"]),
+                "name": planner["name"],
+                "bytes": sum(asset["bytes"] for asset in planner["assets"]),
+                "models": [
+                    {
+                        "role": "Lyric writing",
+                        "id": writer_id,
+                        "name": {"Qwen3-0.6B-lyrics": "Qwen3 0.6B"}.get(
+                            writer_id, writer_id or "Unavailable"
+                        ),
+                    },
+                    {
+                        "role": "Automatic song length",
+                        "id": planner_id,
+                        "name": {"acestep-5Hz-lm-1.7B": "ACE-Step 5Hz LM 1.7B"}.get(
+                            planner_id, planner_id
+                        ),
+                    },
+                ],
             }
-            if self.planner()
+            if planner
             else None,
+            "voice_models": [
+                {"role": "Vocal separation", "name": "HDemucs High"},
+                {"role": "Voice grouping", "name": "SpeechBrain ECAPA-TDNN"},
+            ],
             "choices": [
                 {
                     "id": key,

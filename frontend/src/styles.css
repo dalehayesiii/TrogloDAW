@@ -1073,20 +1073,6 @@ troglodaw-icon svg {
   font-size: 16px !important;
   letter-spacing: -5px;
 }
-.audio-share {
-  position: absolute;
-  right: 4px;
-  top: 0;
-  min-height: 22px;
-  height: 22px;
-  padding: 0;
-  background: none;
-  font-size: 14px;
-  color: var(--muted);
-}
-.audio-download {
-  right: 32px;
-}
 .audio-controls > button {
   color: var(--light);
 }
@@ -1792,7 +1778,9 @@ troglodaw-job-status {
 .success-toast {
   position: fixed;
   bottom: 24px;
-  right: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: max-content;
   display: flex;
   align-items: center;
   gap: 16px;
@@ -1808,6 +1796,11 @@ troglodaw-job-status {
 }
 .success-toast p {
   margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.success-toast button {
+  flex-shrink: 0;
 }
 .app-version {
   color: var(--muted);
@@ -1817,7 +1810,10 @@ troglodaw-job-status {
   position: sticky;
   inset: auto;
   top: 0;
-  margin-bottom: 16px;
+  transform: none;
+  width: fit-content;
+  max-width: 100%;
+  margin: 0 auto 16px;
 }
 .job-panel {
   margin-bottom: 24px;
@@ -1919,7 +1915,6 @@ troglodaw-job-status {
 .audio-controls > button {
   color: var(--text);
 }
-.audio-share,
 .audio-download {
   color: var(--muted);
 }
@@ -2212,4 +2207,78 @@ dialog > .job-panel {
 
 .processing-card > button {
   justify-self: start;
+}
+
+/* Keep player actions easy to click and reserve space for truthful feedback. */
+.audio-panel.has-audio {
+  height: auto;
+  min-height: 200px;
+}
+.audio-panel .corner-label {
+  max-width: calc(100% - 52px);
+}
+.audio-panel .corner-label > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.audio-download {
+  width: 32px;
+  min-height: 32px;
+  height: 32px;
+  top: 2px;
+  display: grid;
+  place-items: center;
+}
+.audio-download {
+  right: 8px;
+}
+.audio-controls > button {
+  min-width: 32px;
+  min-height: 32px;
+}
+.audio-controls select {
+  min-height: 32px;
+}
+.audio-controls > button.muted-audio {
+  color: var(--error);
+  background: var(--error-bg);
+}
+.audio-feedback {
+  font-size: 12px;
+  line-height: 1.5;
+  margin-top: 8px;
+  overflow-wrap: anywhere;
+}
+.field-error {
+  color: var(--error);
+  font-size: 14px;
+}
+.field-error:empty {
+  display: none;
+}
+h3,
+.song-row {
+  overflow-wrap: anywhere;
+}
+.song-row > * {
+  max-width: 100%;
+}
+.create-folder-button {
+  margin-top: 12px;
+}
+.model-roles {
+  display: grid;
+  gap: 12px;
+}
+.model-roles dt {
+  font-size: 14px;
+  font-weight: 600;
+}
+.model-roles dd {
+  margin: 2px 0 0;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.voice-models .model-roles {
+  margin: 12px 0;
 }

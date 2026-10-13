@@ -462,7 +462,10 @@
               max="32"
               step="1"
               [(ngModel)]="draft.count"
+              [attr.aria-invalid]="generationCountError ? true : null"
+              aria-describedby="generation-count-error"
             />
+            <p id="generation-count-error" class="field-error">{{generationCountError}}</p>
             <details>
               <summary>More Options</summary>
               <div class="stack options">
@@ -588,6 +591,7 @@
               <label for="new-folder">New folder name</label
               ><input id="new-folder" [(ngModel)]="newFolder" /><button
                 type="button"
+                class="create-folder-button"
                 (click)="createFolder()"
                 [disabled]="busy"
               >
@@ -595,9 +599,20 @@
               </button>
             </details>
             @if(!filteredSongs.length){
-            <p class="empty-state">
-              No songs here yet. Create one in Generation, or choose another folder.
-            </p>
+            <div class="empty-state">
+              @if(search.trim()){
+              <p>No songs match “{{search}}” in this view.</p>
+              <button type="button" (click)="search='';folderFilter='*'">
+                Clear search and filters
+              </button>
+              } @else if(folderFilter!=='*'){
+              <p>No songs in this folder yet.</p>
+              <button type="button" (click)="folderFilter='*'">Show all songs</button>
+              } @else {
+              <p>No songs here yet. Create your first song in Generation.</p>
+              <button type="button" (click)="changeTab(0)">Go to Generation</button>
+              }
+            </div>
             } @if(filteredSongs.length){
             <div class="selection-toolbar" aria-label="Song selection">
               <span aria-live="polite"
@@ -661,6 +676,12 @@
               <span>Unearthed from your library</span><span aria-hidden="true">↗</span>
             </div>
             <h3>{{song.name}}</h3>
+            @if(libraryLoading){
+            <p role="status">Loading song preview…</p>
+            } @else if(libraryPreviewError){
+            <p class="field-error">{{libraryPreviewError}}</p>
+            <button type="button" (click)="selectSong(song)">Retry preview</button>
+            }
             <troglodaw-audio [label]="song.name" [media]="libraryAudio" /><button
               type="button"
               class="primary"
@@ -797,7 +818,22 @@
               </button>
             </div>
           </div>
-          <troglodaw-audio label="FX remix" [media]="fxPreview || fx.audio" />
+          <div class="stack">
+            @if(fxPreviewStale){
+            <p class="notice">
+              Effects or grouping changed. This is the last rendered remix. Choose Preview remix to
+              hear the current settings.
+            </p>
+            } @else if(!fxPreview){
+            <p class="muted">
+              Saved song audio. Choose Preview remix to hear your current effects.
+            </p>
+            }
+            <troglodaw-audio
+              [label]="fxPreview ? (fxPreviewStale ? 'Last rendered FX remix' : 'FX remix') : 'Saved song'"
+              [media]="fxPreview || fx.audio"
+            />
+          </div>
         </div>
       </div>
       }
@@ -907,6 +943,14 @@
             Install / verify selected model
           </button>
           @if(library.models.planner;as planner){
+          <dl class="model-roles">
+            @for(model of planner.models || [];track model.role){
+            <div>
+              <dt>{{model.role}} model</dt>
+              <dd>{{model.name}}</dd>
+            </div>
+            }
+          </dl>
           <p class="muted">
             Optional song writing tools: {{planner.ready ? 'ready' : 'not installed'}}.
             {{(planner.bytes/1073741824).toFixed(2)}} GiB of extra weights for local lyrics and
@@ -920,6 +964,21 @@
             Install / verify song writing tools
           </button>
           }
+          <details class="voice-models">
+            <summary>Voice processing models</summary>
+            <dl class="model-roles">
+              @for(model of library.models.voice_models || [];track model.role){
+              <div>
+                <dt>{{model.role}}</dt>
+                <dd>{{model.name}}</dd>
+              </div>
+              }
+            </dl>
+            <p class="muted">
+              These fixed models are included in music model setup. Existing cached voice analysis
+              can be reused.
+            </p>
+          </details>
         </div>
         <details class="group" [open]="dialogKind==='setup'">
           <summary>Library storage</summary>
@@ -1207,17 +1266,23 @@
         keep a replacement.
       </p>
       <button type="button" (click)="beginRecording(retakeIndex)">Start recording</button>}}
-      @default{@for(item of dialogKind==='audio-picker' ? library.items : songs;track
-      item.id){<button
+      @default{ @if(!(dialogKind==='audio-picker' ? library.items : songs).length){
+      <div class="empty-state">
+        <p>
+          {{dialogKind==='audio-picker' ? 'No saved audio yet. Upload a file or record a clip in
+          Generation.' : 'No songs to reference yet. Generate a song first, then reuse its creation
+          ingredients here.'}}
+        </p>
+        <button type="button" (click)="closeDialog();changeTab(0)">Go to Generation</button>
+      </div>
+      } @for(item of dialogKind==='audio-picker' ? library.items : songs;track item.id){<button
         type="button"
         class="song-row"
         (click)="dialogKind==='audio-picker' ? addAudio(item) : referenceSong(item)"
       >
         <strong>{{item.name}}</strong
         ><span>{{item.duration.toFixed(1)}} s · {{item.type}}</span></button
-      >}@if(!library.items.length){
-      <p>There are no saved items yet. Upload or record audio, or create a song.</p>
-      }} } }
+      >}} } }
     </div>
   </dialog>
 </main>

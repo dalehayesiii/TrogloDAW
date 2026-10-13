@@ -179,6 +179,68 @@ A terminal job failure SHALL have one notification representation instead of a d
 - **WHEN** several retained failures exist in one workflow on reconnect
 - **THEN** the newest is visible and earlier notices remain available through an explicitly labeled disclosure without replaying old success announcements
 
+### Requirement: Selection-owned Library preview
+Library preview audio and assets SHALL correspond to the latest selected song. Switching selection SHALL remove the previous playable preview while loading. Late success or failure for an earlier selection SHALL not replace the current preview or its feedback. A failed current preview SHALL expose a retry action.
+
+#### Scenario: Select another song before loading completes
+- **WHEN** song A loads after the user has selected song B
+- **THEN** B remains selected and A's audio/assets do not appear under B's title
+
+#### Scenario: Current preview fails
+- **WHEN** the current selected song's preview cannot load
+- **THEN** the interface explains the failure and offers retry without playing the previous song
+
+### Requirement: Contextual empty states and count validation
+Library SHALL distinguish an empty library, an empty folder and no search matches. Empty audio/reference pickers SHALL explain how to add suitable items. Invalid generation counts SHALL receive nearby feedback and SHALL not submit a job; the valid contract remains integers from one through 32.
+
+#### Scenario: No search results
+- **WHEN** a search finds no matching songs in a nonempty library
+- **THEN** the UI identifies the unmatched search and offers clearing search/filters
+
+#### Scenario: Invalid generation count
+- **WHEN** the user submits an empty, fractional or out-of-range count
+- **THEN** the field explains the accepted range, keeps the draft and prevents a job submission
+
+### Requirement: Contained user-provided names
+Song names and headings SHALL remain contained in their workflow columns and list rows at desktop and narrow widths, including valid unbroken 120-character names. Player title truncation SHALL retain the complete title through a tooltip without covering audio actions.
+
+#### Scenario: Long unbroken song name
+- **WHEN** the user selects a song whose name is a valid 120-character string without spaces
+- **THEN** its name wraps within the list and preview columns without creating horizontal page overflow
+
+### Requirement: Truthful audio playback and download controls
+Audio previews SHALL visibly distinguish mute from unmute, reflect the actual playing state and explain playback failure with a recovery action. Changed media SHALL reset stale waveform/time/transport state. Audio sharing SHALL use the download action without a local-link copy control. Small audio actions SHALL have at least 32px click targets and long titles SHALL not overlap those actions.
+
+#### Scenario: Playback rejects an action
+- **WHEN** the browser rejects playback
+- **THEN** the player displays actionable feedback and remains usable for retry or download
+
+#### Scenario: Change the source
+- **WHEN** a different preview replaces the current audio
+- **THEN** the old waveform is removed and displayed playback speed/mute/state agree with the new audio element
+
+#### Scenario: Download audio
+- **WHEN** the user wants to share a preview
+- **THEN** the player offers an audio download and has no ambiguous local-link copy action
+
+### Requirement: Centered success notification placement
+Success notifications SHALL be horizontally centered near the bottom of the main page. In a foreground dialog, they SHALL be centered within the dialog and remain readable without overflowing its bounds. Their existing dismissal and eight-second expiry SHALL remain unchanged.
+
+#### Scenario: Page success notification
+- **WHEN** folder creation succeeds at desktop or narrow width
+- **THEN** its notification is centered horizontally in the viewport
+
+#### Scenario: Foreground dialog notification
+- **WHEN** a success notification remains visible while Settings opens
+- **THEN** it is centered inside the dialog with no inherited page translation
+
+### Requirement: Distinct folder creation action
+Create folder SHALL be separated from the New folder name field by at least 12px so the action reads as a separate button rather than an attached input segment.
+
+#### Scenario: Expanded folder creation
+- **WHEN** Create a folder is expanded
+- **THEN** the input and Create folder button remain distinct at desktop and narrow widths in both themes
+
 ### Requirement: Visible scoped Library selection
 Library SHALL provide independent song checkboxes, a selected count, Select all shown and Clear selection in folder and search lists. Playback preview SHALL remain independent. Search/folder changes SHALL clear selection; refresh SHALL drop absent or hidden IDs. Navigation SHALL preserve selection while its scope remains unchanged.
 
@@ -196,3 +258,14 @@ Selected songs SHALL offer bulk move and delete. Delete SHALL show the exact cou
 #### Scenario: Cancel confirmation
 - **WHEN** the user cancels the bulk-delete confirmation
 - **THEN** all selected songs and selection remain unchanged
+
+### Requirement: Immediate submission busy feedback
+Job submission controls SHALL reflect busy state from the start of API acceptance through polling and final refresh. Ordinary processing and model installation SHALL retain their separate busy semantics. Failure SHALL release this transient state without discarding persistent failure feedback. Effect controls SHALL remain editable during FX rendering.
+
+#### Scenario: Render acceptance is delayed
+- **WHEN** the user previews a remix and the job submission response is delayed
+- **THEN** Preview remix is disabled while effect controls remain editable, and the rendered preview reflects the submitted settings rather than later edits
+
+#### Scenario: Retry finishes before reload
+- **WHEN** folder creation retries a prior failure
+- **THEN** acknowledgement of old failures occurs at retry start, successful completion produces the normal success notification, and reload after completion does not revive acknowledged failures

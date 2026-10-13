@@ -175,6 +175,9 @@ export class AppComponent {
   bulkNewFolder = '';
   bulkSubmitting = false;
   libraryAudio: Media | null = null;
+  libraryLoading = false;
+  libraryPreviewError = '';
+  private librarySelection = 0;
   libraryAssets: { label: string; media: Media | null }[] = [];
   get selectedRecipe() {
     return JSON.stringify(this.selected?.recipe, null, 2);
@@ -201,6 +204,21 @@ export class AppComponent {
   fxGroup = '';
   fxName = '';
   fxPreview: Media | null = null;
+  private fxPreviewSettings = '';
+  get fxSettings() {
+    return JSON.stringify({
+      groups: this.fx?.groups.map((group: any) => [group.id, group.settings]),
+      segments: this.fx?.segments,
+    });
+  }
+  get fxPreviewStale() {
+    return !!this.fxPreview && this.fxPreviewSettings !== this.fxSettings;
+  }
+  get generationCountError() {
+    return Number.isInteger(this.draft.count) && this.draft.count >= 1 && this.draft.count <= 32
+      ? ''
+      : 'Enter a whole number from 1 to 32.';
+  }
   capture?: MediaStream;
   recorder?: MediaRecorder;
   recording = false;
@@ -226,6 +244,8 @@ export class AppComponent {
     field('variety', 'Variety — vary the styles, keep your lyrics', 'slider', 0, 0, 100, 1),
   ];
   private polling = new Set<string>();
+  private submittingJobs = 0;
+  private submittingModels = 0;
   constructor() {
     try {
       this.appearance = localStorage.getItem('troglodaw-theme') || 'system';
@@ -332,6 +352,9 @@ export class AppComponent {
     const shown = new Set(this.filteredSongs.map((song) => song.id));
     this.checkedSongs = new Set([...this.checkedSongs].filter((id) => shown.has(id)));
     if (this.selectedSong && !this.selected) {
+      this.librarySelection++;
+      this.libraryLoading = false;
+      this.libraryPreviewError = '';
       this.selectedSong = '';
       this.libraryAudio = null;
       this.libraryAssets = [];
@@ -353,13 +376,17 @@ export class AppComponent {
   }
   get busy() {
     return (
+      this.submittingJobs > 0 ||
       this.bulkSubmitting ||
       this.audioImports > 0 ||
       this.jobs.some((job) => this.active(job) && job.action !== 'model_install')
     );
   }
   get installingModel() {
-    return this.jobs.some((job) => job.action === 'model_install' && this.active(job));
+    return (
+      this.submittingModels > 0 ||
+      this.jobs.some((job) => job.action === 'model_install' && this.active(job))
+    );
   }
   get storageBusy() {
     return this.busy || this.installingModel;
@@ -427,12 +454,20 @@ export class AppComponent {
   }
   async submit(action: string, values: any): Promise<Job> {
     this.beginWorkflow(action);
+    const model = action === 'model_install';
+    if (model) this.submittingModels++;
+    else this.submittingJobs++;
+    this.cdr.markForCheck();
     try {
       const created = await this.api('/api/jobs', { action, values });
       return await this.poll(created.id);
     } catch (error) {
       if (error instanceof PresentedJobError) throw error;
       throw new ScopedError(error, workflow(action));
+    } finally {
+      if (model) this.submittingModels--;
+      else this.submittingJobs--;
+      this.cdr.markForCheck();
     }
   }
   async poll(id: string): Promise<Job> {
@@ -688,6 +723,10 @@ export class AppComponent {
     this.saveDraft();
   }
   async generate() {
+    if (this.generationCountError) {
+      document.getElementById('generation-count')?.focus();
+      return;
+    }
     try {
       await this.submit('song_generate', this.draft);
     } catch (error) {
@@ -710,21 +749,28 @@ export class AppComponent {
     return value == null || value === '' || String(value).toLowerCase() === 'auto';
   }
   async selectSong(item: Item) {
+    const selection = ++this.librarySelection;
     this.beginWorkflow('library');
+    this.selectedSong = item.id;
+    this.songName = item.name;
+    this.songFolder = item.folder || '';
+    this.libraryAudio = null;
+    this.libraryAssets = [];
+    this.libraryPreviewError = '';
+    this.libraryLoading = true;
     try {
-      this.selectedSong = item.id;
-      this.songName = item.name;
-      this.songFolder = item.folder || '';
-      this.libraryAudio = null;
-      this.libraryAssets = [];
       const preview = await this.api('/api/items/' + item.id);
-      if (this.selectedSong === item.id) {
-        this.libraryAudio = preview.audio;
-        this.libraryAssets = preview.assets || [];
-      }
+      if (selection !== this.librarySelection) return;
+      this.libraryAudio = preview.audio;
+      this.libraryAssets = preview.assets || [];
     } catch (error) {
-      this.fail(error, 'library');
+      if (selection === this.librarySelection) {
+        this.libraryPreviewError =
+          'Could not load this song preview. Retry, or refresh the library.';
+        this.fail(error, 'library');
+      }
     } finally {
+      if (selection === this.librarySelection) this.libraryLoading = false;
       this.cdr.markForCheck();
     }
   }
@@ -749,10 +795,17 @@ export class AppComponent {
   }
   async deleteSong() {
     if (!this.selectedSong || !confirm('Delete this song from the library?')) return;
+    const id = this.selectedSong;
     try {
-      await this.submit('delete', { id: this.selectedSong });
-      this.selectedSong = '';
-      this.libraryAudio = null;
+      await this.submit('delete', { id });
+      if (this.selectedSong === id) {
+        this.librarySelection++;
+        this.selectedSong = '';
+        this.libraryAudio = null;
+        this.libraryAssets = [];
+        this.libraryLoading = false;
+        this.libraryPreviewError = '';
+      }
     } catch (error) {
       this.fail(error);
     }
@@ -808,6 +861,7 @@ export class AppComponent {
     this.fxSongId = item.id;
     this.fx = null;
     this.fxPreview = null;
+    this.fxPreviewSettings = '';
     this.fxGroup = '';
     this.changeTab(2);
     try {
@@ -859,8 +913,9 @@ export class AppComponent {
   }
   async renderFx(save: boolean, mode: string) {
     this.closeDialog();
+    const settings = this.fxSettings;
     try {
-      await this.submit('vocal_render', {
+      const rendered = await this.submit('vocal_render', {
         song_id: this.fxSongId,
         group_settings: Object.fromEntries(
           this.fx.groups.map((group: any) => [group.id, group.settings]),
@@ -870,6 +925,8 @@ export class AppComponent {
         save,
         mode,
       });
+      if (this.fxPreview?.url === rendered.result?.audio?.url) this.fxPreviewSettings = settings;
+      this.cdr.markForCheck();
     } catch (error) {
       this.fail(error);
     }
