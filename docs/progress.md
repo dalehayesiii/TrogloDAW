@@ -12,6 +12,16 @@ browser reload reconnect to the existing backend job without resubmitting it.
 Cancellation remains requested until a safe checkpoint acknowledges it. Songs
 already committed remain available when a later output fails or is canceled.
 
+## Generation and planning stages
+
+The selected generation choice and internal planning strategy distinguish timing
+contexts. Automatic length and musical metadata planning are separate stages;
+their models exit before music rendering starts. Decode activity with an unknown
+total remains indeterminate. Recording + style follows source length and bypasses
+text blueprint work; the backing choice reports CPU arrangement/render work rather
+than diffusion. An optional blueprint fallback is visible in progress and retains
+the original request. See [generation choices](song-workflows.md#generation).
+
 ## Estimates that keep learning
 
 The app records successful stage, song and request durations locally. At least

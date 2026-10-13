@@ -41,7 +41,23 @@ Blank lyrics do not suppress source vocals. The validated Base latent source pat
 retains more vocal detail than ordinary Cover in the bounded comparison, but voices,
 words and stylistic changes remain model-dependent. See [native validation](three-generation-workflows.md).
 
-Add multiple uploaded clips, microphone takes or Library songs. Each clip can be
+Current dark-mode examples use a temporary synthetic library with model setup
+deferred. They demonstrate inputs and controls, not generated-audio quality:
+
+<details>
+<summary>Current recording and backing examples</summary>
+
+![One intact recording with styles and no lyrics entry](assets/current-recording-dark.png)
+
+![Preserved backing with a separate sampled recording](assets/current-backing-dark.png)
+
+</details>
+
+### Generate a new song: sampled inputs
+
+In **Generate a new song**, add multiple uploaded clips, microphone takes or
+Library songs. The same per-clip controls apply to sampled inputs over a backing;
+Recording + style accepts one intact recording instead. Each clip can be
 previewed, labeled, removed, replaced or retaken independently. A new recording
 requests microphone permission only when initiated. Stop, preview and keep a take,
 or discard/record again. The old take stays selected until a replacement is kept.
@@ -87,6 +103,8 @@ sample arrangement guides the model. Checking it generates music independently,
 then mixes transformed samples into it. Saved explicit choices remain unchanged.
 The checkbox and Audio adherence have hover/focus/tap guidance. Without clips,
 generation uses lyrics/styles directly and Input Audio settings are hidden.
+
+![Fresh sampled conditioning settings with opt-in postmix](assets/current-conditioning-dark.png)
 
 Postmix gestures automatically match estimated generated-vocal loudness. Instrumental
 requests use the generated song instead. With lyrics, the installed local HDemucs
@@ -137,7 +155,7 @@ another output fails or the request is canceled. Completed outputs are visible
 while later outputs run. Model quality can repeat material or pronounce lyrics
 imperfectly; this is documented rather than hidden by rewriting lyrics.
 
-**More Options** is initially collapsed and contains only:
+For sampled model generation, **More Options** is initially collapsed and contains:
 
 | Control         | Local mapping                                                                                                                                                                                                |
 | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -146,6 +164,9 @@ imperfectly; this is documented rather than hidden by rewriting lyrics.
 | Weirdness       | 0–100 maps to schedule shift 1–5 with the supported ODE sampler throughout; independent of style guidance                                                                                                 |
 | Style Influence | 0–100 maps to Base-family classifier-free guidance 1–15                                                                                                                                                      |
 | Variety         | Zero retains styles exactly; higher values append one to three seeded performance directions within the requested mood, style, rhythm, delivery, sound sources and form; lyrics stay unchanged |
+
+Recording + style shows only Weirdness and Style Influence in More Options; it
+uses source length and source vocals. The backing choice hides model options.
 
 These are validated local parameter mappings, not a claim to implement Suno's
 undisclosed algorithms. Original/effective styles, options, automatic-duration
@@ -163,8 +184,10 @@ generated-audio players; missing assets are explicit.
 
 ## Library and Vocal FX
 
-Library supports checkbox selection and **Select all shown** within the current
-folder/search result. **Move selected…** organizes multiple songs into existing or
+Library defaults to 20 songs per page, with 10/20/50 choices. Search and folder
+filters apply to the complete library. Press **Select songs** to reveal checkboxes;
+**Select page** selects only the current page. Changing filters, page or page size
+clears selection. **Move selected…** organizes multiple songs into existing or
 new folders; **Delete selected…** confirms their names and reports partial failures
 without losing failed selections. See [bulk actions and recovery](library-bulk-actions.md).
 

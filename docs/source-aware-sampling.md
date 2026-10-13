@@ -1,6 +1,8 @@
 # Source-aware sampling
 
-Selecting **Use as Input Audio** in Library adds the song directly. There is no
+In sampled generation, selecting **Use as Input Audio** in Library adds the song
+directly. These policies also apply to sampled inputs in the backing workflow;
+**Recording + style** uses one intact upload/microphone recording instead. There is no
 optimized-defaults prompt. Lyrics, styles and manual clip adjustments stay as they
 are; the automatic planner records its decisions separately.
 
@@ -97,10 +99,13 @@ a second overlay in the conditioned path.
 Complementary LEGO parts and whole-mix Cover/Repaint have different contracts.
 The pinned ACE runtime must be tested before enabling a new task; semantic audio
 codes can supersede source audio, and an output correlated with context may simply
-be a copy. Correlation is a diagnostic, not a universal quality gate. The separate
-WRK-27 work owns these capability/blueprint changes. This implementation does not
-silently switch tasks, assume genre quality or add a DAW editor. WRK-25's fixed
-backing workflow keeps the selected song as the backing audio.
+be a copy. Correlation is a diagnostic, not a universal quality gate. The current
+[three-workflow contract](three-generation-workflows.md) uses intact
+latent source conditioning for Recording + style and metadata planning for
+compatible text-driven/postmix generation. Source-aware sampling retains its own
+arrangement rather than accepting competing semantic codes. The fixed-backing
+workflow keeps the selected song as the backing audio. No DAW editor or automatic
+complementary instrument lane is exposed.
 
 ## Limits and validation
 

@@ -3,8 +3,9 @@
 The monorepo has an Angular/Tailwind frontend and a local FastAPI backend.
 `backend/troglocore.py` remains the shared DSP/catalog engine; the CLI and HTTP service
 both call it. Audio processing is offline after explicit local model setup and has no remote
-model service or API key. The three task-focused workflows are Generation, Library
-and Vocal FX. See [workflows](song-workflows.md), [model setup](local-models.md) and
+model service or API key. The three app tabs are Generation, Library and Vocal FX;
+Generation contains sampled songs, preserved-backing arrangements and Recording +
+style. See [workflows](song-workflows.md), [model setup](local-models.md) and
 [progress and timing](progress.md), and [notification policy](notifications.md). The legacy CLI/DSP operations remain.
 
 ## Layout
@@ -119,6 +120,34 @@ rejects unfinished archived tasks. The initial archive includes the app baseline
 UI migration and delivery setup; canonical specs describe the final implementation.
 
 ## PRs and releases
+### Documentation-only changes
+
+Review maintained instructions against the current source, compiled app and
+canonical specs. Keep dated research, benchmark tables, before/after captures and
+OpenSpec archives as historical evidence. The [documentation index](README.md)
+identifies the active guides and research reports.
+
+For screenshots, build the current frontend and run the real service against a
+temporary library/configuration. Use synthetic audio; the existing
+`scripts/seed_browser_fixture.py` creates synthetic songs and cached vocal groups
+without model inference. Describe fixture limitations in the caption. Save new
+current images rather than replacing captures referenced by historical evidence.
+Keep temporary capture scripts, catalogs, audio and caches outside the commit.
+
+For a `docs:` PR, validate local links/images, check examples against their actual
+commands, and run `npm test` and `npm run specs:check`. CI also runs the archive
+policy guard, `scripts/check_specs.py`, with its GitHub event context. Frontend compilation is needed
+when capturing current UI screenshots. A documentation correction that changes no
+contract needs no new OpenSpec change. Behavior changes require the full lifecycle.
+
+CI must pass **PR title and docs** and **Integration and specs** on the latest
+revision. The documented docs-only classification skips **Python checks**,
+**Angular checks**, **Windows build and installed app**, and release publication;
+investigate any different skip or classification. Keep the PR open pending merge
+authorization.
+
+### App changes and release types
+
 Conventional Commit PR titles become squash subjects. Preserve BREAKING CHANGE
 footers in the squash body. Only `docs -> false` overrides semantic-release defaults.
 

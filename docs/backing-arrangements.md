@@ -22,8 +22,8 @@ with finished songs retaining their source-aware hook/accent handling. Choose a
 title or leave it blank to use the backing title with an arrangement suffix.
 
 The backing determines the complete output length, from one second to twenty
-minutes. This is independent of the generation model's ten-second to five-minute
-limits. Each requested output runs sequentially; the default remains two. This
+minutes. Sampled model generation supports 10–300 seconds; Recording + style
+supports 1–300 seconds. Those limits do not shorten a backing arrangement. Each requested output runs sequentially; the default remains two. This
 workflow needs no music model, lyric writer, separator or GPU inference. Lyrics,
 styles, automatic writing, audio conditioning/adherence, guide enhancement and
 model options are hidden and ignored by the backend. Switching back restores those
@@ -72,7 +72,9 @@ a supported input guard, not a performance promise: decoding and mastering use f
 buffers, so longer songs consume more RAM and disk. No subjective quality score or
 universal semantic accompaniment is claimed from synthetic fixtures.
 
-Recipes use `workflow: arrange-over-song`; absent workflow keeps existing model
-generation. The discriminator can accommodate the later intact-recording workflow
-tracked in WRK-27. This change does not alter conditioned/postmix model-generation
-defaults or require remote processing.
+Recipes use `workflow: arrange-over-song`; absent workflow retains historical
+sampled model-generation behavior. The current selector also supports
+`recording-style`, with a complete recording and no lyric entry. Fresh sampled
+drafts default to conditioning with an opt-in postmix checkbox; this backing
+workflow uses neither path. Each choice preserves its own draft and replays saved
+audio/placements offline. See [all generation choices](song-workflows.md#generation).

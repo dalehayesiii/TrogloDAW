@@ -3,9 +3,9 @@
 # TrogloDAW
 
 A local music studio for turning your recordings, lyrics and ideas into songs.
-Draft lyrics locally or enter your own, choose automatic length or up to five minutes,
-and generate two independent songs sequentially by default. Generate on your own hardware, keep a portable song library and shape voices
-without sending your audio to a remote service.
+Generate a new song from recordings and lyrics, arrange recordings over an existing
+song, or reimagine one complete recording with style instructions. Keep a portable
+library and shape voices on your own hardware, without sending audio to a remote service.
 
 The design intent is **fully unfiltered local song generation**, inspired by
 frustration with tightening song-creation restrictions in hosted tools such as
@@ -16,24 +16,26 @@ Technical input limits and imperfect model delivery still apply.
 [Get the Windows installer](https://github.com/dalehayesiii/TrogloDAW/releases/latest) ·
 [Song workflows](docs/song-workflows.md) · [Import and arrange over a song](docs/backing-arrangements.md) · [Model setup and hardware](docs/local-models.md) ·
 [Lyrics and automatic length](docs/song-planning.md) · [Guide enhancement](docs/guide-enhancement.md) · [App updates](docs/updates.md) · [Installation and data recovery](docs/installation-recovery.md) ·
-[Development](docs/development.md)
+[All documentation](docs/README.md) · [Development](docs/development.md)
 
-| Workflow | Your next step |
+| App tab | Your next step |
 | --- | --- |
-| <img src="docs/assets/generation.svg" width="32" alt="Cave generation glyph"> **Generation** | Add recordings, lyrics and styles. We derive smaller samples, transform each one and arrange a full-song audio guide for the model. |
+| <img src="docs/assets/generation.svg" width="32" alt="Cave generation glyph"> **Generation** | Choose sampled song generation, a preserved backing with recordings, or Recording + style. Each keeps its own draft. |
 | <img src="docs/assets/library.svg" width="32" alt="Stone library glyph"> **Library** | Import finished WAVs, play and reuse songs; [select multiple songs](docs/library-bulk-actions.md) to move or delete folder/search results together. Original audio, generated music and recipes stay together. |
 | <img src="docs/assets/vocal-fx.svg" width="32" alt="Carved waveform glyph"> **Vocal FX** | Extract vocals, review uncertain voice groups and apply effects while keeping the song's timing. |
 
 ## Inside the sound cave
 
-The actual app in dark mode, using demonstration audio. Light mode and system
+Current compiled app, captured on 13 October 2026 in dark mode with a temporary
+synthetic library. Models are not installed in this demonstration; Vocal FX uses
+synthetic cached stems, not a separation-quality example. Light mode and system
 appearance are available too.
 
-![Generation: original input clips, lyrics, styles and song output](docs/assets/generation-dark.png)
+![Generation: workflow selector, original input, lyrics and styles](docs/assets/current-generation-dark.png)
 
-![Library: saved songs, playback and cross-workflow reuse](docs/assets/library-dark.png)
+![Library: saved songs, playback and cross-workflow reuse](docs/assets/current-library-dark.png)
 
-![Vocal FX: voice groups, effects and a fixed song timeline](docs/assets/vocal-fx-dark.png)
+![Vocal FX: voice groups, effects and a fixed song timeline](docs/assets/current-vocal-fx-dark.png)
 
 Input audio yields varied phrase, motif and accent cuts; eligible short clips can also
 contribute a whole-clip sample. Each cut receives bounded statement/response/fill
@@ -85,10 +87,15 @@ First-run setup and **Settings** let you choose separate library and model folde
 including a different drive. Windows opens a folder browser. If the current folder
 contains data, choose whether to move it, use the new folder without moving, or cancel.
 The default model folder is `Documents\TrogloDAW\models`.
-Generation uses the verified ACE-Step 1.5 Base model and currently requires a supported
+Model-generated songs use the verified ACE-Step 1.5 Base model and require a supported
 NVIDIA GPU with 5.5 GiB free VRAM and 12 GiB available RAM. Allow about 19 GB for
 model assets, inference wheels and caches; see the model guide for measured limits.
-After setup, generation, vocal extraction and editing run locally offline.
+Fresh sampled drafts use automatic length, which needs the optional song writing
+tools (about 4.91 GiB extra). Install those in Settings, or enter an explicit
+10–300-second **Duration** under **More Options**. Recording + style and backing
+arrangements use their source timelines instead.
+After setup, model generation and fresh vocal extraction run locally offline.
+Importing WAVs and arranging recordings over a backing work on CPU without model setup.
 Choose **Continue in background** after starting installation to explore while it runs.
 Installed builds check stable releases on startup; **Settings → App updates** offers
 verified download and idle-only installation/restart. Setup and selected folders survive
@@ -150,42 +157,15 @@ must be removed before changing the library through Settings. Appearance follows
 the system by default; light/dark overrides persist and **Use system theme** resets them.
 When you update the app, keep your library folder (or point `library_dir` at it).
 
-## AI Producer (one vocal in, finished song out)
-
-The retained procedural producer is available on the command line:
-
-```
-troglodaw produce user_vocal_1                      # everything automatic
-troglodaw produce my_take.m4a --mood chill          # import a file and produce it in one step
-troglodaw produce user_vocal_1 --style trap --bpm 92 --key "C minor" --seed 42 --tune off
-troglodaw analyze user_vocal_1                      # see what the producer hears
-```
-
-What it does, all offline with no API key (numpy/scipy/pedalboard):
-1. **Analysis**:
-   - tempo from onset-strength autocorrelation (spoken/rap vocals fold into 80-100 BPM, default 90)
-   - sung vs spoken detection, f0 tracking and key estimation (Krumhansl-Schmuckler), with a reliability flag
-   - silence-based phrase detection, BS.1770 loudness and an energy score
-2. **Style and beat**:
-   - style comes from energy (calm → lofi/ambient, mid → boombap, high → trap) unless you set a mood or style
-   - an original beat in the chosen tempo/key with an intro (pad and hats), alternating verse A/B sections with crashes and fills, and a half-time outro
-3. **Vocal chain**:
-   - high-pass, noise gate, EQ, two-stage compression, normalize, light reverb and delay
-   - gentle per-note pitch correction toward the key, only when the vocal is sung and the key is reliable (or `--tune on`)
-4. **Arrangement**: phrases are grouped into 1-3 bar lines (chosen to minimise dead air) and each line starts on a downbeat after the intro. The music ducks under the vocal.
-5. **Mastering**: bus compression and limiting to -14 LUFS integrated, with a true-peak ceiling of -1 dBTP (4x oversampled check). Output is wav + mp3 in `library/mixes`.
-
-Each song is saved as a normal mix recipe (processed vocal + generated beat + settings + mastering) plus the full analysis,
-choices and seed. `troglodaw remix <song> --music-vol -8` changes the balance and keeps the mastering.
-`troglodaw rerender <song>` re-runs the whole producer with the same seed and gives the same song.
-
 ## The web UI
 
-- **Generation**: multiple vocal uploads/recordings and prior-song samples, lyrics,
-  styles, selective prior-recipe ingredients, title and independent output count.
-  Each input's closed **Clip adjustments** dropdown changes only that clip's
-  pitch, playback speed and volume before arrangement.
-  More Options contains only Gender, Duration, Weirdness, Style Influence and Variety.
+- **Generation**: choose among [three input/output paths](docs/song-workflows.md#generation).
+  Sampled generation supports recordings and Library priors, lyrics/styles,
+  selective recipe reuse, automatic or 10–300-second length, and local lyric drafts.
+  Fresh drafts request two sequential outputs. **Clip adjustments** affects only
+  that sampled clip; **More Options** depends on the selected workflow.
+  Recording + style takes one intact 1–300-second recording, with no lyric entry.
+  The backing workflow uses the selected song's 1-second to 20-minute timeline.
 - **Library**: play/search/rename songs, folders, recipe/audio-asset inspection, and
   direct actions to use rendered audio, reuse ingredients or edit voices.
 - **Vocal FX**: local vocal extraction, uncertain candidate groups with correction,
@@ -195,46 +175,18 @@ choices and seed. `troglodaw remix <song> --music-vol -8` changes the balance an
 [Detailed workflows and limits](docs/song-workflows.md). The original procedural
 producer/generator/mixer remain available through the CLI for legacy recipes.
 
-## Command line
+## Command line and recipes
 
-Source: `uv run --locked python backend/cli.py <command>` or the wrappers in
-`scripts/launchers/`. Installed Windows: `%LOCALAPPDATA%\TrogloDAW\troglodaw.bat <command>`.
-You can refer to items by id, a unique id prefix, or exact name.
+The retained CLI imports, analyzes, synthesizes procedural beats, applies effects,
+mixes and exports audio without a music model. It shares the browser’s library.
+See the [CLI reference and procedural producer](docs/cli.md) for commands, examples
+and recipe behavior.
 
-```
-troglodaw where                                   # show library + ffmpeg location
-troglodaw demo                                    # end-to-end self test
-troglodaw import rec1.m4a rec2.mp3 --type voice --tags take1
-troglodaw import mybeat.mp3 --type music --name "my beat"
-troglodaw import --inbox                          # import everything in library/inbox
-troglodaw list [--type voice|music|generated|mix] [--tag X] [--json]
-troglodaw show <id>                               # full catalog entry incl. recipe
-troglodaw voice-fx <voice> --pitch -2 --reverb 0.3 --low-cut 100 --compress --name myvoice_fx
-    # also: --stretch 0.9 --gain 3 --high-cut 8000 --chorus 0.4 --robot 0.6 --robot-hz 110
-    #       --delay 0.3 --delay-time 0.35 --delay-feedback 0.4 --room-size 0.7 --trim --no-normalize
-troglodaw generate --bpm 90 --key "A minor" --bars 8 --style boombap [--progression i-VI-III-VII] [--seed 42] [--swing 0.2]
-troglodaw mix <voice> <music> --voice-vol 0 --music-vol -3 --offset 4 --duck --duck-db 8 \
-       --fade-in 1 --fade-out 2 --loop [--voice-fx '{"pitch":-2,"reverb":0.3}'] --name mymix
-troglodaw remix <mix> --music-vol -1 --offset 1.5 --duck-db 14 --voice-fx '{"robot":0.5}' [--voice <id>] [--music <id>]
-troglodaw rerender <id>                           # rebuild any generated/fx/mix item from its recipe
-troglodaw export <id> [--out DIR] [--formats mp3,wav] [--bitrate 256k]
-troglodaw tag <id> a,b   |  troglodaw rename <id> "new name"  |  troglodaw delete <id>
-troglodaw tts "some words"                        # test voice (espeak-ng if installed, otherwise a synthesized sung phrase)
-```
-
-Any setting can also be passed as `--set key=value` (for example `--set duck_threshold=-40`).
-On Windows cmd, write JSON with escaped quotes: `--voice-fx "{\"pitch\":-2}"`.
-
-## How recipes work
-
-Legacy mixes store `voice_id`, `music_id`, and every setting. `remix` loads that recipe, applies your overrides
-(you can even swap the voice or the music), renders a new mix, and records the `parent`. Generated beats store
-their seed, so `rerender` reproduces them exactly. Browser-generated songs instead
-retain the actual generated WAV, original inputs, transformed samples, timeline
-placements, options and model identity. Rerendering uses saved assets offline;
-running model inference again with the same seed does not promise identical audio.
-Vocal FX recipes retain their source and cached unprocessed vocals so edits do not
-repeatedly bake previous effects into the audio.
+Browser recipes retain original inputs, saved model/backing audio, transformed
+samples, timing, options and model identity. Rerender uses these assets offline;
+the same inference seed alone does not guarantee identical generated audio.
+Vocal FX retains cached unprocessed stems so edits do not repeatedly bake earlier
+effects into the source. Keep the complete library together when moving it.
 
 ## Building the Windows installer
 
@@ -259,24 +211,21 @@ regenerate an affected draft without changing existing songs.
 
 - [Styling adherence](docs/style-adherence.md) documents supported controls and why captions are preserved.
 - [Prompt-enrichment research](docs/prompt-enrichment-research.md) records instrumental, speech and content-preservation trials, including why the tested automatic writers were not enabled.
-- Browser song generation supports explicit 10–300 seconds or optional model-planned length with one local output running at
+- Sampled model generation supports explicit 10–300 seconds or optional planned
+  length; Recording + style uses its 1–300-second source length. Outputs run one at
   a time. Lyrics, style and vocal gender are model guidance; musical quality,
   exact sung words and vocalist character are not guaranteed. Model setup needs
   internet and disk space; CPU song generation is not a validated fallback.
 - Vocal candidates are uncertain time groups, not guaranteed distinct singers.
   Overlapping singers can remain together; corrections change grouping rather
   than physically separating them. Review solo and remix previews before saving.
-- Browser Generation arranges multiple selected audio inputs alongside model audio.
-  It does not yet extract reusable drums/bass/instrument stems from every song,
+- Sampled generation arranges multiple inputs as model conditioning or an optional
+  postmix overlay; the backing flow preserves existing music, and Recording + style
+  conditions on one intact source. The app does not yet extract reusable instrument stems,
   provide MIDI export or automatically match inputs to the generated tempo/key.
-- The retained CLI generator uses simple pattern-based synthesis. Legacy CLI mixes
-  accept one voice and one music track; stack more by mixing a mix with another voice.
-- The "robot" effect is a zero-phase robotizer, not a true carrier/modulator vocoder.
-- There is no automatic tempo/key matching between a vocal and a track. Use offset, stretch and pitch by hand.
-- AI Producer: it can't tell where words or beats fall, so phrases are placed by silence gaps. Free-tempo speech is placed line by line,
-  not re-timed to the groove. Key detection on speech is unreliable, so spoken vocals get a beat rooted on the speaker's median pitch.
-  Pitch correction is a gentle per-note nudge, not hard autotune. Style choice is a heuristic on energy and tempo.
-- Pitch shift and time stretch quality is good for moderate amounts (about ±5 semitones, 0.75-1.3x).
+- Arrangement and tempo/key detection are audio heuristics, with no guarantee of
+  harmony, exact source words or artistic quality. The retained procedural CLI has
+  separate [synthesis and effect limits](docs/cli.md#limits).
 
 The download is `TrogloDAW-Setup-<version>.exe`. Default app/library roots use TrogloDAW;
 the command is `troglodaw` and environment settings use `TROGLODAW_*`.

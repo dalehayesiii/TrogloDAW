@@ -41,7 +41,7 @@ only contain `TrogloDAW-Setup.exe`.
 
 Apps released before this filename change only recognize `TrogloDAW-Setup.exe`.
 For the first upgrade, download the versioned installer, SHA256SUMS and
-release.json from the same [stable release](https://github.com/dalehayesiii/music-maker/releases/latest).
+release.json from the same [stable release](https://github.com/dalehayesiii/TrogloDAW/releases/latest).
 Verify its SHA-256 with `Get-FileHash -Algorithm SHA256` against the matching
 SHA256SUMS entry and confirm release.json names the same file/version. Finish
 active work, close TrogloDAW, then run that installer against the existing app

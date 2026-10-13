@@ -12,7 +12,7 @@ Uninstall removes the app and its preferences. Model removal is checked by defau
 2. Choose **Use folder without moving** when prompted if the selected destination already contains the data you want to reuse. Choose **Move existing data** only when transferring the currently active data to an empty destination.
 3. Choose the matching supported model and click **Install / verify selected model**. Complete pinned assets and compatible runtime files are verified and reused; only missing files are downloaded. Incompatible existing files are preserved and reported rather than overwritten. Interrupted partials owned by a previous installation may remain; they are not silently adopted as verified model files.
 
-Selecting a folder does not itself start a download. Setup can be deferred; importing, recording, browsing, playback and draft editing work without a music model. New song generation and fresh source extraction need a ready compatible model. Existing cached edits may remain usable.
+Selecting a folder does not itself start a download. Setup can be deferred; importing, recording, browsing, playback, draft editing and preserved-backing arrangements work without a music model. Model-generated songs and fresh source extraction need a ready compatible model. Existing cached edits may remain usable.
 
 ## Data inside app program folders
 

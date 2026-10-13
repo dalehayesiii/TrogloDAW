@@ -19,26 +19,31 @@ commit and SHA-256. Semantic-release owns version/tag decisions and versions the
 already-checked frontend payload.
 
 Current install/Documents roots, HKCU application/uninstall keys, payload paths,
-launchers and project identifiers use TrogloDAW. The Python engine module is
+launchers and public project names use TrogloDAW. The Python engine module is
 `troglocore`, the command is `troglodaw`, environment settings use `TROGLODAW_*`,
 and local API mutation requests use `X-TrogloDAW-Request: 1`. Old product-name
 aliases and migration paths are not provided. Portable catalogs and recipes keep
 their audio contracts; configured model/library locations remain user choices.
 
-The existing **dalehayesiii/music-maker** GitHub remote and links remain real
-repository addresses; renaming that remote requires the owner. Archived OpenSpec
-changes and Git history retain truthful historical names and screenshot evidence. Generated
-workflow instructions remain upstream material rather than product branding.
+The current repository is [dalehayesiii/TrogloDAW](https://github.com/dalehayesiii/TrogloDAW).
+The updater and release identity retain the legacy `dalehayesiii/music-maker`
+repository identifier; GitHub redirects the renamed repository. Do not rewrite
+installed manifests or updater configuration to match a documentation link.
+Archived OpenSpec changes, dated review captures and Git history retain their
+historical names and evidence. Generated workflow instructions remain upstream
+material rather than product branding.
 
 Current TrogloDAW upgrades preserve configuration and models. Installation and
 uninstall manage only known app shortcuts and preserve unrelated custom Start
 Menu entries. Model removal is ownership-aware and checked by default with
 opt-out; libraries are preserved.
 
-Generation shows original input clips. Content-aware sampling derives smaller
-samples, transforms each individually and arranges one complete audio guide.
-Sample management is automatic. The result area has a fixed **Song generation
-output** heading with the actual song title below it.
+Generation offers three choices. Sampled song generation derives smaller cuts and
+arranges one complete audio guide; Recording + style uses one intact recording;
+the backing choice preserves a Library song with arranged inputs. Sample management
+is automatic where applicable. Model results use **Song generation output**;
+the backing choice uses **Arrangement output**, with the actual title below it.
+See [song workflows](song-workflows.md).
 
 Theme checks use axe-core against the real backend, plus system/override/reload,
 canvas-repaint and narrow-layout tests. Current dark-mode app screenshots appear
