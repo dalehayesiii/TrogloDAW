@@ -21,9 +21,13 @@ async function seed(request, label) {
   return { library, items };
 }
 async function open(page) {
+  const setup = !(await (await page.request.get('/api/library')).json()).storage.setup_seen;
   await page.goto('/');
   const later = page.getByRole('button', { name: 'Set up later', exact: true });
-  if (await later.isVisible()) await later.click();
+  if (setup) {
+    await expect(later).toBeVisible();
+    await later.click();
+  }
   await page.getByRole('tab', { name: 'Library', exact: true }).click();
 }
 const panel = (page) => page.locator('#panel-1');
