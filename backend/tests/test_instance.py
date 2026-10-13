@@ -6,6 +6,7 @@ import subprocess
 import sys
 import time
 import urllib.request
+import urllib.parse
 from pathlib import Path
 
 import pytest
@@ -140,4 +141,59 @@ def test_concurrent_launch_reopen_crash_and_quit_use_one_service(tmp_path):
                 process.kill()
             process.wait(timeout=5)
         blocker.close()
+        probe.close()
+
+
+def test_stalled_http_shutdown_exits_and_releases_launch_lock(tmp_path):
+    root = Path(__file__).resolve().parents[2]
+    frontend = tmp_path / "frontend"
+    frontend.mkdir()
+    (frontend / "index.html").write_text("<html>Synthetic shutdown</html>")
+    marker = tmp_path / "request-entered"
+    env = {
+        **os.environ,
+        "TROGLODAW_CONFIG_DIR": str(tmp_path),
+        "TROGLODAW_LIBRARY": str(tmp_path / "library"),
+        "SYNTHETIC_FRONTEND": str(frontend),
+        "TROGLODAW_TEST_BLOCKED_MARKER": str(marker),
+    }
+    process = subprocess.Popen(
+        [sys.executable, str(root / "scripts/serve_shutdown_fixture.py"), "--no-browser"],
+        cwd=root,
+        env=env,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        creationflags=0x08000000 if os.name == "nt" else 0,
+    )
+    probe = Instance(tmp_path)
+    connection = socket.socket()
+    try:
+        deadline = time.monotonic() + 20
+        url = None
+        while time.monotonic() < deadline and not url:
+            url = probe.existing_url()
+            time.sleep(0.1)
+        assert url, "Shutdown fixture did not start"
+        address = urllib.parse.urlsplit(url)
+        connection.connect((address.hostname, address.port))
+        connection.sendall(
+            b"GET /api/fixture/blocked HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n"
+        )
+        deadline = time.monotonic() + 5
+        while not marker.exists() and time.monotonic() < deadline:
+            time.sleep(0.05)
+        assert marker.exists(), "Stalled request did not enter the app"
+        request = urllib.request.Request(
+            url + "api/shutdown", data=b"", headers={"X-TrogloDAW-Request": "1"}
+        )
+        with urllib.request.urlopen(request, timeout=5):
+            pass
+        assert process.wait(timeout=20) == 0
+        assert not probe.metadata.exists()
+        assert probe.acquire(), "Exited service left launch ownership locked"
+    finally:
+        connection.close()
+        if process.poll() is None:
+            process.kill()
+        process.wait(timeout=5)
         probe.close()

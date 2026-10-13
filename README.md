@@ -270,3 +270,6 @@ regenerate an affected draft without changing existing songs.
 The download is `TrogloDAW-Setup-<version>.exe`. Default app/library roots use TrogloDAW;
 the command is `troglodaw` and environment settings use `TROGLODAW_*`.
 See the [product identity audit](docs/branding.md).
+
+For an update that leaves the browser waiting or the launcher unable to reopen, see
+[Windows update recovery](docs/update-recovery.md).

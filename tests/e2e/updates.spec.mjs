@@ -199,11 +199,32 @@ test('first-run background setup and verified update recovery use the real servi
     await install.click();
     await expect(dialog.getByRole('alert')).toContainText('launch');
     await expect(page.getByRole('tab')).toHaveCount(3);
+    await page.clock.install();
+    await page.route(base + '/api/updates', (route) => route.abort());
     await install.click();
     await expect(
       page.getByRole('heading', { name: 'Updating TrogloDAW', exact: true }),
     ).toBeVisible();
     await expect(page.getByRole('tab')).toHaveCount(0);
+    await page.clock.setSystemTime(Date.now() + 46000);
+    await expect(
+      page.getByRole('heading', { name: 'Update needs attention', exact: true }),
+    ).toBeVisible();
+    await expect(page.getByText(/Update status is unavailable/)).toBeVisible();
+    await expect(page.getByRole('link', { name: 'View the latest release' })).toBeVisible();
+    for (const theme of ['light', 'dark']) {
+      await page.emulateMedia({ colorScheme: theme });
+      for (const width of [1440, 390]) {
+        await page.setViewportSize({ width, height: 900 });
+        expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+          width,
+        );
+        await page.screenshot({
+          path: test.info().outputPath(`update-status-${theme}-${width}.png`),
+        });
+      }
+    }
+    await page.unroute(base + '/api/updates');
     await expect(page.getByRole('tab')).toHaveCount(3);
     await expect(dialog).not.toBeVisible();
     await expect(page.getByLabel('Input Lyrics', { exact: true })).toHaveValue(

@@ -5,6 +5,7 @@ $listener = $null
 $installerProcess = $null
 $settings = $null
 $state = $null
+$restartProcess = $null
 function Get-InstallerHash([string]$path) {
     $stream=[System.IO.File]::OpenRead($path)
     $hash=[System.Security.Cryptography.SHA256]::Create()
@@ -16,6 +17,11 @@ function Write-UpdateState([string]$phase, [string]$message) {
     $temporary = $settings.status + '.tmp'
     [System.IO.File]::WriteAllText($temporary, ($script:state | ConvertTo-Json -Compress), [System.Text.UTF8Encoding]::new($false))
     Move-Item -LiteralPath $temporary -Destination $settings.status -Force
+}
+function Start-UpdateListener {
+    $address = if ($settings.host -eq '::1') {[System.Net.IPAddress]::IPv6Loopback} else {[System.Net.IPAddress]::Loopback}
+    $script:listener = [System.Net.Sockets.TcpListener]::new($address,[int]$settings.port)
+    $script:listener.Start()
 }
 function Serve-UpdateStatus {
     if (-not $listener.Pending()) { return }
@@ -37,8 +43,8 @@ function Serve-UpdateStatus {
             $body = @'
 <!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>TrogloDAW update</title>
 <style>body{margin:0;min-height:100vh;display:grid;place-items:center;font:18px system-ui;background:#f1eaf1;color:#332538}main{max-width:600px;margin:20px;padding:40px;border-radius:28px;border-top:5px solid #dba0d2;background:#fffafd}h1{font-size:32px}p{line-height:1.6;overflow-wrap:anywhere}@media(prefers-color-scheme:dark){body{background:#1c1720;color:#f5eaf4}main{background:#2d2431}}</style>
-<main><h1>Updating TrogloDAW</h1><p id="message" role="status">Checking installation status…</p><p>Your library, models and preferences are kept. This page returns to the app after restart.</p><p>If installation fails, run the verified installer shown above or reopen the app from its shortcut.</p></main>
-<script>setInterval(async()=>{try{const s=await(await fetch('/api/updates',{cache:'no-store'})).json();document.getElementById('message').textContent=s.message||'Reopening TrogloDAW…';if(!s.helper&&s.version==='__VERSION__')location.reload()}catch{}},1000)</script></html>
+<main><h1>Updating TrogloDAW</h1><p id="message" role="status">Checking installation status...</p><p>Your library, models and preferences are kept. This page returns to the app after restart.</p><p>If installation fails, run the verified installer shown above or reopen the app from its shortcut.</p></main>
+<script>setInterval(async()=>{try{const s=await(await fetch('/api/updates',{cache:'no-store'})).json();document.getElementById('message').textContent=s.message||'Reopening TrogloDAW...';if(!s.helper&&s.version==='__VERSION__')location.reload()}catch{}},1000)</script></html>
 '@
             $body = $body.Replace('__VERSION__',$settings.version)
         }
@@ -70,20 +76,29 @@ try {
     if ((Get-InstallerHash $installer) -ne $settings.sha256) { throw 'Installer verification failed' }
     if (-not (Test-Path -LiteralPath (Join-Path $installRoot 'python/python.exe'))) { throw 'Installed Python is missing' }
     $original = Get-Process -Id $settings.pid -ErrorAction Stop
-    if (-not $original.Path.StartsWith($installRoot+'\',[System.StringComparison]::OrdinalIgnoreCase)) { throw 'Running app is outside the installation' }
+    $originalPath = $original.Path
+    if (-not $originalPath.StartsWith($installRoot+'\',[System.StringComparison]::OrdinalIgnoreCase)) { throw 'Running app is outside the installation' }
     $originalStarted = $original.StartTime
     $others = @(Get-Process python,pythonw,uv,ffmpeg-win-x86_64-v7.1 -ErrorAction SilentlyContinue | Where-Object { $_.Id -ne $settings.pid -and $_.Path -and $_.Path.StartsWith($installRoot+'\',[System.StringComparison]::OrdinalIgnoreCase) })
     if ($others.Count) { throw 'Another app instance or helper is still running' }
     Write-UpdateState 'waiting' 'Update started. Waiting for TrogloDAW to stop.'
     $deadline = [DateTime]::UtcNow.AddSeconds(30)
     while ($running = Get-Process -Id $settings.pid -ErrorAction SilentlyContinue) {
-        if ($running.StartTime -ne $originalStarted) { break }
-        if ([DateTime]::UtcNow -gt $deadline) { throw 'The running app did not stop' }
+        if ($running.StartTime -ne $originalStarted -or $running.Path -ne $originalPath) { throw 'Original app process identity changed' }
+        if ([DateTime]::UtcNow -gt $deadline) {
+            # The app reserved an idle handoff before acknowledging this plan.
+            # Never terminate a reused PID or another installation's executable.
+            $null = $running.Handle
+            if ($running.HasExited) { break }
+            if ($running.StartTime -ne $originalStarted -or $running.Path -ne $originalPath) { throw 'Original app process identity changed' }
+            Write-UpdateState 'waiting' 'Finishing idle app shutdown before installation...'
+            $running.Kill()
+            if (-not $running.WaitForExit(5000)) { throw 'The original idle app could not stop' }
+            break
+        }
         Start-Sleep -Milliseconds 100
     }
-    $address = if ($settings.host -eq '::1') {[System.Net.IPAddress]::IPv6Loopback} else {[System.Net.IPAddress]::Loopback}
-    $listener = [System.Net.Sockets.TcpListener]::new($address,[int]$settings.port)
-    $listener.Start()
+    Start-UpdateListener
     if ((Get-InstallerHash $installer) -ne $settings.sha256) { throw 'Installer changed before launch' }
     Write-UpdateState 'installing' 'Installing the verified update. Your library and models are kept.'
     $installerProcess = Start-Process -FilePath $installer -ArgumentList @('/S',"/D=$installRoot") -PassThru -WindowStyle Hidden
@@ -98,15 +113,43 @@ try {
     $python = Join-Path $installRoot 'python/pythonw.exe'
     $app = Join-Path $installRoot 'app/backend/app.py'
     if (-not (Test-Path -LiteralPath $python) -or -not (Test-Path -LiteralPath $app)) { throw 'Updated app files are missing' }
-    Write-UpdateState 'restarting' 'Update installed. Reopening TrogloDAW…'
+    Write-UpdateState 'restarting' 'Update installed. Reopening TrogloDAW...'
     $listener.Stop()
     $listener = $null
-    Start-Process -FilePath $python -ArgumentList @("`"$app`"", '--host', $settings.host, '--port', $settings.port, '--no-browser') -WindowStyle Hidden | Out-Null
+    $restartLog = Join-Path $helperRoot 'restart.stderr.log'
+    $restartProcess = Start-Process -FilePath $python -ArgumentList @("`"$app`"", '--host', $settings.host, '--port', $settings.port, '--no-browser') -WindowStyle Hidden -PassThru -RedirectStandardError $restartLog -RedirectStandardOutput (Join-Path $helperRoot 'restart.stdout.log')
+    $hostAddress = if ($settings.host -eq '::1') {'[::1]'} else {$settings.host}
+    $healthUrl = "http://${hostAddress}:$($settings.port)/api/health"
+    $deadline = [DateTime]::UtcNow.AddSeconds(60)
+    $healthy = $false
+    while ([DateTime]::UtcNow -lt $deadline) {
+        $restartProcess.Refresh()
+        if ($restartProcess.HasExited) { throw "Updated app exited before startup. Diagnostic log: $restartLog" }
+        try {
+            $health = Invoke-RestMethod $healthUrl -TimeoutSec 2
+            if ($health.application -eq 'troglodaw' -and -not $health.updating) {
+                if ($health.version -ne $settings.version -or $health.sha -ne $settings.source_sha -or -not $health.frontend) { throw 'Restarted app identity or frontend differs from the verified release' }
+                $healthy = $true
+                break
+            }
+        } catch {
+            if ($_.Exception.Message -match '^Restarted app identity') { throw }
+        }
+        Start-Sleep -Milliseconds 200
+    }
+    if (-not $healthy) { throw "Updated app did not become healthy. Diagnostic log: $restartLog" }
+    Write-UpdateState 'complete' 'Update installed and TrogloDAW reopened successfully.'
 } catch {
     $failure = $_.Exception.Message
+    if ($restartProcess -and -not $restartProcess.HasExited) {
+        try { $restartProcess.Kill(); $restartProcess.WaitForExit(5000) | Out-Null } catch { }
+    }
     if ($settings) {
         try {
             Write-UpdateState 'failed' ("Update could not finish: $failure. Your library/models are kept. Verified installer: $installer")
+            if (-not $listener) {
+                try { Start-UpdateListener } catch { $listener = $null }
+            }
             if ($listener) {
                 $deadline = [DateTime]::UtcNow.AddMinutes(10)
                 while ([DateTime]::UtcNow -lt $deadline) { Serve-UpdateStatus; Start-Sleep -Milliseconds 100 }
