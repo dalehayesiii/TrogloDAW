@@ -77,6 +77,12 @@ of Style Influence, pitch, speed and volume. The model can reinterpret or blur
 samples, change timbre and pronounce words imperfectly; adherence does not promise
 exact sample preservation or singer identity.
 
+**Enhance guide** (same settings panel, default **Light** at 50% strength) cleans the
+arrangement just before the model hears it: click repair, gentle de-harshing,
+quieter gaps and a bounded lift of quiet guides. The original arrangement is kept
+beside the enhanced guide and both can be previewed in the result. **AI clean** is
+shown but unavailable in this version. See [guide enhancement](guide-enhancement.md).
+
 Enable **Mix samples after generation** to keep the independent generation approach:
 the same improved arrangement is mixed over the generated music afterward. Audio
 adherence is inactive in that mode. A model without supported conditioning uses

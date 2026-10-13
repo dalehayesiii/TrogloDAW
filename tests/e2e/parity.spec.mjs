@@ -91,6 +91,14 @@ test('applicable audio conditioning controls persist and postmix disables adhere
   await settings.getByText('Audio arrangement settings', { exact: true }).click();
   await expect(page.getByLabel('Mix samples after generation')).not.toBeChecked();
   await page.getByLabel(/^Audio adherence/).fill('62');
+  const enhance = page.getByLabel('Enhance guide', { exact: true });
+  await expect(enhance).toHaveValue('light');
+  await expect(enhance.locator('option[value="ai_clean"]')).toBeDisabled();
+  await enhance.selectOption('off');
+  await expect(page.getByLabel(/^Enhancement strength/)).toHaveCount(0);
+  await expect(settings).toContainText('The model receives your arrangement unchanged.');
+  await enhance.selectOption('light');
+  await page.getByLabel(/^Enhancement strength/).fill('70');
   await page.getByRole('tab', { name: 'Library', exact: true }).click();
   await page.getByRole('tab', { name: 'Generation', exact: true }).click();
   await page.reload();
@@ -98,6 +106,8 @@ test('applicable audio conditioning controls persist and postmix disables adhere
   await expect(page.getByLabel('Notification', { exact: true })).toHaveCount(0);
   await settings.getByText('Audio arrangement settings', { exact: true }).click();
   await expect(page.getByLabel(/^Audio adherence/)).toHaveValue('62');
+  await expect(page.getByLabel('Enhance guide', { exact: true })).toHaveValue('light');
+  await expect(page.getByLabel(/^Enhancement strength/)).toHaveValue('70');
   await page.emulateMedia({ reducedMotion: 'reduce' });
   for (const mode of ['light', 'dark']) {
     if ((await page.locator('html').getAttribute('data-theme')) !== mode)
@@ -115,6 +125,7 @@ test('applicable audio conditioning controls persist and postmix disables adhere
   }
   await page.getByLabel('Mix samples after generation').check();
   await expect(page.getByLabel(/^Audio adherence/)).toHaveCount(0);
+  await expect(page.getByLabel('Enhance guide', { exact: true })).toHaveCount(0);
   await expect(settings).toContainText('Generate music independently');
   await page.reload();
   await expect(page.getByRole('dialog')).not.toBeVisible();

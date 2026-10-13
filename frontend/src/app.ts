@@ -39,6 +39,8 @@ interface Draft {
   options: Record<string, Value>;
   audio_mode: 'conditioned' | 'postmix';
   audio_adherence: number;
+  guide_enhancement: 'off' | 'light' | 'ai_clean';
+  guide_enhancement_strength: number;
   arrangement?: any;
 }
 interface Item {
@@ -70,6 +72,8 @@ const defaults = (): Draft => ({
   count: 2,
   audio_mode: 'conditioned',
   audio_adherence: 75,
+  guide_enhancement: 'light',
+  guide_enhancement_strength: 50,
   options: {
     gender: '',
     duration: 'auto',
@@ -852,6 +856,8 @@ export class AppComponent {
           options: 'Generation controls',
           audio_mode: 'Input audio generation mode',
           audio_adherence: 'Audio adherence',
+          guide_enhancement: 'Guide enhancement',
+          guide_enhancement_strength: 'Guide enhancement strength',
           arrangement: 'Sample transformations and placements',
         } as Record<string, string>
       )[key] || key
