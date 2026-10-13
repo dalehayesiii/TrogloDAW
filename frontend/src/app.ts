@@ -29,6 +29,8 @@ interface Clip {
   saved_file?: string;
 }
 interface Draft {
+  workflow: 'model' | 'arrange-over-song';
+  backing_song_id: string;
   clips: Clip[];
   lyrics: string;
   lyric_idea: string;
@@ -63,6 +65,8 @@ interface Job extends ProcessingJob {
   [key: string]: any;
 }
 const defaults = (): Draft => ({
+  workflow: 'model',
+  backing_song_id: '',
   clips: [],
   lyrics: '',
   lyric_idea: '',
@@ -132,6 +136,28 @@ export class AppComponent {
   tabs = ['Generation', 'Library', 'Vocal FX'];
   tab = 0;
   draft = defaults();
+  songImportFile?: File;
+  songImportTitle = '';
+  songImportFolder = '';
+  songImporting = false;
+  get backingWorkflow() {
+    return this.draft.workflow === 'arrange-over-song';
+  }
+  get selectedBacking() {
+    return this.songs.find((song) => song.id === this.draft.backing_song_id);
+  }
+  get generationUnavailable() {
+    return (
+      this.busy ||
+      this.recording ||
+      (this.backingWorkflow
+        ? !this.selectedBacking ||
+          !this.draft.clips.length ||
+          this.draft.clips.some((clip) => clip.id === this.draft.backing_song_id)
+        : !this.library.models.ready ||
+          (this.automaticDuration && !this.library.models.planner?.ready))
+    );
+  }
   audioImports = 0;
   get audioConditioningSupported() {
     const model = this.library.models;
@@ -385,6 +411,7 @@ export class AppComponent {
   get busy() {
     return (
       this.submittingJobs > 0 ||
+      this.songImporting ||
       this.bulkSubmitting ||
       this.audioImports > 0 ||
       this.jobs.some((job) => this.active(job) && job.action !== 'model_install')
@@ -553,7 +580,13 @@ export class AppComponent {
         return;
       }
     }
-    if (job.action === 'song_generate') this.results = result.outcomes || [];
+    if (job.action === 'song_generate') {
+      this.results = result.outcomes || [];
+      if (announce && result.problems?.length) {
+        this.fail(new Error(result.message + '. ' + result.problems.join('; ')), 'song_generate');
+        return;
+      }
+    }
     if (job.status !== 'complete') return;
     if (announce && job.action === 'lyrics_generate') {
       this.draft.lyrics = result.lyrics;
@@ -726,6 +759,8 @@ export class AppComponent {
   async addAudio(item: Item) {
     this.beginWorkflow('audio-input');
     try {
+      if (this.backingWorkflow && item.id === this.draft.backing_song_id)
+        throw new Error('This song is already the backing track. Choose a separate recording.');
       const preview = await this.api('/api/items/' + item.id);
       let clip = this.draft.clips.find((value) => value.id === item.id);
       if (!clip) {
@@ -761,6 +796,30 @@ export class AppComponent {
       await this.submit('song_generate', this.draft);
     } catch (error) {
       this.fail(error);
+    }
+  }
+  chooseImportFile(event: Event) {
+    this.songImportFile = (event.target as HTMLInputElement).files?.[0];
+    this.songImportTitle = this.songImportFile?.name.replace(/\.wav$/i, '').slice(0, 120) || '';
+  }
+  async importSong() {
+    const file = this.songImportFile;
+    if (!file || !this.songImportTitle.trim()) return;
+    const title = this.songImportTitle.trim(),
+      folder = this.songImportFolder;
+    this.beginWorkflow('song_import');
+    this.songImporting = true;
+    try {
+      const uploaded = await this.upload(file);
+      await this.closeDialog();
+      const job = await this.submit('song_import', { uploads: [uploaded.id], title, folder });
+      if (job.result?.song) await this.selectSong(job.result.song);
+      this.songImportFile = undefined;
+    } catch (error) {
+      this.fail(error, 'song_import');
+    } finally {
+      this.songImporting = false;
+      this.cdr.markForCheck();
     }
   }
   async generateLyrics() {
@@ -876,6 +935,9 @@ export class AppComponent {
       (
         {
           clips: 'Original input audio',
+          workflow: 'Generation workflow',
+          backing_song_id: 'Backing song',
+          count: 'Number of Generations',
           styles: 'Styles',
           lyrics: 'Lyrics',
           title: 'Title',

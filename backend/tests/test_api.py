@@ -95,6 +95,57 @@ def test_upload_import_media_and_catalog(core, tmp_path):
         assert client.get("/api/jobs/unknown").status_code == 404
 
 
+def test_song_import_and_fixed_backing_work_without_models_through_api(core, tmp_path):
+    source = tmp_path / "finished.wav"
+    core.save_wav(source, core.synth_voice(seconds=2) * 0.1)
+    voice = core._new_entry(
+        "voice", "Quiet recording", core.synth_voice(seconds=1) * 0.01, "fixture"
+    )
+    app = create_app(core)
+    with TestClient(app) as client:
+        assert not client.get("/api/library").json()["models"]["ready"]
+        token = client.post(
+            "/api/uploads",
+            files={"file": (source.name, source.read_bytes(), "audio/wav")},
+            headers=HEADERS,
+        ).json()["id"]
+        imported = job(client, "song_import", {"uploads": [token], "title": "API backing"})
+        assert imported["status"] == "complete"
+        song = imported["result"]["song"]
+        arranged = job(
+            client,
+            "song_generate",
+            {
+                "workflow": "arrange-over-song",
+                "backing_song_id": song["id"],
+                "clips": [{"id": voice["id"]}],
+                "count": 1,
+                "options": {"duration": "bad"},
+            },
+        )
+        assert arranged["status"] == "complete", arranged
+        output = arranged["result"]["outcomes"][0]
+        assert output["song"]["recipe"]["workflow"] == "arrange-over-song"
+        assert client.get(output["audio"]["url"]).content[:4] == b"RIFF"
+        profile = app.state.service.timing_profile(
+            "song_generate",
+            {
+                "workflow": "arrange-over-song",
+                "backing_song_id": song["id"],
+                "clips": [{"id": voice["id"]}],
+            },
+        )
+        assert profile["model"] is None and profile["backend"] == "cpu"
+
+
+def test_song_import_rejects_unregistered_or_invalid_upload_collection(core):
+    with TestClient(create_app(core)) as client:
+        for uploads in [[], ["unknown"], [{}], ["one", "two"]]:
+            state = job(client, "song_import", {"uploads": uploads, "title": "Invalid"})
+            assert state["status"] == "failed" and "Choose one WAV" in state["message"]
+        assert core.list_items() == []
+
+
 def test_jobs_retain_engine_behavior_and_mix_recipe(core):
     voice = core._new_entry("voice", "test voice", core.synth_voice(seconds=1), "test")
     settings = {"bpm": 120, "bars": 1, "seed": 42, "key": "A minor", "style": "boombap"}

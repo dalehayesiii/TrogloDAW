@@ -2,9 +2,122 @@
 
 from pathlib import Path
 from uuid import uuid4
+from datetime import datetime
+
+import numpy as np
+import soundfile as sf
 
 from models import Canceled
 from songs import song_item
+from storage import digest, safe_file
+
+
+def import_song(core, upload, values, progress, canceled):
+    """Prepare managed copies before registering one imported finished WAV."""
+    title = values.get("title", "")
+    folder = values.get("folder", "")
+    if not isinstance(title, str) or not 1 <= len(title.strip()) <= 120:
+        raise ValueError("Name the imported song using 1–120 characters")
+    if not isinstance(folder, str):
+        raise ValueError("Choose an existing Library folder")
+    with core._locked_catalog() as catalog:
+        if folder and folder not in catalog.get("folders", []):
+            raise ValueError("Choose an existing Library folder")
+    source = Path(upload["path"])
+    try:
+        info = sf.info(source)
+        if info.format not in {"WAV", "WAVEX", "RF64"} or not info.frames:
+            raise ValueError("Choose a valid WAV audio file")
+        if info.duration > 1200:
+            raise ValueError("WAV song import supports audio up to twenty minutes")
+        original, _ = sf.read(source, dtype="float32", always_2d=True)
+        if not np.isfinite(original).all():
+            raise ValueError("The WAV contains invalid non-finite audio")
+    except (sf.LibsndfileError, OSError) as error:
+        raise ValueError("The selected file is not a readable WAV") from error
+    if canceled():
+        raise Canceled("Song import canceled; no song was added")
+    progress("Preparing imported song", 0, stage="loading")
+    audio = core.load(source)
+    peak = float(np.max(np.abs(audio), initial=0))
+    headroom = min(1.0, 0.95 / peak) if peak else 1.0
+    audio *= headroom
+    identifier = uuid4().hex[:10]
+    directory = safe_file(core.LIB, "assets/imports/" + identifier)
+    wav = safe_file(core.LIB, f"mixes/{core._slug(title)}_{identifier}.wav")
+    mp3 = safe_file(core.LIB, f"mixes/{core._slug(title)}_{identifier}.mp3")
+    if wav.exists() or mp3.exists():
+        raise ValueError("Import output already exists; try again")
+    directory.mkdir(parents=True, exist_ok=False)
+    original_file = directory / "original.wav"
+    created = []
+    registered = False
+    try:
+        with source.open("rb") as input_file, original_file.open("xb") as output:
+            created.append(original_file)
+            while chunk := input_file.read(8 * 1024 * 1024):
+                if canceled():
+                    raise Canceled("Song import canceled; no song was added")
+                output.write(chunk)
+        checksum = digest(source)
+        if digest(original_file) != checksum:
+            raise ValueError("The original WAV could not be copied completely")
+        with wav.open("xb"):
+            created.append(wav)
+        core.save_wav(wav, audio)
+        progress("Encoding imported song", 0, stage="exporting")
+        with mp3.open("xb"):
+            created.append(mp3)
+        core.to_mp3(wav, mp3)
+        if canceled():
+            raise Canceled("Song import canceled; no song was added")
+        # Validate the folder again at the atomic registration boundary.
+        item = {
+            "id": identifier,
+            "name": title.strip(),
+            "type": "mix",
+            "is_song": True,
+            "origin": "imported",
+            "path": str(wav),
+            "mp3": str(mp3),
+            "duration": round(len(audio) / core.SR, 3),
+            "source": "imported WAV",
+            "created": datetime.now().astimezone().isoformat(timespec="seconds"),
+            "tags": [],
+            "folder": folder,
+            "recipe": {
+                "op": "song_import",
+                "version": 1,
+                "original_file": original_file.relative_to(core.LIB).as_posix(),
+                "original_name": upload["name"],
+                "original_sha256": checksum,
+                "original_format": {
+                    "sample_rate": info.samplerate,
+                    "channels": info.channels,
+                    "subtype": info.subtype,
+                },
+                "playable_format": {
+                    "sample_rate": core.SR,
+                    "channels": 2,
+                    "subtype": "PCM_16",
+                    "headroom_gain": headroom,
+                },
+            },
+        }
+        with core._locked_catalog(write=True) as catalog:
+            if folder and folder not in catalog.get("folders", []):
+                raise ValueError("The selected Library folder is no longer available")
+            catalog["items"].append(item)
+        registered = True
+        progress("Song imported", 1, stage="saving", cancel_safe=False)
+        return {"message": "Song imported", "song": item}
+    except Exception:
+        if not registered:
+            for path in created:
+                path.unlink(missing_ok=True)
+            if not any(directory.iterdir()):
+                directory.rmdir()
+        raise
 
 
 def selection(catalog, values):

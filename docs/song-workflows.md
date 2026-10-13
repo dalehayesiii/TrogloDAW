@@ -26,6 +26,12 @@ and the model's ability to deliver the requested words remain technical constrai
 
 ## Generation
 
+The **Generation workflow** selector offers model-generated songs or
+**Arrange recordings over an existing song**. The latter keeps one Library backing,
+uses separate sampled inputs, and works without a model. Model-specific controls
+are hidden but their drafts remain. See [WAV import and backing arrangements](backing-arrangements.md)
+for lengths, musical context, portable replay and measured limitations.
+
 Add multiple uploaded clips, microphone takes or Library songs. Each clip can be
 previewed, labeled, removed, replaced or retaken independently. A new recording
 requests microphone permission only when initiated. Stop, preview and keep a take,

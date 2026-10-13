@@ -195,6 +195,25 @@
   <div class="content flex-1">
     <section role="tabpanel" id="panel-0" aria-labelledby="tab-0" [hidden]="tab!==0">
       <h2 class="sr-only">Generation</h2>
+      <div class="group workflow-choice">
+        <label for="generation-workflow">Generation workflow</label>
+        <select
+          id="generation-workflow"
+          [(ngModel)]="draft.workflow"
+          (ngModelChange)="saveDraft()"
+          [disabled]="busy || recording"
+        >
+          <option value="model">Generate a new song</option>
+          <option value="arrange-over-song">Arrange recordings over an existing song</option>
+        </select>
+        @if(backingWorkflow){
+        <p class="muted">
+          Keep your backing song and arrange transformed recordings around it. No music model is
+          needed. Lyrics, styles and model options are kept for when you return to generating a new
+          song.
+        </p>
+        }
+      </div>
       <div class="columns grid gap-4 md:grid-cols-2">
         <div class="stack">
           <div class="group input-stone">
@@ -223,12 +242,15 @@
                 </button>
                 @if(inputHelp){
                 <p id="audio-guidance" role="tooltip">
-                  Recordings and finished Library songs are analyzed independently. Each is
-                  automatically sampled into a shared arrangement; no defaults confirmation is
-                  needed. Each original clip is automatically analyzed for phrase, motif and accent
-                  cuts. Short clips may also be used whole. Bounded variations and musical gaps form
-                  one full-song audio guide before generation; selection and arrangement use local
-                  audio heuristics.
+                  @if(backingWorkflow){ Separate inputs are sampled, transformed and arranged along
+                  the selected backing's timeline, favoring measured beats and quieter intervals.
+                  The backing is kept once; no generation model is used. Audio heuristics can miss
+                  musical or vocal gaps. }@else{ Recordings and finished Library songs are analyzed
+                  independently. Each is automatically sampled into a shared arrangement; no
+                  defaults confirmation is needed. Each original clip is automatically analyzed for
+                  phrase, motif and accent cuts. Short clips may also be used whole. Bounded
+                  variations and musical gaps form one full-song audio guide before generation;
+                  selection and arrangement use local audio heuristics. }
                 </p>
                 }
               </div>
@@ -236,7 +258,8 @@
             <p class="muted">
               Add original recordings. We derive varied smaller cuts, sometimes use a short clip
               whole, and transform and arrange samples with spaced motifs and rests. Audio is
-              optional when you provide lyrics or styles.
+              {{backingWorkflow ? 'required in addition to the backing song.' : 'optional when you
+              provide lyrics or styles.'}}
             </p>
             <label for="audio-files">Add audio files</label
             ><input
@@ -253,7 +276,7 @@
                 Choose from Library
               </button>
             </div>
-            @if(draft.clips.length){
+            @if(draft.clips.length && !backingWorkflow){
             <details class="audio-arrangement-settings">
               <summary>Audio arrangement settings</summary>
               <label for="postmix-mode" class="check-label"
@@ -402,15 +425,16 @@
                     placeholder="0"
                   />
                   <p class="muted">
-                    In sample mixing, 0 dB matches the generated vocal loudness, or the song for
-                    instrumental music. Use negative values for quieter samples and positive values
-                    for louder samples.
+                    In sample mixing, 0 dB matches {{backingWorkflow ? 'the backing song loudness' :
+                    'the generated vocal loudness, or the song for instrumental music'}}. Use
+                    negative values for quieter samples and positive values for louder samples.
                   </p>
                 </div>
               </details>
             </article>
             }
           </div>
+          @if(!backingWorkflow){
           <div class="group words-stone">
             <div class="section-kicker">
               <span>02 / Inscribe</span><span aria-hidden="true" class="scratch-marks">╱╱╱</span>
@@ -469,6 +493,7 @@
               placeholder="Genre, mood, instruments or vocal character"
             ></textarea>
           </div>
+          }
         </div>
         <div class="stack">
           <div class="group creation-stone">
@@ -478,7 +503,28 @@
                 <path d="m3 17 9-14 11 14ZM30 17 39 3l12 14ZM8 17h37" />
               </svg>
             </div>
-            <h3>Make this song</h3>
+            <h3>{{backingWorkflow ? 'Make this arrangement' : 'Make this song'}}</h3>
+            @if(backingWorkflow){
+            <label for="backing-song">Backing song</label>
+            <select
+              id="backing-song"
+              [(ngModel)]="draft.backing_song_id"
+              (ngModelChange)="saveDraft()"
+              [disabled]="busy"
+            >
+              <option value="">Choose one Library song</option>
+              @for(song of songs;track song.id){
+              <option [value]="song.id">{{song.name}} · {{song.duration}}s</option>
+              }
+            </select>
+            @if(selectedBacking){
+            <p>The arrangement keeps the backing's {{selectedBacking.duration}}-second timeline.</p>
+            }
+            <p class="muted">
+              Add separate recordings in Input Audio. The backing is kept once; it is not added as
+              another sample.
+            </p>
+            }@else{
             <button type="button" (click)="openDialog('reference-picker')">
               Prior Song Reference
             </button>
@@ -486,11 +532,11 @@
               Reuse selected creation ingredients. This is different from resampling a finished song
               as Input Audio.
             </p>
-            <label for="song-title">Song Title (optional)</label
+            }<label for="song-title">Song Title (optional)</label
             ><input
               id="song-title"
               [(ngModel)]="draft.title"
-              placeholder="Create a title for me"
+              [placeholder]="backingWorkflow ? 'Backing title + arrangement' : 'Create a title for me'"
             /><label for="generation-count">Number of Generations</label
             ><input
               id="generation-count"
@@ -503,6 +549,7 @@
               aria-describedby="generation-count-error"
             />
             <p id="generation-count-error" class="field-error">{{generationCountError}}</p>
+            @if(!backingWorkflow){
             <details>
               <summary>More Options</summary>
               <div class="stack options">
@@ -518,7 +565,7 @@
                 </p>
               </div>
             </details>
-            @if (draft.arrangement) {
+            } @if (draft.arrangement && !backingWorkflow) {
             <p>Saved sample transformations and placements selected.</p>
             <button type="button" (click)="draft.arrangement=undefined;saveDraft()">
               Use a fresh arrangement</button
@@ -526,20 +573,22 @@
             <button
               type="button"
               class="primary generate-button"
-              [disabled]="busy || recording || !library.models.ready || (automaticDuration && !library.models.planner?.ready)"
+              [disabled]="generationUnavailable"
               (click)="generate()"
             >
               <svg viewBox="0 0 28 28" aria-hidden="true">
                 <path d="m5 21 3-9 7-7 7 4-4 10-8 4ZM11 18l7-9M8 12l10 7" />
               </svg>
-              Generate song{{draft.count>1 ? 's' : ''}}<span aria-hidden="true">↗</span>
+              {{backingWorkflow ? 'Arrange recordings' : 'Generate song'+(draft.count>1 ? 's' :
+              '')}}<span aria-hidden="true">↗</span>
             </button>
-            @if(library.models.ready && automaticDuration && !library.models.planner?.ready){
+            @if(!backingWorkflow && library.models.ready && automaticDuration &&
+            !library.models.planner?.ready){
             <p class="muted">
               Automatic length needs the optional song writing tools. Install it in Settings or set
               a duration of 10–300 seconds in More Options.
             </p>
-            } @if (!library.models.ready) {
+            } @if (!backingWorkflow && !library.models.ready) {
             <p class="muted">
               Local model setup is required before generation.
               <button type="button" (click)="openDialog('storage')">Set up model</button>
@@ -549,10 +598,16 @@
           @for (result of results; track result.index) {
           <article class="group">
             @if(result.status==='complete'){
-            <h3>Song generation output</h3>
+            <h3>
+              {{result.workflow==='arrange-over-song' ? 'Arrangement output' : 'Song generation
+              output'}}
+            </h3>
             <p class="song-output-title">{{result.song.name}}</p>
+            @if(result.workflow==='arrange-over-song'){
+            <p>Arranged over {{result.backing_name}}</p>
+            }@else{
             <p>Styles: {{result.effective_styles}}</p>
-            @if(result.generation_mode?.effective_mode==='conditioned'){
+            } @if(result.generation_mode?.effective_mode==='conditioned'){
             <p class="muted">
               Generated around your arranged audio · {{result.generation_mode.audio_adherence}}%
               Audio adherence
@@ -570,8 +625,7 @@
             <details>
               <summary>Preview transformed sample arrangement</summary>
               <p class="muted">
-                The complete arrangement before music generation or post-generation mixing. Original
-                clips and individual samples are also available in Library.
+                The transformed samples before mixing with the backing or model-generated song.
               </p>
               @if(result.arrangement_raw_audio){
               <p class="muted">
@@ -619,6 +673,9 @@
               <span>The collection</span><span aria-hidden="true" class="scratch-marks">╱╱╱╱</span>
             </div>
             <h3>Your songs</h3>
+            <button type="button" (click)="openDialog('song-import')" [disabled]="busy">
+              Import WAV song
+            </button>
             <label for="song-search">Search songs</label
             ><input
               id="song-search"
@@ -975,11 +1032,12 @@
   >
     <div class="dialog-heading">
       <h2 id="dialog-heading">
-        {{dialogKind==='setup' ? 'Welcome to TrogloDAW' : dialogKind==='storage' ? 'Settings and
-        storage' : dialogKind==='microphone' ? 'Record a vocal clip' : dialogKind==='fx-save' ?
-        'Save this FX edit' : dialogKind==='reference' ? 'Choose creation ingredients' :
-        dialogKind==='bulk-move' ? 'Move selected songs' : dialogKind==='bulk-delete' ? 'Delete
-        selected songs?' : 'Choose a Library item'}}
+        {{dialogKind==='song-import' ? 'Import WAV song' : dialogKind==='setup' ? 'Welcome to
+        TrogloDAW' : dialogKind==='storage' ? 'Settings and storage' : dialogKind==='microphone' ?
+        'Record a vocal clip' : dialogKind==='fx-save' ? 'Save this FX edit' :
+        dialogKind==='reference' ? 'Choose creation ingredients' : dialogKind==='bulk-move' ? 'Move
+        selected songs' : dialogKind==='bulk-delete' ? 'Delete selected songs?' : 'Choose a Library
+        item'}}
       </h2>
       <button type="button" aria-label="Close dialog" (click)="closeDialog()">×</button>
     </div>
@@ -1200,7 +1258,42 @@
           ')+bulkSongs.length+(bulkSongs.length===1 ? ' song' : ' songs')}}
         </button>
       </div>
-      }@else{ @switch(dialogKind){ @case('setup'){
+      }@else{ @switch(dialogKind){ @case('song-import'){
+      <p>
+        Copy a finished WAV into your Library. The original stays unchanged, and the song can be
+        used as a prior or backing track.
+      </p>
+      <label for="song-import-file">WAV song file</label
+      ><input
+        id="song-import-file"
+        type="file"
+        accept=".wav,audio/wav"
+        (change)="chooseImportFile($event)"
+        [disabled]="busy"
+      />
+      <label for="song-import-title">Imported song title</label
+      ><input
+        id="song-import-title"
+        [(ngModel)]="songImportTitle"
+        maxlength="120"
+        [disabled]="busy"
+      />
+      <label for="song-import-folder">Imported song folder</label
+      ><select id="song-import-folder" [(ngModel)]="songImportFolder" [disabled]="busy">
+        <option value="">Unfiled</option>
+        @for(folder of library.folders;track folder){
+        <option [value]="folder">{{folder}}</option>
+        }
+      </select>
+      <button
+        type="button"
+        class="primary"
+        (click)="importSong()"
+        [disabled]="busy || !songImportFile || !songImportTitle.trim()"
+      >
+        Import song
+      </button>
+      }@case('setup'){
       <p>
         Choose where your music and local model live. Existing compatible files are verified and
         reused; only missing assets need downloading.

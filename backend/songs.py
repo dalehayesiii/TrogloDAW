@@ -12,6 +12,8 @@ import subprocess
 import sys
 import threading
 import uuid
+import shutil
+from datetime import datetime
 from pathlib import Path
 
 import numpy as np
@@ -22,6 +24,8 @@ import guide_enhance
 from arrangement import (
     PLANNER_VERSION,
     VARIANTS_PER_REGION,
+    align_recording,
+    backing_context,
     phase_safe_audio,
     plan_events,
     route_sources,
@@ -350,6 +354,7 @@ class Songs:
         progress,
         canceled=lambda: False,
         reused_source_ids=frozenset(),
+        context=None,
     ):
         layer = np.zeros((round(parameters["duration"] * self.core.SR), 2), np.float32)
         assets, placements, analyses = [], [], []
@@ -416,6 +421,14 @@ class Songs:
                 if analysis.get("tempo_confidence", 0) > 2.0 and analysis.get("tempo_raw")
                 else 90
             )
+            if context:
+                sample_bpm = context["bpm"]
+            transform_settings = source["settings"]
+            if context and source["source_type"] != "prior-song":
+                transform_settings, alignment = align_recording(
+                    source["settings"], analysis, context
+                )
+                analyses[-1]["tonal_alignment"] = alignment
             total = len(regions) * VARIANTS_PER_REGION
             progress(
                 "Transforming source samples",
@@ -437,7 +450,7 @@ class Songs:
                         raise Canceled("Sample transformation canceled")
                     fragment = audio[region["start"] : region["end"]].copy()
                     fx = sample_transform(
-                        source["settings"],
+                        transform_settings,
                         region,
                         index,
                         rng,
@@ -496,10 +509,14 @@ class Songs:
                     )
         grid_tempos = prior_tempos or tempos
         bpm = min(180, max(60, float(np.median(grid_tempos)) if grid_tempos else 90))
+        if context:
+            bpm = context["bpm"]
         if canceled():
             raise Canceled("Sample arrangement canceled")
         policy = sources[0].get("routing") if sources else None
-        placements, plan = plan_events(descriptors, len(layer), self.core.SR, bpm, rng, policy)
+        placements, plan = plan_events(
+            descriptors, len(layer), self.core.SR, bpm, rng, policy, context
+        )
         progress(
             "Arranging transformed samples",
             0,
@@ -534,7 +551,9 @@ class Songs:
             analysis["arrangement"] = {
                 **plan,
                 "bpm": bpm,
-                "tempo_source": "prior-song"
+                "tempo_source": "backing-song"
+                if context
+                else "prior-song"
                 if prior_tempos
                 else "recordings"
                 if tempos
@@ -660,7 +679,251 @@ class Songs:
             raise ValueError("The local planner did not produce usable lyrics. Try another idea.")
         return {"message": "Lyrics ready to edit", "lyrics": lyrics, "planning": result}
 
+    def arrange_over_song(self, draft, progress, canceled):
+        """CPU-only source arrangement; model controls never enter this path."""
+        count = draft.get("count", 2)
+        if isinstance(count, bool) or not isinstance(count, int) or not 1 <= count <= 32:
+            raise ValueError("Number of Generations must be an integer between 1 and 32")
+        identifier = draft.get("backing_song_id")
+        if not isinstance(identifier, str) or not identifier:
+            raise ValueError("Choose one Library song as the backing track")
+        try:
+            backing_song = self.core.get_item(identifier)
+        except (KeyError, ValueError) as error:
+            raise ValueError(
+                "The backing song is unavailable; choose another Library song"
+            ) from error
+        if not song_item(backing_song):
+            raise ValueError("Choose a Library song as the backing track")
+        sources = self.collect_sources(draft)
+        if not sources:
+            raise ValueError("Add at least one input recording to arrange over the backing song")
+        if any(source["id"] == backing_song["id"] for source in sources):
+            raise ValueError("The backing song cannot also be sampled as an input recording")
+        backing = self.core.load_item(backing_song["id"])
+        if (
+            not np.isfinite(backing).all()
+            or not self.core.SR <= len(backing) <= self.core.SR * 1200
+        ):
+            raise ValueError(
+                "Backing arrangement supports finite songs from one second to twenty minutes"
+            )
+        progress("Analyzing the backing song", 0, stage="analyzing")
+        context = backing_context(backing, self.core.SR, self.core.analyze_vocal)
+        if canceled():
+            raise Canceled("Arrangement canceled; the backing song is unchanged")
+        writable_root(
+            str(self.core.LIB),
+            int(
+                count
+                * (
+                    backing.nbytes * 4
+                    + sum(source["duration"] for source in sources) * self.core.SR * 8
+                )
+            )
+            + 64 * 1024 * 1024,
+        )
+        outcomes = []
+        for index in range(count):
+            if canceled():
+                error = Canceled("Arrangement canceled; completed songs are preserved")
+                error.result = {
+                    "outcomes": outcomes
+                    + [
+                        {"index": remaining + 1, "status": "canceled"}
+                        for remaining in range(index, count)
+                    ]
+                }
+                raise error
+            directory = safe_file(self.core.LIB, "assets/songs/" + uuid.uuid4().hex)
+            directory.mkdir(parents=True, exist_ok=False)
+            seed = random.SystemRandom().randrange(2**31)
+            parameters = {
+                "duration": len(backing) / self.core.SR,
+                "seed": seed,
+                "workflow": "arrange-over-song",
+                "method": "source-arrangement",
+                "model": None,
+            }
+            current_sources = copy.deepcopy(sources)
+
+            def item_progress(message, fraction=0, **details):
+                progress(
+                    message,
+                    fraction,
+                    item=index + 1,
+                    items_total=count,
+                    items_complete=sum(output["status"] == "complete" for output in outcomes),
+                    **details,
+                )
+
+            registered = False
+            output_files = []
+            try:
+                musical_file = directory / "musical-parts.wav"
+                sf.write(musical_file, backing, self.core.SR, subtype="FLOAT")
+                layer, samples, placements, analyses = self.arrange(
+                    current_sources, directory, parameters, item_progress, canceled, context=context
+                )
+                # Blank lyrics deliberately prevent separator/model invocation.
+                layer, balance = self.match_samples(
+                    backing,
+                    directory,
+                    samples,
+                    placements,
+                    current_sources,
+                    {"lyrics": ""},
+                    item_progress,
+                    canceled,
+                )
+                arrangement_file = directory / "sample-arrangement.wav"
+                sf.write(arrangement_file, layer, self.core.SR, subtype="FLOAT")
+                item_progress("Mixing recordings over the backing song", 0, stage="rendering")
+                mixed = self.core.master(backing + layer)
+                if canceled():
+                    raise Canceled("Arrangement canceled before saving")
+                title = str(draft.get("title", "")).strip() or backing_song["name"] + " arrangement"
+                if len(title) > 120:
+                    raise ValueError("Choose a song title of at most 120 characters")
+                if count > 1:
+                    title += f" {index + 1}"
+                recipe = {
+                    "op": "song",
+                    "version": 2,
+                    "workflow": "arrange-over-song",
+                    "render_mode": "postmix",
+                    "backing_song_id": backing_song["id"],
+                    "backing_name": backing_song["name"],
+                    "musical_file": self.relative(musical_file),
+                    "conditioning_file": self.relative(arrangement_file),
+                    "draft": copy.deepcopy(draft),
+                    "sources": current_sources,
+                    "samples": samples,
+                    "placements": placements,
+                    "analysis": analyses,
+                    "sample_loudness_match": balance,
+                    "parameters": parameters,
+                    "model": None,
+                    "backing_context": {
+                        key: value for key, value in context.items() if key != "energy"
+                    },
+                    "inactive_controls": [
+                        "lyrics",
+                        "styles",
+                        "options",
+                        "lyric_idea",
+                        "lyric_language",
+                        "audio_mode",
+                        "audio_adherence",
+                        "guide_enhancement",
+                        "guide_enhancement_strength",
+                        "enrich",
+                    ],
+                }
+                recipe["draft"]["workflow"] = "arrange-over-song"
+                recipe["draft"]["clips"] = [
+                    {key: value for key, value in clip.items() if key not in {"audio", "key"}}
+                    for clip in draft.get("clips", [])
+                ]
+                output_id = uuid.uuid4().hex[:10]
+                wav = safe_file(self.core.LIB, f"mixes/{self.core._slug(title)}_{output_id}.wav")
+                mp3 = safe_file(self.core.LIB, f"mixes/{self.core._slug(title)}_{output_id}.mp3")
+                if wav.exists() or mp3.exists():
+                    raise ValueError("Arrangement output already exists; try again")
+                with wav.open("xb"):
+                    output_files.append(wav)
+                self.core.save_wav(wav, mixed)
+                item_progress("Encoding arranged song", 0, stage="exporting")
+                with mp3.open("xb"):
+                    output_files.append(mp3)
+                self.core.to_mp3(wav, mp3)
+                if canceled():
+                    wav.unlink(missing_ok=True)
+                    mp3.unlink(missing_ok=True)
+                    raise Canceled("Arrangement canceled before registration")
+                item = {
+                    "id": output_id,
+                    "name": title,
+                    "type": "mix",
+                    "is_song": True,
+                    "origin": "arranged",
+                    "path": str(wav),
+                    "mp3": str(mp3),
+                    "duration": round(len(backing) / self.core.SR, 3),
+                    "source": "arranged over:" + backing_song["id"],
+                    "created": datetime.now().astimezone().isoformat(timespec="seconds"),
+                    "tags": [],
+                    "recipe": recipe,
+                    "folder": backing_song.get("folder", ""),
+                }
+                self.core._add_item(item)
+                registered = True
+                outcomes.append(
+                    {
+                        "index": index + 1,
+                        "status": "complete",
+                        "song": item,
+                        "audio": self.media(wav),
+                        "download": self.media(mp3),
+                        "workflow": "arrange-over-song",
+                        "backing_name": backing_song["name"],
+                        "arrangement_audio": self.media(arrangement_file),
+                        "parameters": parameters,
+                    }
+                )
+                item_progress(
+                    "Arrangement saved",
+                    1,
+                    stage="output_complete",
+                    outcomes=copy.deepcopy(outcomes),
+                    cancel_safe=False,
+                )
+            except Canceled:
+                if not registered:
+                    for file in output_files:
+                        file.unlink(missing_ok=True)
+                error = Canceled("Arrangement canceled; completed songs are preserved")
+                error.result = {
+                    "outcomes": outcomes
+                    + [
+                        {"index": remaining + 1, "status": "canceled"}
+                        for remaining in range(index + int(registered), count)
+                    ]
+                }
+                raise error
+            except Exception as error:
+                if registered:
+                    raise
+                for file in output_files:
+                    file.unlink(missing_ok=True)
+                outcomes.append({"index": index + 1, "status": "failed", "message": str(error)})
+            finally:
+                asset_root = (self.core.LIB / "assets" / "songs").resolve()
+                if (
+                    not registered
+                    and directory.exists()
+                    and directory.resolve().is_relative_to(asset_root)
+                    and not directory.is_symlink()
+                    and not directory.is_junction()
+                    and re.fullmatch(r"[0-9a-f]{32}", directory.name)
+                ):
+                    shutil.rmtree(directory)
+        return {
+            "message": f"Created {sum(output['status'] == 'complete' for output in outcomes)} of {count} arrangements",
+            "outcomes": outcomes,
+            "problems": [
+                f"Output {output['index']}: {output['message']}"
+                for output in outcomes
+                if output["status"] == "failed"
+            ],
+        }
+
     def generate(self, draft, progress, canceled):
+        workflow = draft.get("workflow", "model")
+        if workflow == "arrange-over-song":
+            return self.arrange_over_song(draft, progress, canceled)
+        if workflow != "model":
+            raise ValueError("Choose a supported Generation workflow")
         if self.local_inference and not self.models.ready():
             raise ValueError("Install or verify a music model in Settings before this operation")
         count = draft.get("count", 2)
@@ -1094,6 +1357,9 @@ class Songs:
                 except (KeyError, ValueError):
                     pass
         for key in (
+            "workflow",
+            "backing_song_id",
+            "count",
             "styles",
             "lyrics",
             "title",
@@ -1104,8 +1370,13 @@ class Songs:
             "guide_enhancement",
             "guide_enhancement_strength",
         ):
-            if key in draft:
+            if key in draft and not (
+                recipe.get("workflow") == "arrange-over-song"
+                and key in recipe.get("inactive_controls", [])
+            ):
                 available[key] = copy.deepcopy(draft[key])
+        if recipe.get("op") == "song_import":
+            available["title"] = item["name"]
         if recipe.get("sources"):
             available["clips"] = [
                 {

@@ -259,6 +259,7 @@ export class JobStatusComponent {
       (
         {
           song_generate: 'Creating songs',
+          song_import: 'Importing song',
           lyrics_generate: 'Writing lyrics',
           accept_audio: 'Adding input audio',
           folder: 'Creating folder',

@@ -366,13 +366,17 @@ def _free_gaps(events, length, rest):
     return result
 
 
-def plan_events(samples, length, sr, bpm, rng, policy=None):
+def plan_events(samples, length, sr, bpm, rng, policy=None, backing_context=None):
     """Plan source-derived gestures with sections, pauses and capped motif returns."""
     if not samples:
         return [], {"method": PLANNER_VERSION, "sections": [], "rest_seconds": length / sr}
     beat = sr * 60 / bpm
     density_scale = (policy or {}).get("density_scale", 1.0)
     grid = max(1, round(beat / 2))
+    origin = round((backing_context or {}).get("beat_phase_seconds", 0) * sr)
+    energy = (backing_context or {}).get("energy", [])
+    energy_hop = (backing_context or {}).get("energy_hop", 1)
+    energy_prefix = np.r_[0.0, np.cumsum(energy)]
     rest = max(round(0.16 * sr), round(beat * 0.5))
     section_count = max(3, min(16, math.ceil(length / (32 * beat))))
     boundaries = [round(i * length / section_count) for i in range(section_count + 1)]
@@ -424,6 +428,29 @@ def plan_events(samples, length, sr, bpm, rng, policy=None):
                 continue
             position = max(begin, min(end - width, preferred))
             snapped = max(begin, min(end - width, round(position / grid) * grid))
+            if backing_context:
+                positions = np.arange(
+                    math.ceil((begin - origin) / grid) * grid + origin,
+                    end - width + 1,
+                    grid,
+                    dtype=int,
+                )
+                if not mandatory:
+                    positions = positions[
+                        (positions >= section["start"]) & (positions < section["end"])
+                    ]
+                if not len(positions):
+                    continue
+                if len(energy):
+                    first = np.minimum(len(energy) - 1, positions // energy_hop)
+                    last = np.minimum(
+                        len(energy), np.maximum(first + 1, (positions + width) // energy_hop)
+                    )
+                    density = (energy_prefix[last] - energy_prefix[first]) / (last - first)
+                    costs = np.abs(positions - preferred) / max(1, length) + density * 0.6
+                else:
+                    costs = np.abs(positions - preferred) / max(1, length)
+                snapped = int(positions[int(np.argmin(costs))])
             if not mandatory and not section["start"] <= snapped < section["end"]:
                 continue
             # A return needs musical distance from every earlier member of its family.
@@ -446,7 +473,14 @@ def plan_events(samples, length, sr, bpm, rng, policy=None):
                     for neighbor in [at - 1, at + 1]
                 ):
                     continue
-            options.append((abs(snapped - preferred), snapped))
+            if backing_context and len(energy):
+                first = min(len(energy) - 1, snapped // energy_hop)
+                last = min(len(energy), max(first + 1, (snapped + width) // energy_hop))
+                density = (energy_prefix[last] - energy_prefix[first]) / (last - first)
+                cost = abs(snapped - preferred) / max(1, length) + density * 0.6
+            else:
+                cost = abs(snapped - preferred)
+            options.append((cost, snapped))
         if not options:
             return False
         _, position = min(options)
@@ -529,4 +563,103 @@ def plan_events(samples, length, sr, bpm, rng, policy=None):
         "exact_variant_repeat_cap": 2,
         "rest_seconds": (length - occupied) / sr,
         "occupied_fraction": occupied / length,
+        **(
+            {
+                "backing_context": {
+                    key: value for key, value in backing_context.items() if key != "energy"
+                }
+            }
+            if backing_context
+            else {}
+        ),
+    }
+
+
+def align_recording(settings, analysis, context):
+    """Only transpose confidently sung recordings between matching key modes."""
+    result = settings.copy()
+    info = {"applied": False, "semitones": 0, "method": "same-mode-key-root"}
+    if not (analysis.get("sung") and analysis.get("key_reliable") and context.get("key_reliable")):
+        info["reason"] = "Uncertain source or backing key"
+        return result, info
+    source = str(analysis.get("key_detected", "")).split()
+    target = str(context.get("key_detected", "")).split()
+    notes = {
+        name: index
+        for index, name in enumerate(
+            ("C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B")
+        )
+    }
+    notes.update(Db=1, Eb=3, Gb=6, Ab=8, Bb=10)
+    if (
+        len(source) != 2
+        or len(target) != 2
+        or source[1] != target[1]
+        or source[0] not in notes
+        or target[0] not in notes
+    ):
+        info["reason"] = "Ambiguous or differing key modes"
+        return result, info
+    shift = (notes[target[0]] - notes[source[0]] + 6) % 12 - 6
+    if not -12 <= float(settings["pitch"]) + shift <= 12:
+        info["reason"] = "Alignment would exceed the requested pitch range"
+        return result, info
+    result["pitch"] = float(settings["pitch"]) + shift
+    info.update(
+        applied=True, semitones=shift, source_key=" ".join(source), target_key=" ".join(target)
+    )
+    return result, info
+
+
+def backing_context(audio, sr, analyzer):
+    """Bounded window analysis plus complete energy timeline; no semantic-gap claim."""
+    safe = phase_safe_audio(audio)[0]
+    seconds = len(safe) / sr
+    width = min(len(safe), round(12 * sr))
+    starts = sorted(set(int(position) for position in np.linspace(0, max(0, len(safe) - width), 3)))
+    results = []
+    for start in starts:
+        part = safe[start : start + width]
+        if np.max(np.abs(part), initial=0) > 1e-7:
+            results.append((start, analyzer(part)))
+    confident = [
+        (start, result)
+        for start, result in results
+        if result.get("tempo_confidence", 0) > 2.0 and result.get("tempo_raw")
+    ]
+    bpm = 90.0
+    phase = 0.0
+    if confident:
+        start, strongest = max(confident, key=lambda pair: pair[1]["tempo_confidence"])
+        bpm = min(180, max(60, float(strongest["tempo_raw"])))
+        anchors = rhythmic_anchors(safe[start : start + width].mean(axis=1), sr)
+        if anchors:
+            beat = sr * 60 / bpm
+            counts, edges = np.histogram(
+                [(start + anchor) % beat for anchor in anchors], bins=16, range=(0, beat)
+            )
+            at = int(np.argmax(counts))
+            phase = (edges[at] + edges[at + 1]) / 2 / sr
+    hop = max(1, round(sr * 0.25))
+    mono = safe.mean(axis=1)
+    padded = np.pad(mono, (0, (-len(mono)) % hop))
+    energy = np.sqrt(np.mean(padded.reshape(-1, hop) ** 2, axis=1))
+    reference = float(np.percentile(energy, 95))
+    energy = np.minimum(1.0, energy / reference) if reference > 1e-8 else np.zeros_like(energy)
+    keys = [result["key_detected"] for _, result in results if result.get("key_reliable")]
+    reliable_key = bool(results) and len(keys) == len(results) and len(set(keys)) == 1
+    return {
+        "version": "backing-context-v1",
+        "duration": seconds,
+        "bpm": bpm,
+        "tempo_source": "measured-window" if confident else "fallback",
+        "beat_phase_seconds": phase,
+        "energy_hop": hop,
+        "energy": energy.tolist(),
+        "key_reliable": reliable_key,
+        "key_detected": keys[0] if reliable_key else None,
+        "analysis_windows": [
+            {"start_seconds": start / sr, "duration_seconds": width / sr} for start, _ in results
+        ],
+        "placement_policy": "phase-grid-and-energy-gaps",
     }

@@ -99,7 +99,19 @@ class MusicService:
         }
         profile.update(self.storage.preferences.get("timing_hardware", {}).get(action, {}))
         try:
-            if action == "song_generate":
+            if action == "song_generate" and values.get("workflow") == "arrange-over-song":
+                backing = self.core.get_item(values.get("backing_song_id", ""))
+                profile.update(
+                    workflow="arrange-over-song",
+                    backend="cpu",
+                    model=None,
+                    runtime=None,
+                    duration=backing["duration"],
+                    duration_mode="backing",
+                    method="source-arrangement",
+                    sources=len(values.get("clips", [])),
+                )
+            elif action == "song_generate":
                 sources = self.songs.collect_sources(values)
                 params = generation_parameters(values, sources, 0)
                 profile.update(
@@ -243,6 +255,7 @@ class MusicService:
             "mix",
             "produce",
             "accept_audio",
+            "song_import",
             "song_generate",
             "lyrics_generate",
             "vocal_prepare",
@@ -361,6 +374,19 @@ class MusicService:
             return self.result(**library_actions.move(core, v, canceled))
         if action == "library_delete":
             return self.result(**library_actions.delete(core, v, progress, canceled))
+        if action == "song_import":
+            uploads = v.get("uploads")
+            if (
+                not isinstance(uploads, list)
+                or len(uploads) != 1
+                or not isinstance(uploads[0], str)
+                or uploads[0] not in self.uploads
+            ):
+                raise ValueError("Choose one WAV file to import as a song")
+            result = library_actions.import_song(
+                core, self.uploads[uploads[0]], v, progress, canceled
+            )
+            return self.result(item=result["song"], **result)
         if action == "accept_audio":
             accepted = []
             for token in v.get("uploads", []):
