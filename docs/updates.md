@@ -16,7 +16,7 @@ credentials and release access are pending, then reports a newer release, an
 up-to-date result or an access error. A failed status read appears in Settings and
 clears when polling recovers; expected installer handoff interruptions stay quiet.
 
-Installation waits for processing, uploads, folder selection and recording in every app tab to finish. The update helper acknowledges its plan before TrogloDAW stops, runs the verified installer against the existing installation, and restarts the app on the same localhost port. A status page replaces the controls during installation; it returns to the app after restart. Models, library folders and installation preferences—including completed or deferred initial setup—are reused.
+Installation waits for processing, uploads, folder selection and recording in every app tab to finish. The update helper acknowledges its plan before TrogloDAW stops, runs the verified installer against the existing installation, and restarts the app on the same localhost port. A status page replaces the controls during installation; it returns to the app after restart. Models, library folders and installation preferences—including completed or deferred initial setup—are reused. Existing desktop and Start Menu shortcuts are kept untouched so their placement and customization survive; missing shortcuts are restored.
 
 ![App update controls in centered Settings](assets/updates-dark.png)
 

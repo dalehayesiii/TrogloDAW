@@ -45,6 +45,14 @@ VIAddVersionKey "LegalCopyright" "Personal use"
 !include "FileFunc.nsh"
 Var RemoveModels
 Var ModelsCheckbox
+Var PreviousInstallDir
+
+!macro ReuseShortcut ID PATH
+  ; Leave the file untouched: rewriting a .lnk can reset desktop placement.
+  ${If} $PreviousInstallDir == $INSTDIR
+    IfFileExists "${PATH}" ${ID}_done 0
+  ${EndIf}
+!macroend
 
 !define MUI_ICON "${STAGE}\troglodaw.ico"
 !define MUI_UNICON "${STAGE}\troglodaw.ico"
@@ -118,6 +126,7 @@ Function un.ModelRemovalLeave
 FunctionEnd
 
 Section "Install"
+  ReadRegStr $PreviousInstallDir HKCU "Software\${APPKEY}" "InstallDir"
   !insertmacro StopRunning
   ; clean old runtime so upgrades never mix package versions (library/config are kept)
   RMDir /r "$INSTDIR\python"
@@ -150,12 +159,22 @@ Section "Install"
 
   ; shortcuts (pythonw = no console window)
   SetOutPath "$INSTDIR"
+  !insertmacro ReuseShortcut desktop "$DESKTOP\${APPNAME}.lnk"
   CreateShortCut "$DESKTOP\${APPNAME}.lnk" "$INSTDIR\python\pythonw.exe" '"$INSTDIR\app\backend\app.py"' "$INSTDIR\troglodaw.ico" 0 SW_SHOWNORMAL "" "Make music: voices, beats, mixes"
+  desktop_done:
   CreateDirectory "$SMPROGRAMS\${APPNAME}"
+  !insertmacro ReuseShortcut start_menu "$SMPROGRAMS\${APPNAME}\${APPNAME}.lnk"
   CreateShortCut "$SMPROGRAMS\${APPNAME}\${APPNAME}.lnk" "$INSTDIR\python\pythonw.exe" '"$INSTDIR\app\backend\app.py"' "$INSTDIR\troglodaw.ico" 0 SW_SHOWNORMAL "" "Make music: voices, beats, mixes"
+  start_menu_done:
+  !insertmacro ReuseShortcut console "$SMPROGRAMS\${APPNAME}\${APPNAME} (console, troubleshooting).lnk"
   CreateShortCut "$SMPROGRAMS\${APPNAME}\${APPNAME} (console, troubleshooting).lnk" "$INSTDIR\TrogloDAW (console).bat" "" "$INSTDIR\troglodaw.ico" 0
+  console_done:
+  !insertmacro ReuseShortcut library "$SMPROGRAMS\${APPNAME}\${APPNAME} Library folder.lnk"
   CreateShortCut "$SMPROGRAMS\${APPNAME}\${APPNAME} Library folder.lnk" "${LIBRARY_DIR}"
+  library_done:
+  !insertmacro ReuseShortcut uninstall "$SMPROGRAMS\${APPNAME}\Uninstall ${APPNAME}.lnk"
   CreateShortCut "$SMPROGRAMS\${APPNAME}\Uninstall ${APPNAME}.lnk" "$INSTDIR\Uninstall.exe"
+  uninstall_done:
 
   ; uninstaller + Apps & Features entry (per-user)
   WriteUninstaller "$INSTDIR\Uninstall.exe"

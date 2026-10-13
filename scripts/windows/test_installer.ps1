@@ -51,13 +51,50 @@ function Uninstall-TestApp($keepModels) {
     $process = Start-Process -FilePath (Join-Path $installRoot 'Uninstall.exe') -ArgumentList $arguments -Wait -PassThru -WindowStyle Hidden
     if ($process.ExitCode -or (Test-Path (Join-Path $installRoot 'python'))) { throw 'Native uninstall failed' }
 }
+function Get-ShortcutSnapshot {
+    $result = @{}
+    foreach ($path in $knownShortcuts) {
+        $item = Get-Item -LiteralPath $path
+        $result[$path] = @{
+            Hash=(Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash
+            Created=$item.CreationTimeUtc.Ticks
+            Written=$item.LastWriteTimeUtc.Ticks
+        }
+    }
+    return $result
+}
+function Assert-ShortcutsPreserved($before, $stage) {
+    $after = Get-ShortcutSnapshot
+    foreach ($path in $knownShortcuts) {
+        foreach ($property in @('Hash','Created','Written')) {
+            if ($before[$path][$property] -ne $after[$path][$property]) {
+                throw "$stage rewrote shortcut $path ($property changed)"
+            }
+        }
+    }
+}
 try {
     $programFolder = Join-Path $programsRoot 'TrogloDAW'
+    # Fresh-install fixture; original files are restored in finally.
+    foreach ($path in $shortcutPaths) {
+        if (Test-Path -LiteralPath $path) { Remove-Item -LiteralPath $path -Recurse -Force }
+    }
     New-Item -ItemType Directory -Path $programFolder -Force | Out-Null
     $customShortcut = Join-Path $programFolder 'Custom entry.txt'
     [System.IO.File]::WriteAllText($customShortcut,'Synthetic custom entry; preserved during installation')
     Install-TestApp
     if (-not (Test-Path (Join-Path $programFolder 'TrogloDAW.lnk')) -or -not (Test-Path $customShortcut) -or -not (Test-Path (Join-Path $desktopRoot 'TrogloDAW.lnk'))) { throw 'TrogloDAW shortcut installation failed' }
+    $knownShortcuts = @((Join-Path $desktopRoot 'TrogloDAW.lnk')) + @(Get-ChildItem -LiteralPath $programFolder -Filter '*.lnk' -File | ForEach-Object { $_.FullName })
+    if ($knownShortcuts.Count -ne 5) { throw 'Expected all five installed shortcuts' }
+    $shell = New-Object -ComObject WScript.Shell
+    $desktopShortcut = $shell.CreateShortcut($knownShortcuts[0])
+    if ($desktopShortcut.TargetPath -ne (Join-Path $installRoot 'python\pythonw.exe')) { throw 'Desktop shortcut target differs from installation' }
+    $desktopShortcut.Description = 'Synthetic user customization: keep this shortcut'
+    $desktopShortcut.Save()
+    foreach ($path in $knownShortcuts) {
+        [System.IO.File]::SetLastWriteTimeUtc($path, [DateTime]::UtcNow.AddDays(-7))
+    }
+    $shortcutSnapshot = Get-ShortcutSnapshot
     if ((Get-ItemProperty $registryPaths[1]).DisplayName -ne 'TrogloDAW') { throw 'Uninstall display branding differs' }
     $python = Join-Path $installRoot 'python/python.exe'
     & $python (Join-Path $installRoot 'app/backend/folders.py')
@@ -151,11 +188,27 @@ try {
     Remove-Item -LiteralPath $unsafeFile
     Install-TestApp
     if ((Get-Content $configPath -Raw) -ne $before -or -not (Test-Path $owned)) { throw 'Upgrade changed preferences or models' }
+    Assert-ShortcutsPreserved $shortcutSnapshot 'Same-directory reinstall'
     & ./scripts/windows/test_update_handoff.ps1 -InstallRoot $installRoot -TestRoot $testRoot
+    Assert-ShortcutsPreserved $shortcutSnapshot 'In-app update'
     if (-not (Test-Path $owned) -or -not (Test-Path (Join-Path $libraryRoot 'catalog.json'))) { throw 'In-app update lost library/model data' }
+    $missingShortcut = Join-Path $programFolder 'TrogloDAW (console, troubleshooting).lnk'
+    Remove-Item -LiteralPath $missingShortcut
+    # Simulate an existing shortcut and registration from a different app folder.
+    $previousRoot = Join-Path $testRoot 'previous installation'
+    Set-ItemProperty -LiteralPath $registryPaths[0] -Name InstallDir -Value $previousRoot
+    $desktopShortcut = $shell.CreateShortcut($knownShortcuts[0])
+    $desktopShortcut.TargetPath = Join-Path $previousRoot 'python\pythonw.exe'
+    $desktopShortcut.Save()
+    Install-TestApp
+    if ($shell.CreateShortcut($knownShortcuts[0]).TargetPath -ne (Join-Path $installRoot 'python\pythonw.exe')) { throw 'Changed-directory install retained stale shortcut target' }
+    if (-not (Test-Path -LiteralPath $missingShortcut)) { throw 'Reinstall did not repair missing shortcut' }
+    if ($shell.CreateShortcut($missingShortcut).TargetPath -ne (Join-Path $installRoot 'TrogloDAW (console).bat')) { throw 'Repaired shortcut has wrong target' }
     uv run --locked python scripts/windows/test_update_access.py save $credentialOwner $credentialOther
     if ($LASTEXITCODE) { throw 'Native release credential preparation failed' }
     Uninstall-TestApp $false
+    if (Test-Path -LiteralPath $knownShortcuts[0]) { throw 'Uninstall retained the app desktop shortcut' }
+    if (@(Get-ChildItem -LiteralPath $programFolder -Filter '*.lnk' -File).Count -or -not (Test-Path -LiteralPath $customShortcut)) { throw 'Uninstall shortcut cleanup changed unrelated entries' }
     uv run --locked python scripts/windows/test_update_access.py verify $credentialOwner $credentialOther
     if ($LASTEXITCODE) { throw 'Native uninstall credential cleanup failed' }
     if ((Test-Path $owned) -or -not (Test-Path $shared) -or -not (Test-Path $unrelated) -or -not (Test-Path (Join-Path $libraryRoot 'catalog.json'))) { throw 'Default model removal violated ownership/library contract' }
