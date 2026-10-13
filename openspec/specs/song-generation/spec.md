@@ -64,11 +64,19 @@ More Options SHALL contain only Vocal Gender, Duration, Weirdness, Style Influen
 - **THEN** the app explains that incompatibility rather than presenting an inert control or silently replacing its value
 
 ### Requirement: Bounded prompt variety
-Variety zero SHALL preserve original styles exactly. Higher values SHALL produce bounded effective style variations per output without rewriting lyrics. Original/effective styles SHALL be shown and saved; changing seeds alone SHALL not count as Variety.
+Variety zero SHALL preserve original styles exactly. Higher values SHALL produce bounded effective style variations per output without rewriting lyrics. Original/effective styles SHALL be shown and saved. Added directions SHALL defer to requested sound sources, delivery and form, without imposing instruments or song sections. Speech, vocal-only and sparse requests SHALL retain their exclusions; changing seeds alone SHALL not count as Variety.
 
 #### Scenario: Multiple varied songs
 - **WHEN** multiple outputs are requested with Variety enabled
 - **THEN** each retains its effective prompt, original styles and unchanged supplied lyrics
+
+#### Scenario: Spoken or vocal-only request
+- **WHEN** a request specifies speech, no music, a cappella or no instruments with Variety enabled
+- **THEN** added variation directions preserve the requested sources and delivery without adding accompaniment, beats or song sections
+
+#### Scenario: Solo or sparse request
+- **WHEN** a solo-instrument or sparse request uses Variety
+- **THEN** additions remain within the requested sound sources and form without requiring a fuller arrangement or new instrumentation
 
 ### Requirement: Sequential independent outputs
 Number of Generations SHALL be a positive integer defaulting to two for fresh drafts and omitted counts. Saved explicit counts SHALL remain unchanged. Each output SHALL be independently cataloged with separate seed/settings and success/failure state. GPU-heavy stages SHALL run sequentially when memory requires; count SHALL not imply concurrent GPU batch size.
@@ -207,3 +215,58 @@ Short samples SHALL be measured without silence dilution. Automatic correction S
 #### Scenario: Explicit clip volume and short gestures
 - **WHEN** the user chooses a negative volume offset for a gesture shorter than 400 milliseconds
 - **THEN** loudness measurement preserves its active energy and mixing applies that quieter offset after bounded automatic correction
+
+### Requirement: Guide enhancement before audio conditioning
+Audio-conditioned generation SHALL offer Off, Light and AI clean guide enhancement with a 0–100 strength, defaulting to Light at strength 50 when no choice is saved. Enhancement SHALL run after the full-duration guide is final, including saved-arrangement reuse, and before the model receives it. Postmix and text-only generation SHALL NOT be enhanced.
+
+#### Scenario: Default conditioned generation
+- **WHEN** a draft without a saved enhancement choice generates in conditioned mode
+- **THEN** the model receives the Light-enhanced guide, the raw guide is saved separately, and the recipe records Light at strength 50
+
+#### Scenario: Enhancement off
+- **WHEN** the user selects Off
+- **THEN** the model receives the unchanged guide and no separate raw guide is needed
+
+#### Scenario: Postmix
+- **WHEN** samples are mixed after generation
+- **THEN** the mixed layer is the unenhanced arrangement and replay is unchanged
+
+#### Scenario: Reuse enhancement settings
+- **WHEN** generation controls are imported from a song recipe with enhancement settings
+- **THEN** the enhancement tier and strength are reused without changing unselected ingredients
+
+### Requirement: Bounded light guide enhancement
+Light SHALL use bundled local processing only, reduce harshness, gaps and discontinuities, raise quiet guides by a bounded amount toward about −20 LUFS and retain the existing peak headroom.
+
+#### Scenario: Quiet harsh guide
+- **WHEN** a quiet guide with harsh upper-mid energy and noisy gaps is enhanced with Light
+- **THEN** its loudness rises by a bounded amount, upper-mid share and gap noise fall, and its peak stays within the existing headroom
+
+### Requirement: Inspectable guide enhancement provenance
+The unenhanced guide SHALL remain inspectable beside the enhanced conditioning audio. Recipes SHALL record the requested/effective tier, strength, version and outcome with library-relative paths, and generation results SHALL offer before/after guide previews.
+
+#### Scenario: Relocated library
+- **WHEN** a library containing an enhanced song is moved
+- **THEN** both raw and enhanced guides resolve relative to the library and the song replays unchanged
+
+### Requirement: Safe guide enhancement fallback
+If enhanced audio is non-finite, silent while the original guide was audible, or differs from the original by more than about 8 dB level-matched spectral distance, the model SHALL receive the original guide. The reason SHALL appear as a job progress message and be saved in the recipe.
+
+#### Scenario: Unsafe enhancement result
+- **WHEN** enhancement produces invalid or excessively altered audio
+- **THEN** generation continues with the raw guide and reports why enhancement was skipped
+
+#### Scenario: Safety measurement fails
+- **WHEN** DSP or its safety/loudness measurement raises an error, returns an invalid measurement or changes audio shape
+- **THEN** generation retains the original guide and records the fallback instead of failing
+
+#### Scenario: Opposite-phase stereo
+- **WHEN** stereo channels cancel when averaged but enhancement changes their audible spectra substantially
+- **THEN** channel-power comparison detects the change and applies the same safety threshold
+
+### Requirement: AI clean add-on availability
+AI clean SHALL never be bundled in the installer and SHALL only run from an explicitly installed, verified local add-on. While no compatible add-on is available for the embedded runtime, the option SHALL be visibly disabled as unavailable, and any request for it SHALL use Light with a visible, recorded explanation.
+
+#### Scenario: Saved AI clean request without add-on
+- **WHEN** a draft or API request asks for AI clean and the add-on is unavailable
+- **THEN** generation uses Light, reports the substitution in progress and records requested AI clean with effective Light

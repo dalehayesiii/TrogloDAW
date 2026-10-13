@@ -150,6 +150,8 @@ test('shared playhead follows playback, seeking, pause and replacement in both t
   const fraction = async () => {
     const waveform = await player.locator('.audio-waveform').boundingBox();
     const marker = await player.locator('.audio-playhead').boundingBox();
+    // Replacement briefly clears media while the real backend loads its preview.
+    if (!waveform || !marker) return Number.NaN;
     return (marker.x + marker.width / 2 - waveform.x) / waveform.width;
   };
   await expect(player.locator('canvas')).toBeVisible();

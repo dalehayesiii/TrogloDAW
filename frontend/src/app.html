@@ -296,7 +296,42 @@
                 Higher values follow the arrangement more closely (whole steps out of 32); zero uses
                 text guidance only. Separate from Style Influence.
               </p>
-              }
+              <label for="guide-enhancement">Enhance guide</label>
+              <select
+                id="guide-enhancement"
+                [(ngModel)]="draft.guide_enhancement"
+                (ngModelChange)="saveDraft()"
+                aria-describedby="guide-enhancement-help"
+              >
+                <option value="off">Off</option>
+                <option value="light">Light</option>
+                <option value="ai_clean" disabled>AI clean (add-on unavailable)</option>
+              </select>
+              <p class="muted" id="guide-enhancement-help">
+                @if(draft.guide_enhancement==='off'){ The model receives your arrangement unchanged.
+                } @else if(draft.guide_enhancement==='ai_clean'){ AI clean is not available in this
+                version; Light will be used. } @else { Cleans the arrangement before the model hears
+                it: repairs clicks, softens harsh upper mids, quiets gaps and raises quiet guides.
+                The original arrangement is kept for comparison. }
+              </p>
+              @if(draft.guide_enhancement!=='off'){
+              <label for="guide-enhancement-strength"
+                >Enhancement strength ({{draft.guide_enhancement_strength}}%)</label
+              >
+              <div class="range-row">
+                <span>0</span
+                ><input
+                  id="guide-enhancement-strength"
+                  type="range"
+                  min="0"
+                  max="100"
+                  step="1"
+                  [(ngModel)]="draft.guide_enhancement_strength"
+                  (ngModelChange)="saveDraft()"
+                  [style.--fill]="draft.guide_enhancement_strength + '%'"
+                /><span>100</span>
+              </div>
+              } }
             </details>
             } @for (clip of draft.clips; track clip.key; let index=$index) {
             <article class="clip-card">
@@ -543,10 +578,25 @@
                 The complete arrangement before music generation or post-generation mixing. Original
                 clips and individual samples are also available in Library.
               </p>
+              @if(result.arrangement_raw_audio){
+              <p class="muted">
+                Enhanced guide sent to the model ({{result.guide_enhancement?.effective}},
+                {{result.guide_enhancement?.strength}}%).
+              </p>
+              }
               <troglodaw-audio
-                label="Transformed sample arrangement"
+                [label]="result.arrangement_raw_audio ? 'Enhanced arrangement guide' : 'Transformed sample arrangement'"
                 [media]="result.arrangement_audio"
               />
+              @if(result.arrangement_raw_audio){
+              <p class="muted">Original arrangement before enhancement.</p>
+              <troglodaw-audio
+                label="Original arrangement guide"
+                [media]="result.arrangement_raw_audio"
+              />
+              } @if(result.guide_enhancement?.fallback_reason){
+              <p class="muted">{{result.guide_enhancement.fallback_reason}}</p>
+              }
             </details>
             }
             <div class="actions">

@@ -111,6 +111,7 @@ releases. The initial main attempt failed in note rendering before any tag was m
 | `scripts/windows/build.sh` | Assemble this app's embedded Python, static UI, licenses, ffmpeg and MSVC runtime | uv's locked export/hash/wheel installation, Python zipfile, NSIS |
 | `scripts/windows/package.py` | Give NSIS the official version and checked payload with native arguments, then record the artifact | NSIS, Python subprocess, semantic-release exec, SHA-256 |
 | `scripts/windows/test_installer.ps1` | Full installed-app/upgrade/ownership coverage in build; focused final-version installation, API/static UI and uninstall smoke in release | NSIS silent install, Playwright in build, native PowerShell HTTP in smoke mode |
+| `scripts/windows/test_update_preflight.ps1` | Shipped update helper rejects synthetic bad checksums promptly on free/occupied ports without taking over recovery status before service exit | Actual Windows PowerShell child, isolated files and native TCP listeners; invoked by installed handoff checks |
 | `scripts/windows/validate.py` | Existing embedded-bundle architecture/DLL/ffmpeg checks | pefile and packaging |
 | `scripts/windows/cfg.py` / `make_icon.py` | Existing local build settings and TrogloDAW icon | Python JSON and Pillow |
 | `scripts/build_manifest.py` / `release-guard.mjs` | Associate this EXE with checked source/version and reject changed/mismatched artifacts before tagging | SHA-256, Git, semantic-release prepare lifecycle |
