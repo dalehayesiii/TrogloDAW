@@ -115,7 +115,7 @@ imperfectly; this is documented rather than hidden by rewriting lyrics.
 | Duration        | Auto uses the optional local model planner before arranging samples and bounds its suggested length to 10–300 seconds; explicit lengths must be within that range |
 | Weirdness       | 0–100 maps to schedule shift 1–5 with the supported ODE sampler throughout; independent of style guidance                                                                                                 |
 | Style Influence | 0–100 maps to Base-family classifier-free guidance 1–15                                                                                                                                                      |
-| Variety         | Zero retains styles exactly; higher values append one to three bounded structural/style phrases chosen per seed; lyrics stay unchanged                                                                       |
+| Variety         | Zero retains styles exactly; higher values append one to three seeded performance directions within the requested mood, style, rhythm, delivery, sound sources and form; lyrics stay unchanged |
 
 These are validated local parameter mappings, not a claim to implement Suno's
 undisclosed algorithms. Original/effective styles, options, automatic-duration

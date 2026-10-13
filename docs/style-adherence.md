@@ -36,6 +36,15 @@ verified implementation faults; they do not promise model-level genre accuracy.
 
 ## Future model profiles
 
+The [prompt-enrichment study](prompt-enrichment-research.md) extends this research
+with instrumental, speech, vocal-only, sparse and multilingual requests. None of
+the tested automatic writers qualified for default-on use. Supplied lyrics remain
+literal and original styling remains authoritative. Variety now varies performance
+within the requested sound sources and form instead of adding acoustic accents or
+song sections to every request; its `requested-performance-v1` identity is saved
+with each output's parameters. This avoids an app-created contradiction, without
+claiming a measured improvement in the music model's genre fidelity.
+
 Capabilities and optional planner identities belong to each model's manifest entry.
 An unexplored model receives no automatic caption enhancement. A future caption
 adapter should be explicit per model/revision, preserve requested/effective text in
