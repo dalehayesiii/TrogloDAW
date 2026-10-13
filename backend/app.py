@@ -764,12 +764,15 @@ def create_app(
         rec = rec.get("creation_recipe", rec)
         references = [
             (
-                "Generated whole mix"
+                "Preserved backing song"
+                if rec.get("workflow") == "arrange-over-song"
+                else "Generated whole mix"
                 if rec.get("render_mode") == "conditioned"
                 else "Generated musical parts",
                 rec.get("musical_file"),
             ),
             ("Transformed sample arrangement", rec.get("conditioning_file")),
+            ("Imported original WAV", rec.get("original_file")),
         ]
         references.extend(
             ("Original input: " + value.get("label", value["id"]), value.get("file"))

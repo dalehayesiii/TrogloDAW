@@ -112,6 +112,9 @@ def test_song_import_and_fixed_backing_work_without_models_through_api(core, tmp
         imported = job(client, "song_import", {"uploads": [token], "title": "API backing"})
         assert imported["status"] == "complete"
         song = imported["result"]["song"]
+        original = client.get("/api/items/" + song["id"]).json()["assets"][0]
+        assert original["label"] == "Imported original WAV"
+        assert client.get(original["media"]["url"]).content == source.read_bytes()
         arranged = job(
             client,
             "song_generate",
@@ -126,6 +129,8 @@ def test_song_import_and_fixed_backing_work_without_models_through_api(core, tmp
         assert arranged["status"] == "complete", arranged
         output = arranged["result"]["outcomes"][0]
         assert output["song"]["recipe"]["workflow"] == "arrange-over-song"
+        assets = client.get("/api/items/" + output["song"]["id"]).json()["assets"]
+        assert assets[0]["label"] == "Preserved backing song"
         assert client.get(output["audio"]["url"]).content[:4] == b"RIFF"
         profile = app.state.service.timing_profile(
             "song_generate",

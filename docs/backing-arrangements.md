@@ -9,6 +9,7 @@ The external file stays unchanged. The Library retains an exact original copy an
 SHA-256, plus a 44.1 kHz stereo WAV/MP3 for playback. Excessive peaks are attenuated
 for headroom; quiet files are not normalized upward during import. The recipe records
 the original format and conversion, without inventing lyrics, styles or stems.
+Library asset previews identify the imported original and preserved backing explicitly.
 Invalid/non-finite WAVs, failed writes and canceled imports do not register a broken
 song. Retry dismisses the earlier import failure using the normal notification policy.
 Import supports nonempty WAV/WAVEX/RF64 audio up to twenty minutes.
