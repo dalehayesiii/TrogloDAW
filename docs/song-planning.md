@@ -1,11 +1,18 @@
-# Local lyrics and song length
+# Local lyrics, song length and musical planning
 
-In **Input Lyrics → Write lyrics for me**, enter a song idea and choose a language,
+In **Generation → Generate a new song → Input Lyrics → Write lyrics for me**,
+enter a song idea and choose a language,
 then generate a draft locally. Edit any words before creating songs. Manually entered
 lyrics continue to work; leave the lyrics blank for an instrumental. Draft quality,
 pronunciation and instruction following depend on the installed models.
 
-The fresh default is **two songs**, generated sequentially with separate random seeds
+These lyric and length controls belong to sampled song generation. **Recording +
+style** has no lyric writing and uses its intact recording's 1–300-second length.
+The backing choice follows its selected song's 1-second to 20-minute timeline and
+uses a CPU arrangement plan without loading the lyric writer or music planner.
+Switching choices preserves their independent drafts.
+
+The fresh sampled default is **two songs**, generated sequentially with separate random seeds
 and fresh inference processes. Change the count to one when preferred. Existing saved
 draft counts remain unchanged. Duration defaults to **auto**: the local ACE planner
 uses your styling and lyrics to suggest a length, bounded to 10–300 seconds. Enter an

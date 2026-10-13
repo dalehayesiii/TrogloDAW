@@ -13,7 +13,17 @@ higher **Audio adherence** follows the supplied arrangement more closely; lower
 values allow more deviation. This can compete with text styling rather than improve
 it automatically. See the [official guide](https://ace-step.github.io/ACE-Step-1.5/en/Tutorial).
 
-## Research outcome
+## Current automatic planning
+
+Compatible text-driven/postmix generation can use validated tempo/key/meter
+metadata from the optional installed planner. Literal musical instructions in
+styles take precedence. The planner cannot replace supplied text, lyrics or the
+effective requested duration. Source-conditioned flows preserve their source
+structure without competing semantic-code planning. This is distinct from
+automatic length selection and from prompt rewriting. See
+[current planning contracts](three-generation-workflows.md#internal-planning).
+
+## Earlier prompt-rewriting research outcome
 
 The upstream [5Hz-4B adherence report](https://github.com/ace-step/ACE-Step-1.5/issues/424)
 describes incorrect language, topic and styling in its generated captions/lyrics.

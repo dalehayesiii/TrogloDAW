@@ -1,16 +1,19 @@
 # Arrangement guide enhancement
 
-Audio-conditioned generation sends the full-song sample arrangement (the *guide*)
-to ACE-Step 1.5 Base. Guides are built from raw recordings with pitch, speed and
-filter variations, so they are often quiet, harsh in the upper mids and carry the
+In **Generate a new song**, audio conditioning sends the full-song sample
+arrangement (the *guide*) to ACE-Step 1.5 Base. Guides are built from raw recordings
+with pitch, speed and filter variations, so they are often quiet, harsh in the upper mids and carry the
 recording's noise floor between phrases. **Enhance guide** prepares a cleaner copy
 for the model. It never changes the arrangement's placements, the original inputs,
-postmix output or text-only generation.
+postmix output or text-only generation. **Recording + style** keeps its intact
+source unchanged and never uses enhancement; the preserved-backing workflow also
+bypasses this step.
 
 ## Choices
 
-Expand **Input Audio → Audio arrangement settings** (visible when clips are
-selected and the model supports audio conditioning).
+Expand **Input Audio → Audio arrangement settings** when clips are selected.
+**Enhance guide** appears when postmix is unchecked and the model supports audio
+conditioning.
 
 | Choice | What happens |
 | --- | --- |

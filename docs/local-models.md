@@ -1,7 +1,8 @@
 # TrogloDAW Local model setup and measured limits
 
-Generation uses ACE-Step 1.5 Base locally. The Windows installer contains the
-browser interface, Python, core DSP and the pinned uv setup tool; it does not
+The two model-generation choices use ACE-Step 1.5 Base locally. Arranging
+recordings over an existing song runs on CPU without model setup. The Windows
+installer contains the browser interface, Python, core DSP and the pinned uv setup tool; it does not
 contain model weights. First-run setup offers explicit model installation; Settings
 provides the shared folder/model controls afterward. Upgrades reuse setup history;
 fresh reinstalls select retained folders again. See [installation recovery](installation-recovery.md).
@@ -66,9 +67,32 @@ accuracy](progress.md).
 
 After starting installation, **Continue in background** closes first-run setup safely.
 Keep the app running; importing, recording, playback, library browsing and draft editing
-remain available. New generation and fresh extraction wait for a ready compatible model.
+remain available. Model generation and fresh extraction wait for a ready compatible model;
+WAV import and preserved-backing arrangements remain available without one.
 
-![Initial setup with folder browsing and separate model installation](assets/setup-dark.png)
+![Current Settings with model folders and optional song writing tools](assets/current-setup-dark.png)
+
+Captured from the current source app on 13 October 2026 with temporary empty model
+storage; no download or inference is running. First-run setup uses these shared
+folder/model controls.
+
+## Current workflow requirements
+
+| Generation choice | Length | Local requirements |
+| --- | --- | --- |
+| Generate a new song | Explicit 10–300 seconds, or optional automatic length | Ready compatible music model; automatic length needs the optional song writing tools |
+| Recording + style | One complete 1–300-second recording | Validated Base intact-source capability; no lyric writer, automatic length or guide enhancement |
+| Arrange recordings over an existing song | Selected backing's 1-second to 20-minute length | CPU arrangement; no music model, separator or GPU inference |
+
+Text-driven/postmix generation automatically uses musical metadata planning when
+the model supports it and the optional planner is installed. Conditioning retains
+the source arrangement or intact recording instead of competing text-generated
+audio codes. Unsupported/absent blueprint planning preserves the normal path;
+automatic **length** still requires its planner. See [planning](song-planning.md).
+
+The measurements below are dated validation records. In that sampled-generation
+baseline, explicit lengths were 10–300 seconds; the newer intact-source path has
+separate [native validation](three-generation-workflows.md#native-comparison-13-october-2026).
 
 ## Validated configuration
 

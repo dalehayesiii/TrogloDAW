@@ -22,9 +22,9 @@ these settings; workflows alone cannot prevent merging despite failed checks.
 Owner-authenticated CLI for merge settings:
 ```powershell
 gh auth status
-gh api repos/dalehayesiii/music-maker --jq .permissions
-gh repo edit dalehayesiii/music-maker --enable-squash-merge --enable-merge-commit=false --enable-rebase-merge=false
-gh api --method PATCH repos/dalehayesiii/music-maker -f squash_merge_commit_title=PR_TITLE -f squash_merge_commit_message=PR_BODY
+gh api repos/dalehayesiii/TrogloDAW --jq .permissions
+gh repo edit dalehayesiii/TrogloDAW --enable-squash-merge --enable-merge-commit=false --enable-rebase-merge=false
+gh api --method PATCH repos/dalehayesiii/TrogloDAW -f squash_merge_commit_title=PR_TITLE -f squash_merge_commit_message=PR_BODY
 ```
 Configure protection in Settings > Rules > Rulesets (or Branches), preserving any
 stronger existing policy. No merge queue is configured: add a tested `merge_group`
