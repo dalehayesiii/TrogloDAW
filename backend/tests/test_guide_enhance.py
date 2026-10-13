@@ -103,6 +103,44 @@ def test_silent_guide_and_settings_validation():
             settings(bad)
 
 
+@pytest.mark.parametrize("measurement", ["spectral_distance", "loudness"])
+def test_measurement_failure_preserves_raw_and_explains_fallback(monkeypatch, measurement):
+    raw = harsh_guide()
+    monkeypatch.setattr(guide_enhance, "light", lambda a, sr, s: (a.copy(), {}))
+
+    def fail(*args):
+        raise RuntimeError("synthetic measurement failure")
+
+    monkeypatch.setattr(guide_enhance, measurement, fail)
+    out, info = enhance_guide(raw, SR, "ai_clean", 50)
+    assert out is raw and not info["applied"]
+    assert "unavailable" in info["fallback_reason"]
+    assert "synthetic measurement failure" in info["fallback_reason"]
+
+
+def test_opposite_phase_stereo_cannot_hide_large_spectral_changes(monkeypatch):
+    t = np.arange(SR * 2) / SR
+    tone = np.sin(2 * np.pi * 220 * t).astype(np.float32) * 0.1
+    raw = np.column_stack((tone, -tone))
+    replacement = np.sin(2 * np.pi * 3500 * t).astype(np.float32) * 0.1
+    changed = np.column_stack((replacement, -replacement))
+    monkeypatch.setattr(guide_enhance, "light", lambda a, sr, s: (changed, {}))
+    out, info = enhance_guide(raw, SR, "light", 50)
+    assert out is raw and not info["applied"]
+    assert "too much" in info["fallback_reason"]
+
+
+def test_shape_change_and_invalid_safety_measurement_fall_back(monkeypatch):
+    raw = harsh_guide()
+    monkeypatch.setattr(guide_enhance, "light", lambda a, sr, s: (a[:-1], {}))
+    out, info = enhance_guide(raw, SR, "light", 50)
+    assert out is raw and "shape" in info["fallback_reason"]
+    monkeypatch.setattr(guide_enhance, "light", lambda a, sr, s: (a.copy(), {}))
+    monkeypatch.setattr(guide_enhance, "spectral_distance", lambda *args: float("nan"))
+    out, info = enhance_guide(raw, SR, "light", 50)
+    assert out is raw and "invalid" in info["fallback_reason"]
+
+
 def generate(service, core, clip, **draft):
     return service.generate(
         {"clips": [{"id": clip["id"]}], "styles": "folk", "options": {"duration": 10}, **draft},

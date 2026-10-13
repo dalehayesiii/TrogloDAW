@@ -223,6 +223,14 @@ If enhanced audio is non-finite, silent while the original guide was audible, or
 - **WHEN** enhancement produces invalid or excessively altered audio
 - **THEN** generation continues with the raw guide and reports why enhancement was skipped
 
+#### Scenario: Safety measurement fails
+- **WHEN** DSP or its safety/loudness measurement raises an error, returns an invalid measurement or changes audio shape
+- **THEN** generation retains the original guide and records the fallback instead of failing
+
+#### Scenario: Opposite-phase stereo
+- **WHEN** stereo channels cancel when averaged but enhancement changes their audible spectra substantially
+- **THEN** channel-power comparison detects the change and applies the same safety threshold
+
 ### Requirement: AI clean add-on availability
 AI clean SHALL never be bundled in the installer and SHALL only run from an explicitly installed, verified local add-on. While no compatible add-on is available for the embedded runtime, the option SHALL be visibly disabled as unavailable, and any request for it SHALL use Light with a visible, recorded explanation.
 

@@ -103,11 +103,11 @@ def repair_discontinuities(audio: np.ndarray, sr: int, limit: int = 256) -> tupl
 
 def spectral_distance(reference: np.ndarray, candidate: np.ndarray, sr: int) -> float:
     """Level-matched log-spectral distance (dB) over the reference's active frames."""
-    a, b = reference.mean(1), candidate.mean(1)
-    _, _, x = signal.stft(a, sr, nperseg=2048)
-    _, _, y = signal.stft(b, sr, nperseg=2048)
-    x = 20 * np.log10(np.abs(x) + 1e-7)
-    y = 20 * np.log10(np.abs(y) + 1e-7)
+    # Combine channel power, not waveforms: opposite-phase stereo is still audible.
+    _, _, x = signal.stft(reference.T, sr, nperseg=2048, axis=-1)
+    _, _, y = signal.stft(candidate.T, sr, nperseg=2048, axis=-1)
+    x = 10 * np.log10((np.abs(x) ** 2).mean(0) + 1e-14)
+    y = 10 * np.log10((np.abs(y) ** 2).mean(0) + 1e-14)
     active = x.max(0) > x.max() - 50
     if not active.any():
         return 0.0
@@ -185,25 +185,35 @@ def enhance_guide(
         return layer, info
     try:
         enhanced, metrics = light(raw, sr, strength)
+        reason = None
+        if enhanced.shape != raw.shape:
+            reason = "Enhanced guide changed shape; original guide used."
+        elif not np.isfinite(enhanced).all():
+            reason = "Enhanced guide contained invalid samples; original guide used."
+        elif float(np.max(np.abs(enhanced), initial=0)) < 1e-5:
+            reason = "Enhanced guide was silent; original guide used."
+        else:
+            distance = spectral_distance(raw, enhanced, sr)
+            if not math.isfinite(distance):
+                reason = "Guide safety measurement was invalid; original guide used."
+            else:
+                metrics["spectral_distance_db"] = round(distance, 2)
+                if distance > MAX_SPECTRAL_DISTANCE_DB:
+                    reason = (
+                        "Enhanced guide changed too much from the original; original guide used."
+                    )
+        before, after = loudness(raw, sr), loudness(enhanced, sr) if reason is None else None
+        metrics["lufs_before"] = round(before, 2) if math.isfinite(before) else None
+        if after is not None:
+            metrics["lufs_after"] = round(after, 2) if math.isfinite(after) else None
+        info["metrics"] = metrics
+        if reason:
+            info["fallback_reason"] = (
+                info["fallback_reason"] + " " + reason if info["fallback_reason"] else reason
+            )
+            return layer, info
     except Exception as exc:  # DSP failures must never block generation.
-        info["fallback_reason"] = f"Guide enhancement failed ({exc}); original guide used."
-        return layer, info
-    reason = None
-    if not np.isfinite(enhanced).all():
-        reason = "Enhanced guide contained invalid samples; original guide used."
-    elif float(np.max(np.abs(enhanced), initial=0)) < 1e-5:
-        reason = "Enhanced guide was silent; original guide used."
-    else:
-        distance = spectral_distance(raw, enhanced, sr)
-        metrics["spectral_distance_db"] = round(distance, 2)
-        if distance > MAX_SPECTRAL_DISTANCE_DB:
-            reason = "Enhanced guide changed too much from the original; original guide used."
-    before, after = loudness(raw, sr), loudness(enhanced, sr) if reason is None else None
-    metrics["lufs_before"] = round(before, 2) if math.isfinite(before) else None
-    if after is not None:
-        metrics["lufs_after"] = round(after, 2) if math.isfinite(after) else None
-    info["metrics"] = metrics
-    if reason:
+        reason = f"Guide enhancement failed ({exc}); original guide used."
         info["fallback_reason"] = (
             info["fallback_reason"] + " " + reason if info["fallback_reason"] else reason
         )

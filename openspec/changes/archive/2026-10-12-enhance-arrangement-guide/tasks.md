@@ -22,3 +22,7 @@
 ## Workflow follow-up
 
 - Archive the change before opening the PR; monitor required CI on the latest head; GPU A/B of ACE-Step output with raw versus enhanced guides remains outstanding.
+
+## PR review corrections
+
+- [x] Guard DSP and all measurements, shape/invalid results and opposite-phase stereo with synthetic regressions; include the module in CI formatting.
