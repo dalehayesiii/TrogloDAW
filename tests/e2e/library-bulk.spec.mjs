@@ -34,7 +34,12 @@ const panel = (page) => page.locator('#panel-1');
 const count = (page, value) =>
   expect(panel(page).locator('.selection-toolbar')).toContainText(`${value} selected`);
 async function check(page, name) {
+  await selectMode(page);
   await page.getByRole('checkbox', { name: 'Select ' + name, exact: true }).check();
+}
+async function selectMode(page) {
+  const enter = page.getByRole('button', { name: 'Select songs', exact: true });
+  if (await enter.isVisible()) await enter.click();
 }
 
 test('visible-list selection stays separate from playback and bulk moves preserve recipes', async ({
@@ -60,7 +65,8 @@ test('visible-list selection stays separate from playback and bulk moves preserv
   await expect(panel(page).locator('troglodaw-audio canvas').first()).toBeVisible();
   await page.getByLabel('Search songs').fill('Scope bulk A');
   await count(page, 0);
-  await page.getByRole('button', { name: 'Select all shown', exact: true }).click();
+  await selectMode(page);
+  await page.getByRole('button', { name: 'Select page', exact: true }).click();
   await count(page, 1);
   await page.getByLabel('Search songs').fill('Scope bulk');
   await check(page, items[0].name);
@@ -76,7 +82,8 @@ test('visible-list selection stays separate from playback and bulk moves preserv
   await page.getByRole('tab', { name: 'Library', exact: true }).click();
   await page.getByLabel('Folder', { exact: true }).selectOption('Bulk destination');
   await expect(panel(page).locator('.song-list li')).toHaveCount(2);
-  await page.getByRole('button', { name: 'Select all shown', exact: true }).click();
+  await selectMode(page);
+  await page.getByRole('button', { name: 'Select page', exact: true }).click();
   await count(page, 2);
   await page.getByLabel('Folder', { exact: true }).selectOption('*');
   await count(page, 0);
@@ -89,7 +96,8 @@ test('visible-list selection stays separate from playback and bulk moves preserv
   }
   expect(current.find((item) => item.id === items[2].id).folder).toBeUndefined();
   await page.getByLabel('Search songs').fill('Scope bulk A');
-  await page.getByRole('button', { name: 'Select all shown', exact: true }).click();
+  await selectMode(page);
+  await page.getByRole('button', { name: 'Select page', exact: true }).click();
   await page.getByRole('button', { name: 'Move selected…', exact: true }).click();
   await page.getByLabel('Destination folder', { exact: true }).selectOption('');
   await page.getByRole('button', { name: 'Move 1 song', exact: true }).click();
@@ -215,4 +223,101 @@ test('bulk selection and confirmation fit desktop and narrow screens in both the
       await page.getByRole('button', { name: 'Cancel', exact: true }).click();
     }
   }
+});
+
+test('pagination scopes selection, preserves preview and resets filters and page size', async ({
+  page,
+  request,
+}) => {
+  const library = (await (await request.get('/api/library')).json()).library;
+  python(
+    "[core._new_entry('generated', 'Paged song '+str(n).zfill(2), core.synth_voice(1), 'synthetic-pagination-test') for n in range(25)]",
+    library,
+  );
+  await open(page);
+  await page.getByLabel('Search songs').fill('Paged song');
+  const rows = panel(page).locator('.song-list li');
+  const pages = page.getByRole('navigation', { name: 'Song pages' });
+  await expect(rows).toHaveCount(20);
+  await expect(pages).toContainText('Showing 1–20 of 25 songs');
+  await expect(pages.getByRole('button', { name: 'Previous page' })).toBeDisabled();
+  await expect(panel(page).getByRole('checkbox')).toHaveCount(0);
+  await expect(panel(page).locator('.selection-toolbar')).toHaveCount(0);
+  const previewName = await rows.first().locator('strong').innerText();
+  await rows.first().getByRole('button').click();
+  await selectMode(page);
+  await page.getByRole('button', { name: 'Select page', exact: true }).click();
+  await count(page, 20);
+  await pages.getByRole('button', { name: 'Next page' }).click();
+  await expect(rows).toHaveCount(5);
+  await count(page, 0);
+  await expect(pages).toContainText('Showing 21–25 of 25 songs');
+  await expect(pages.getByRole('button', { name: 'Next page' })).toBeDisabled();
+  await expect(panel(page).getByRole('heading', { name: previewName, exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Select page', exact: true }).click();
+  await count(page, 5);
+  await page.getByRole('button', { name: 'Done selecting', exact: true }).click();
+  await expect(panel(page).getByRole('checkbox')).toHaveCount(0);
+  await selectMode(page);
+  await count(page, 0);
+  await page.getByLabel('Search songs').fill(previewName);
+  await expect(rows).toHaveCount(1);
+  await expect(pages).toContainText('Page 1 of 1');
+  await page.getByLabel('Search songs').fill('Paged song');
+  await pages.getByRole('button', { name: 'Next page' }).click();
+  await page.getByLabel('Songs per page').selectOption({ label: '10' });
+  await expect(rows).toHaveCount(10);
+  await expect(pages).toContainText('Page 1 of 3');
+  await pages.getByRole('button', { name: 'Next page' }).click();
+  await page.getByLabel('Folder', { exact: true }).selectOption('');
+  await expect(pages).toContainText('Page 1 of 3');
+  await page.getByLabel('Songs per page').selectOption({ label: '50' });
+  await expect(rows).toHaveCount(25);
+  await page.getByLabel('Songs per page').selectOption({ label: '20' });
+  const evidence = process.env.TROGLODAW_PAGINATION_EVIDENCE;
+  if (evidence) mkdirSync(evidence, { recursive: true });
+  for (const theme of ['dark', 'light']) {
+    const switchTheme = page.getByRole('button', {
+      name: theme === 'dark' ? 'Dark mode' : 'Light mode',
+      exact: true,
+    });
+    if (await switchTheme.isVisible()) await switchTheme.click();
+    for (const width of [1440, 390]) {
+      await page.setViewportSize({ width, height: 1000 });
+      await page.getByRole('button', { name: 'Done selecting', exact: true }).click();
+      expect(
+        await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+      ).toBeTruthy();
+      if (evidence)
+        await panel(page).screenshot({
+          path: evidence + `/library-pagination-browse-${theme}-${width}.png`,
+        });
+      await selectMode(page);
+      await page.getByRole('button', { name: 'Select page', exact: true }).click();
+      await count(page, 20);
+      if (evidence)
+        await panel(page).screenshot({
+          path: evidence + `/library-pagination-select-${theme}-${width}.png`,
+        });
+      await page.getByRole('button', { name: 'Clear selection', exact: true }).click();
+    }
+  }
+  await pages.getByRole('button', { name: 'Next page' }).click();
+  await page.getByRole('button', { name: 'Select page', exact: true }).click();
+  await page.getByRole('button', { name: 'Delete selected…', exact: true }).click();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog).toContainText('5 songs selected');
+  await dialog.getByRole('button', { name: 'Delete 5 songs', exact: true }).click();
+  await expect(rows).toHaveCount(20);
+  await expect(pages).toContainText('Showing 1–20 of 20 songs');
+  await expect(pages).toContainText('Page 1 of 1');
+  await count(page, 0);
+  expect(
+    (await (await request.get('/api/library')).json()).items.filter((item) =>
+      item.name.startsWith('Paged song'),
+    ).length,
+  ).toBe(20);
+  await page.reload();
+  await page.getByRole('tab', { name: 'Library', exact: true }).click();
+  await expect(panel(page).getByRole('checkbox')).toHaveCount(0);
 });

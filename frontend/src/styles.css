@@ -74,6 +74,19 @@ details.group[open] > * + * {
   gap: 12px;
   margin-block: 16px;
 }
+.library-list-tools {
+  margin-block: 16px;
+}
+.library-pagination {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+.library-pagination .actions {
+  align-items: center;
+}
 .selectable-song {
   display: flex;
   align-items: stretch;

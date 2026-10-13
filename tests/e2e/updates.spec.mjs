@@ -1,10 +1,52 @@
 import { expect, test } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { spawn } from 'node:child_process';
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createServer } from 'node:net';
+
+test('helper reload page reports missing status and recovers after restart', async ({ page }) => {
+  const script = readFileSync('scripts/windows/app_update.ps1', 'utf8');
+  const html = script.match(/\$body = @'\r?\n([\s\S]*?)\r?\n'@/)[1].replace('__VERSION__', '2.0.0');
+  let missing = false;
+  let restarted = false;
+  let failed = false;
+  await page.route('**/update-helper', (route) =>
+    route.fulfill({
+      contentType: 'text/html',
+      body: restarted ? '<h1>Restarted app</h1>' : html,
+    }),
+  );
+  await page.route('**/api/updates', (route) =>
+    missing
+      ? route.abort()
+      : route.fulfill({
+          json: {
+            helper: !restarted,
+            version: '2.0.0',
+            phase: failed ? 'failed' : 'installing',
+            message: failed
+              ? 'Synthetic restart failed. Verified installer retained.'
+              : 'Installing verified update',
+          },
+        }),
+  );
+  await page.clock.install();
+  await page.goto('/update-helper');
+  await expect(page.getByText('Installing verified update')).toBeVisible();
+  missing = true;
+  await page.clock.setSystemTime(Date.now() + 46000);
+  await expect(page.getByRole('heading', { name: 'Update needs attention' })).toBeVisible();
+  await expect(page.getByText(/Update status is unavailable/)).toBeVisible();
+  missing = false;
+  failed = true;
+  await page.reload();
+  await expect(page.getByText(/Synthetic restart failed/)).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Update needs attention' })).toBeVisible();
+  restarted = true;
+  await expect(page.getByRole('heading', { name: 'Restarted app' })).toBeVisible();
+});
 
 test('first-run background setup and verified update recovery use the real service', async ({
   page,
@@ -199,11 +241,32 @@ test('first-run background setup and verified update recovery use the real servi
     await install.click();
     await expect(dialog.getByRole('alert')).toContainText('launch');
     await expect(page.getByRole('tab')).toHaveCount(3);
+    await page.clock.install();
+    await page.route(base + '/api/updates', (route) => route.abort());
     await install.click();
     await expect(
       page.getByRole('heading', { name: 'Updating TrogloDAW', exact: true }),
     ).toBeVisible();
     await expect(page.getByRole('tab')).toHaveCount(0);
+    await page.clock.setSystemTime(Date.now() + 46000);
+    await expect(
+      page.getByRole('heading', { name: 'Update needs attention', exact: true }),
+    ).toBeVisible();
+    await expect(page.getByText(/Update status is unavailable/)).toBeVisible();
+    await expect(page.getByRole('link', { name: 'View the latest release' })).toBeVisible();
+    for (const theme of ['light', 'dark']) {
+      await page.emulateMedia({ colorScheme: theme });
+      for (const width of [1440, 390]) {
+        await page.setViewportSize({ width, height: 900 });
+        expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+          width,
+        );
+        await page.screenshot({
+          path: test.info().outputPath(`update-status-${theme}-${width}.png`),
+        });
+      }
+    }
+    await page.unroute(base + '/api/updates');
     await expect(page.getByRole('tab')).toHaveCount(3);
     await expect(dialog).not.toBeVisible();
     await expect(page.getByLabel('Input Lyrics', { exact: true })).toHaveValue(

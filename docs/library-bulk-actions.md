@@ -1,11 +1,16 @@
 # Select and organize multiple songs
 
-In **Library**, use the checkbox beside each song, or **Select all shown** to select
-the current folder/search results. The count above the list shows selected and
-visible songs. Clicking a song's title still opens its playback preview without
-changing the checkboxes. **Clear selection** resets the checkboxes. Changing the
-search or folder also clears selection, so bulk actions never include hidden songs.
-Switching tabs keeps selection; refreshing drops missing or no longer shown songs.
+In **Library**, browse 20 songs per page by default; **Songs per page** offers
+10, 20 or 50. The controls below the list show the result range and page count.
+Search and folder filters apply to the whole library, returning to page one.
+
+Press **Select songs** to reveal checkboxes and batch tools. Select individual
+songs or **Select page**; only this page participates. Clicking a song title
+still opens its independent playback preview. **Clear selection** clears checked
+songs; **Done selecting** also hides selection controls. Changing the search,
+folder, page or page size clears selection. Switching tabs keeps it; refreshing
+removes missing or hidden songs and corrects the page after deletion. Reload
+starts in ordinary browsing mode. Preview can remain open when changing pages.
 
 **Move selected…** moves the selection to an existing folder, **Unfiled**, or a
 new folder created in the same operation. These are logical folders inside Library,
@@ -38,20 +43,31 @@ the Library notice. Do not delete whole asset/cache folders as a recovery shortc
 
 ## Usability evidence
 
-Synthetic real-service browser checks cover visible selection, playback independence,
-new/existing folder semantics, persistence, delete cancellation, deletion of the
-previewed item, partial failure and retry. Desktop (1440px) and narrow (390px) reviews
-cover both themes and centered confirmation dialogs. Review found no horizontal
-overflow; the checkbox label provides a 44px-wide click target. Selection controls
-and songs are kept within the same Library card, and preview responses are ignored
-when another song has since become selected.
+The list follows [Carbon pagination anatomy](https://www.carbondesignsystem.com/building-blocks/core/components/pagination/guidelines)
+with range, page count, size choice and boundary-disabled navigation below the list.
+[Carbon batch actions](https://www.carbondesignsystem.com/building-blocks/core/components/data-table/guidelines)
+inform the contextual toolbar; the explicit Select songs entry is TrogloDAW's
+requested adaptation. Playback and checkboxes keep separate click targets.
+
+Review found two usability issues: always-visible checkboxes crowded browsing
+(minor), and unbounded selection did not communicate page scope (major). The
+selection entry and page-scoped controls resolve both. Desktop (1440px) and narrow
+(390px), both themes, have no horizontal overflow. Real-service synthetic tests
+cover multiple pages, search across the catalog, folder/size resets, exact-page
+bulk deletion, last-page correction, mode exit/reload, independent preview,
+confirmation cancellation, preserved recipes and partial failure/retry.
+Pagination bounds visible rows; it does not reduce the catalog API payload.
 
 Before:
 
-![Library before multi-selection](assets/library-bulk/library-before-dark-1440.png)
+![Always-visible checkboxes and unpaged Library](assets/library-pagination-before-dark-1440.png)
 
-After:
+After, ordinary browsing:
 
-![Selected songs and bulk actions](assets/library-bulk/library-bulk-dark-1440.png)
+![Paginated Library without checkboxes](assets/library-pagination-browse-dark-1440.png)
 
-![Narrow bulk-delete confirmation](assets/library-bulk/library-bulk-confirm-dark-390.png)
+Selection mode:
+
+![Page-scoped batch tools](assets/library-pagination-select-dark-1440.png)
+
+![Narrow selection mode in light theme](assets/library-pagination-select-light-390.png)

@@ -168,12 +168,16 @@ export class AppComponent {
   };
   updateToken = '';
   updateHandoff = false;
+  private updateStatusSeenAt = 0;
   private updateTimer?: ReturnType<typeof setTimeout>;
   private captureTimer?: ReturnType<typeof setInterval>;
   private captureClient = crypto.randomUUID();
   dialogKind = '';
   selectedSong = '';
   checkedSongs = new Set<string>();
+  selectionMode = false;
+  songPage = 1;
+  songPageSize = 20;
   bulkSongs: Item[] = [];
   bulkFolder = '';
   bulkNewFolder = '';
@@ -353,7 +357,8 @@ export class AppComponent {
   }
   async refresh() {
     this.library = await this.api('/api/library');
-    const shown = new Set(this.filteredSongs.map((song) => song.id));
+    this.songPage = Math.min(this.songPage, this.songPageCount);
+    const shown = new Set(this.pageSongs.map((song) => song.id));
     this.checkedSongs = new Set([...this.checkedSongs].filter((id) => shown.has(id)));
     if (this.selectedSong && !this.selected) {
       this.librarySelection++;
@@ -408,7 +413,35 @@ export class AppComponent {
   get selected(): Item | undefined {
     return this.songs.find((item) => item.id === this.selectedSong);
   }
+  get songPageCount() {
+    return Math.max(1, Math.ceil(this.filteredSongs.length / this.songPageSize));
+  }
+  get pageSongs() {
+    return this.filteredSongs.slice(
+      (this.songPage - 1) * this.songPageSize,
+      this.songPage * this.songPageSize,
+    );
+  }
+  get songRangeStart() {
+    return this.filteredSongs.length ? (this.songPage - 1) * this.songPageSize + 1 : 0;
+  }
+  get songRangeEnd() {
+    return Math.min(this.songPage * this.songPageSize, this.filteredSongs.length);
+  }
+  resetSongPage() {
+    this.songPage = 1;
+    this.clearSongSelection();
+  }
+  changeSongPage(page: number) {
+    this.songPage = Math.max(1, Math.min(page, this.songPageCount));
+    this.clearSongSelection();
+  }
+  toggleSelectionMode() {
+    this.selectionMode = !this.selectionMode;
+    this.clearSongSelection();
+  }
   toggleSong(id: string, checked: boolean) {
+    if (!this.selectionMode || !this.pageSongs.some((song) => song.id === id)) return;
     if (checked) this.checkedSongs.add(id);
     else this.checkedSongs.delete(id);
   }
@@ -416,11 +449,12 @@ export class AppComponent {
     this.checkedSongs = new Set();
   }
   selectAllShown() {
-    this.checkedSongs = new Set(this.filteredSongs.map((song) => song.id));
+    if (!this.selectionMode) return;
+    this.checkedSongs = new Set(this.pageSongs.map((song) => song.id));
   }
   openBulk(kind: 'bulk-move' | 'bulk-delete') {
-    if (this.busy) return;
-    this.bulkSongs = this.filteredSongs.filter((song) => this.checkedSongs.has(song.id));
+    if (this.busy || !this.selectionMode) return;
+    this.bulkSongs = this.pageSongs.filter((song) => this.checkedSongs.has(song.id));
     if (!this.bulkSongs.length) return;
     this.bulkFolder = '';
     this.bulkNewFolder = '';
@@ -1164,6 +1198,7 @@ export class AppComponent {
     if (this.updateTimer) clearTimeout(this.updateTimer);
     try {
       const next = await this.api('/api/updates');
+      this.updateStatusSeenAt = Date.now();
       if (this.updateHandoff && !next.helper && next.version === this.update.available_version) {
         window.location.reload();
         return;
@@ -1171,7 +1206,13 @@ export class AppComponent {
       this.update = next;
     } catch {
       // A brief listener change is expected during the explicit installer handoff.
-      if (!this.updateHandoff && !this.stopped)
+      if (this.updateHandoff && Date.now() - this.updateStatusSeenAt >= 45000)
+        this.update = {
+          ...this.update,
+          status_error:
+            'Update status is unavailable. Try reopening TrogloDAW from its shortcut. If it cannot start, run the downloaded installer to repair it. Your library and models are kept.',
+        };
+      else if (!this.updateHandoff && !this.stopped)
         this.update = {
           ...this.update,
           status_error:
@@ -1234,6 +1275,7 @@ export class AppComponent {
       document.querySelectorAll('audio').forEach((audio) => audio.pause());
       this.closeDialog();
       this.updateHandoff = true;
+      this.updateStatusSeenAt = Date.now();
       this.cdr.markForCheck();
       requestAnimationFrame(() => document.getElementById('update-heading')?.focus());
       void this.refreshUpdates();

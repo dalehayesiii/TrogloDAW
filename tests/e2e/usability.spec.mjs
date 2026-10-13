@@ -132,6 +132,7 @@ test('latest Library selection owns loading, audio and failure recovery', async 
   });
   await panel.locator('.song-row').filter({ hasText: 'Latest preview song' }).click();
   await expect.poll(() => removedStarted).toBe(true);
+  await panel.getByRole('button', { name: 'Select songs', exact: true }).click();
   await panel.getByRole('checkbox', { name: 'Select Latest preview song', exact: true }).check();
   await panel.getByRole('button', { name: 'Delete selected…', exact: true }).click();
   await page
