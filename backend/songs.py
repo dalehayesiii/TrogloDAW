@@ -125,12 +125,12 @@ def generation_parameters(draft: dict, sources: list[dict], seed: int):
     rng = random.Random(seed)
     if options["variety"]:
         variations = [
-            "sparse opening",
-            "syncopated transitions",
-            "rising final chorus",
-            "warm acoustic accents",
-            "spacious breaks",
-            "restrained bridge",
+            "vary dynamics, same mood",
+            "vary phrasing, same style",
+            "vary timing, same rhythm",
+            "vary tone, same delivery",
+            "vary texture, same sources",
+            "vary flow, same form",
         ]
         count = max(1, math.ceil(options["variety"] / 34))
         effective_styles = (
@@ -154,6 +154,7 @@ def generation_parameters(draft: dict, sources: list[dict], seed: int):
         "method": "ode",
         "original_styles": styles,
         "effective_styles": effective_styles,
+        "variety_version": "requested-performance-v1" if options["variety"] else None,
         "requested": options,
         "duration_derivation": derivation,
     }

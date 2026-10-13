@@ -248,6 +248,7 @@ If an older version made noisy audio with Weirdness above 50, see
 regenerate an affected draft without changing existing songs.
 
 - [Styling adherence](docs/style-adherence.md) documents supported controls and why captions are preserved.
+- [Prompt-enrichment research](docs/prompt-enrichment-research.md) records instrumental, speech and content-preservation trials, including why the tested automatic writers were not enabled.
 - Browser song generation supports explicit 10–300 seconds or optional model-planned length with one local output running at
   a time. Lyrics, style and vocal gender are model guidance; musical quality,
   exact sung words and vocalist character are not guaranteed. Model setup needs

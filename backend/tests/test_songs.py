@@ -102,6 +102,78 @@ def test_five_minute_duration_and_default_two_independent_outputs(core, songs):
     assert len(one["outcomes"]) == 1
 
 
+@pytest.mark.parametrize(
+    "styles",
+    [
+        "political speech, dry spoken voice, no singing, no music, no instruments",
+        "a cappella, solo baritone, no instruments, no backing music",
+        "solo baroque harpsichord, no drums, no other instruments, instrumental",
+        "sparse dark ambient, quiet evolving drones, no drums, no vocals",
+        "政治演説、話し声だけ、楽器なし、音楽なし、歌わない",
+        "industrial punk, distorted synth bass, hard mechanical drums, aggressive vocals",
+    ],
+)
+def test_variety_retains_request_without_imposing_instruments_or_song_form(styles):
+    lyrics = "Fuck their empty promises. We will not kneel.\n私たちは黙りません。"
+    draft = {"styles": styles, "lyrics": lyrics, "options": {"duration": 10, "variety": 100}}
+    original = copy.deepcopy(draft)
+    effective = set()
+    for seed in range(24):
+        parameters = generation_parameters(draft, [], seed)
+        assert parameters == generation_parameters(draft, [], seed)
+        assert parameters["lyrics"] == lyrics
+        assert parameters["original_styles"] == styles
+        assert parameters["effective_styles"].startswith(styles + ", ")
+        additions = parameters["effective_styles"][len(styles) :]
+        assert not any(word in additions for word in ["acoustic", "chorus", "bridge", "opening"])
+        assert additions.count("same ") == 3
+        assert parameters["variety_version"] == "requested-performance-v1"
+        effective.add(parameters["effective_styles"])
+    assert len(effective) > 1
+    assert draft == original
+    off = generation_parameters({**draft, "options": {"duration": 10, "variety": 0}}, [], 42)
+    assert off["effective_styles"] == styles
+    assert off["lyrics"] == lyrics and off["variety_version"] is None
+
+
+def test_variety_caption_fits_model_limit_with_maximum_style_and_gender():
+    for seed in range(24):
+        parameters = generation_parameters(
+            {"styles": "x" * 400, "options": {"duration": 10, "variety": 100, "gender": "Female"}},
+            [],
+            seed,
+        )
+        assert len(parameters["caption"]) <= 512
+
+
+def test_variety_intent_and_version_are_retained_in_each_saved_recipe(core, songs):
+    service, _ = songs
+    styles = "political speech, dry spoken voice, no music, no instruments, no singing"
+    lyrics = "Those corrupt bastards stole our wages. We refuse to bow."
+    result = service.generate(
+        {
+            "styles": styles,
+            "lyrics": lyrics,
+            "count": 2,
+            "options": {"duration": 10, "variety": 100},
+        },
+        lambda *_args, **_kwargs: None,
+        lambda: False,
+    )
+    assert len(result["outcomes"]) == 2
+    for outcome in result["outcomes"]:
+        assert outcome["status"] == "complete"
+    for item in core.list_items():
+        if item["type"] != "generated":
+            continue
+        recipe = core.get_item(item["id"])["recipe"]
+        assert recipe["draft"]["styles"] == styles
+        assert recipe["draft"]["lyrics"] == lyrics
+        assert recipe["parameters"]["lyrics"] == lyrics
+        assert recipe["parameters"]["effective_styles"].startswith(styles + ", ")
+        assert recipe["parameters"]["variety_version"] == "requested-performance-v1"
+
+
 def test_native_auto_duration_precedes_arrangement_and_keeps_manual_words(core, songs):
     service, _ = songs
     original = service.invoke
