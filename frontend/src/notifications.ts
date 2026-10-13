@@ -24,6 +24,8 @@ export function workflow(action: string): string {
         vocal_render: 'vocal-fx',
         model_install: 'model-setup',
         accept_audio: 'audio-input',
+        library_move: 'library',
+        library_delete: 'library',
       } as Record<string, string>
     )[action] || action
   );

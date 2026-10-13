@@ -21,7 +21,7 @@ Technical input limits and imperfect model delivery still apply.
 | Workflow | Your next step |
 | --- | --- |
 | <img src="docs/assets/generation.svg" width="32" alt="Cave generation glyph"> **Generation** | Add recordings, lyrics and styles. We derive smaller samples, transform each one and arrange a full-song audio guide for the model. |
-| <img src="docs/assets/library.svg" width="32" alt="Stone library glyph"> **Library** | Play, organize and reuse songs. Original audio, generated music and recipes stay together. |
+| <img src="docs/assets/library.svg" width="32" alt="Stone library glyph"> **Library** | Play and reuse songs; [select multiple songs](docs/library-bulk-actions.md) to move or delete folder/search results together. Original audio, generated music and recipes stay together. |
 | <img src="docs/assets/vocal-fx.svg" width="32" alt="Carved waveform glyph"> **Vocal FX** | Extract vocals, review uncertain voice groups and apply effects while keeping the song's timing. |
 
 ## Inside the sound cave
