@@ -17,6 +17,8 @@ from pathlib import Path
 import numpy as np
 import soundfile as sf
 
+import guide_enhance
+
 from arrangement import (
     PLANNER_VERSION,
     VARIANTS_PER_REGION,
@@ -515,6 +517,28 @@ class Songs:
             }
         return layer, assets, placements, analyses
 
+    def enhance_guide(self, layer, enhancement_settings, progress):
+        """Prepare the conditioning guide; the unchanged layer is never modified."""
+        tier, strength = enhancement_settings["tier"], enhancement_settings["strength"]
+        if tier != "off":
+            progress(
+                "Enhancing arrangement guide",
+                0,
+                stage="guide_enhancement",
+                units_complete=0,
+                units_total=1,
+            )
+        guide, info = guide_enhance.enhance_guide(layer, self.core.SR, tier, strength)
+        if tier != "off":
+            progress(
+                info["fallback_reason"] or "Arrangement guide enhanced",
+                1,
+                stage="guide_enhancement",
+                units_complete=1,
+                units_total=1,
+            )
+        return guide, info
+
     def require_planner(self):
         if self.local_inference and not self.models.planner_ready():
             raise ValueError(
@@ -551,6 +575,7 @@ class Songs:
         count = draft.get("count", 2)
         if isinstance(count, bool) or not isinstance(count, int) or not 1 <= count <= 32:
             raise ValueError("Number of Generations must be an integer between 1 and 32")
+        enhancement_settings = guide_enhance.settings(draft)
         sources = self.collect_sources(draft)
         if generation_parameters(draft, sources, 0)["requested"]["duration"] == "auto":
             self.require_planner()
@@ -700,7 +725,17 @@ class Songs:
                 mode = generation_mode(draft, self.models, bool(samples))
                 parameters.update(mode)
                 arrangement_file = directory / "sample-arrangement.wav"
-                sf.write(arrangement_file, layer, self.core.SR, subtype="FLOAT")
+                raw_arrangement_file = directory / "sample-arrangement.raw.wav"
+                guide, enhancement = layer, None
+                if mode["effective_mode"] == "conditioned":
+                    # Postmix keeps mixing the unchanged layer; only the model guide is enhanced.
+                    guide, enhancement = self.enhance_guide(
+                        layer, enhancement_settings, item_progress
+                    )
+                    parameters["guide_enhancement"] = enhancement
+                    if enhancement["applied"]:
+                        sf.write(raw_arrangement_file, layer, self.core.SR, subtype="FLOAT")
+                sf.write(arrangement_file, guide, self.core.SR, subtype="FLOAT")
                 if mode["fallback_reason"]:
                     item_progress(mode["fallback_reason"], 0, stage="conditioning_fallback")
                 inferred = self.invoke(
@@ -751,10 +786,18 @@ class Songs:
                     "version": 2,
                     "render_mode": mode["effective_mode"],
                     "conditioning_file": self.relative(arrangement_file),
+                    **({"guide_enhancement": enhancement} if enhancement is not None else {}),
+                    **(
+                        {"conditioning_raw_file": self.relative(raw_arrangement_file)}
+                        if enhancement and enhancement["applied"]
+                        else {}
+                    ),
                     "draft": {
                         **copy.deepcopy(draft),
                         "audio_mode": mode["requested_mode"],
                         "audio_adherence": mode["audio_adherence"],
+                        "guide_enhancement": enhancement_settings["tier"],
+                        "guide_enhancement_strength": enhancement_settings["strength"],
                         "clips": [
                             {k: v for k, v in c.items() if k not in {"audio", "key"}}
                             for c in draft.get("clips", [])
@@ -822,6 +865,10 @@ class Songs:
                         "effective_styles": parameters["effective_styles"],
                         "generation_mode": mode,
                         "arrangement_audio": self.media(arrangement_file) if samples else None,
+                        "arrangement_raw_audio": self.media(raw_arrangement_file)
+                        if enhancement and enhancement["applied"]
+                        else None,
+                        "guide_enhancement": enhancement,
                     }
                 )
             except Canceled:
@@ -949,6 +996,8 @@ class Songs:
             "clips",
             "audio_mode",
             "audio_adherence",
+            "guide_enhancement",
+            "guide_enhancement_strength",
         ):
             if key in draft:
                 available[key] = copy.deepcopy(draft[key])
@@ -984,6 +1033,8 @@ class Songs:
                     "options",
                     "audio_mode",
                     "audio_adherence",
+                    "guide_enhancement",
+                    "guide_enhancement_strength",
                     "arrangement",
                 )
                 if key not in available
