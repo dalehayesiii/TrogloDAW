@@ -201,7 +201,7 @@ test('shared playhead follows playback, seeking, pause and replacement in both t
     .click();
   await expect.poll(fraction).toBeLessThan(0.02);
   await page.getByRole('button', { name: 'Use as Input Audio', exact: true }).click();
-  await page.getByRole('button', { name: 'Keep current settings', exact: true }).click();
+  await expect(page.getByRole('dialog')).not.toBeVisible();
   await expect(page.locator('#panel-0 .clip-card .audio-playhead')).toBeVisible();
 });
 

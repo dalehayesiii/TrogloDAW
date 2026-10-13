@@ -45,7 +45,8 @@ The `samples` budget caps distinct cut families (default eight, API maximum sixt
 short inputs and short song durations can need fewer. Each cut has at most three
 saved statement/response/fill variants, including bounded pitch, speed, filtering,
 echo and gain differences. Statements retain phrase pitch/speed adjustments;
-responses and fills evolve them. Prior-song presets retain their short-cut policy.
+responses and fills evolve them. Finished Library songs receive automatic source-aware
+hook/accent handling; accompanying recordings keep their own phrase material.
 
 A shared detected tempo (or 90 BPM fallback) supports a section plan with quieter
 openings/endings, fuller refrains, restrained bridges and intentional rests.
@@ -80,8 +81,8 @@ is measured using gated K-weighted loudness; gestures shorter than 400 ms repeat
 for measurement, preserving playback length. Automatic correction is bounded to
 ±30 dB. Very quiet/noisy sources can therefore still miss the target.
 
-**Volume (dB)** is an offset from matched loudness: fresh clips and new prior-song
-presets default to 0, negative values make samples quieter, positive values louder.
+**Volume (dB)** is an offset from matched loudness: fresh clips default to 0,
+negative values make samples quieter, positive values louder.
 Explicit saved offsets remain unchanged. Recipes retain reference, measurements and
 effective placement gains; replay needs no new separation. Final bus mastering can
 change perceived balance. Existing songs replay their original gains.
@@ -104,10 +105,13 @@ Original input copies, transformed sample WAVs, complete arrangement audio, mode
 output and gain-bearing placements remain separate inspectable assets. Conditioned
 rerender uses the saved model mix; postmix rerender reconstructs the samples over
 saved music. Older recipes retain their previous replay behavior. Selecting a
-finished song as Input Audio samples its rendered mix. Recommended prior-song
-settings cap selection at eight one-second cuts, with +2 semitones, 1.1� speed and
--12 dB volume before individual variations. Apply or keep settings explicitly.
-The decision/version stays with the clip; unchanged clips do not repeatedly prompt.
+finished song as Input Audio immediately samples its rendered mix without a defaults
+confirmation. Automatic policies distinguish single/multiple finished songs,
+single/multiple recordings and all mixed combinations. Finished mixes favor
+restrained onset-based hooks/accents and octave-based variations; recordings retain
+phrases. Manual clip settings, lyrics and styles stay unchanged. Requested/effective
+budgets, source roles and the policy version remain in the saved recipe. See
+[source-aware sampling](source-aware-sampling.md) for the comparison and limits.
 
 Lyrics/styles work without audio input. Expand **Write lyrics for me** to draft editable lyrics locally, or type your own and leave the field blank for an instrumental. See [local song planning](song-planning.md). The exact supplied lyrics reach the local
 model. Blank titles derive from up to six lyric/style words. **Number of

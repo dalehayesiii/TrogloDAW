@@ -67,7 +67,7 @@ test('three workflows, progressive controls, drafts and accessible input help', 
   const help = page.getByRole('button', { name: 'Audio input guidance' });
   await help.focus();
   await expect(page.getByRole('tooltip')).toContainText(
-    'Audio inputs are intended to be vocal recordings',
+    'Recordings and finished Library songs are analyzed independently',
   );
   await help.press('Escape');
   await expect(page.getByRole('tooltip')).not.toBeVisible();
@@ -184,8 +184,7 @@ test('multiple real uploads, folders, prior-song choices and cached FX saves', a
   await expect(page.getByRole('heading', { name: 'Browser organized song' })).toBeVisible();
   await expect(page.locator('#panel-1 troglodaw-audio canvas').first()).toBeVisible();
   await page.getByRole('button', { name: 'Use as Input Audio', exact: true }).click();
-  await expect(page.getByRole('dialog')).toContainText('eight short one-second samples');
-  await page.getByRole('button', { name: 'Keep current settings', exact: true }).click();
+  await expect(page.getByRole('dialog')).not.toBeVisible();
   await expect(page.locator('.clip-card')).toHaveCount(3);
   const priorAdjustments = page
     .locator('.input-stone .clip-card')

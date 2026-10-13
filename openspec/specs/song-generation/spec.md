@@ -36,18 +36,11 @@ Generation SHALL request microphone access on recording initiation, show capture
 - **THEN** a useful error appears, capture resources are released and the existing draft remains usable
 
 ### Requirement: Input guidance
-Upload and microphone flows SHALL expose hover/focus/tap guidance: "Audio inputs are intended to be vocal recordings. Previously generated songs can also be used and may benefit from prior-song presets."
+Upload and microphone flows SHALL expose hover/focus/tap guidance explaining that recordings and finished Library songs are analyzed independently and automatically sampled into a shared arrangement, without a prior-song defaults confirmation.
 
 #### Scenario: Keyboard help
 - **WHEN** a user focuses or activates the input information control
 - **THEN** the same guidance available on hover is readable
-
-### Requirement: Prior-song preset decision
-Adding a prior song SHALL prompt Apply recommended prior-song defaults or Keep current settings. The versioned preset SHALL disclose sample/morphing changes, preserve styles/lyrics and unrelated values, and retain the choice and effective settings. An unchanged source SHALL not repeatedly prompt.
-
-#### Scenario: Decline full-song defaults
-- **WHEN** a prior song is added and the user keeps current settings
-- **THEN** generation uses the existing draft and saves the declined decision with that source
 
 ### Requirement: Selective creation reuse
 Prior Song Reference SHALL import only selected available recipe ingredients, preserving unselected draft fields. Unavailable legacy fields SHALL be visible. Using a song as Input Audio SHALL resample its rendered audio; reusing ingredients SHALL reference original inputs/settings.
@@ -210,7 +203,7 @@ Vocal separation SHALL be local, sequential and use installed verified assets wi
 - **THEN** sample loudness targets the generated song, and an instrumental request needs no separation
 
 ### Requirement: Bounded sample balance and manual offsets
-Short samples SHALL be measured without silence dilution. Automatic correction SHALL be bounded to plus/minus 30 dB. Manual clip volume SHALL remain a relative offset, defaulting to zero for fresh clips and new prior-song preset v2. Explicit saved offsets SHALL remain unchanged.
+Short samples SHALL be measured without silence dilution. Automatic correction SHALL be bounded to plus/minus 30 dB. Manual clip volume SHALL remain a relative offset, defaulting to zero for fresh clips. Explicit saved offsets SHALL remain unchanged.
 
 #### Scenario: Explicit clip volume and short gestures
 - **WHEN** the user chooses a negative volume offset for a gesture shorter than 400 milliseconds
@@ -270,3 +263,36 @@ AI clean SHALL never be bundled in the installer and SHALL only run from an expl
 #### Scenario: Saved AI clean request without add-on
 - **WHEN** a draft or API request asks for AI clean and the add-on is unavailable
 - **THEN** generation uses Light, reports the substitution in progress and records requested AI clean with effective Light
+
+### Requirement: Automatic independent source routing
+Library songs SHALL receive automatic finished-song sampling without confirmation or replacement of lyrics, styles or manual clip settings. Recordings in the same collection SHALL retain independent recording handling. Classification SHALL use trusted catalog/saved-source lineage, not uploaded filenames. Legacy preset flags SHALL remain accepted without requiring or reapplying them.
+
+#### Scenario: Add a prior song
+- **WHEN** a finished Library song is added to Input Audio
+- **THEN** it is immediately usable without a defaults modal and unrelated draft fields remain unchanged
+
+#### Scenario: Misleading uploaded filename
+- **WHEN** an uploaded recording has a name suggesting it is a finished song
+- **THEN** the filename does not override its source classification
+
+### Requirement: Collection-aware sampling roles
+Automatic planning SHALL account for single/multiple prior songs, single/multiple recordings and their combinations. Finished mixes SHALL favor bounded hooks/accents with restrained density and added harmonic shifts; recordings SHALL retain useful phrases. Every selected source SHALL contribute, with seed-reproducible cuts/transforms/placements and recorded effective policy/budget.
+
+#### Scenario: Eight collection combinations
+- **WHEN** planning uses one prior, one recording, several priors, several recordings, or any single/multiple combination of both
+- **THEN** counts and independent source roles are recorded and accompanying recordings are not treated as finished mixes
+
+#### Scenario: Mixed accompaniment
+- **WHEN** finished mixes and recordings are arranged together
+- **THEN** finished-mix returns remain restrained, recording phrases retain their role and the guide avoids indiscriminate full-song overlays or uniform cycling
+
+### Requirement: Confidence-gated rhythmic source analysis
+Finished-song sampling SHALL use measured audible/onset context and trust tempo only when analysis meets its confidence threshold. Uncertain material SHALL use a recorded fallback without claiming reliable beat, key, speaker or semantic understanding. Automatic full-mix pitch variations SHALL preserve pitch classes through octave variation; explicit user offsets SHALL remain recorded and effective.
+
+#### Scenario: Uncertain rhythm
+- **WHEN** a source has no reliable tempo
+- **THEN** sampling still uses audible material, records fallback timing and does not claim detected beat alignment
+
+#### Scenario: Polyphonic finished mix
+- **WHEN** additional pitch variants are derived from a finished mix
+- **THEN** automatic intervals are octave-based and the original-register variant is retained
