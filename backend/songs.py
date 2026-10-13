@@ -13,6 +13,8 @@ import sys
 import threading
 import uuid
 import shutil
+import os
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -21,6 +23,7 @@ import soundfile as sf
 
 import guide_enhance
 from planning import validated_blueprint
+import prompt_enrichment
 
 from arrangement import (
     PLANNER_VERSION,
@@ -200,6 +203,29 @@ def generation_parameters(draft: dict, sources: list[dict], seed: int):
     }
 
 
+def stop_inference(process):
+    """Stop our worker tree, including Windows virtual-environment redirectors."""
+    if process.poll() is not None:
+        return
+    if os.name == "nt":
+        subprocess.run(
+            [
+                str(Path(os.environ.get("WINDIR", "C:/Windows")) / "System32/taskkill.exe"),
+                "/PID",
+                str(process.pid),
+                "/T",
+                "/F",
+            ],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=15,
+            creationflags=CREATE_FLAGS,
+        )
+    if process.poll() is None:
+        process.terminate()
+    process.wait(timeout=15)
+
+
 def fixed_effect(core, audio, settings):
     """Keep trimming offsets and stretch/tails within the original slot."""
     result = np.zeros_like(audio)
@@ -251,11 +277,22 @@ class Songs:
             "runtime_revision": state["runtime_revision"],
             **values,
         }
+        if action == "enrich_prompt":
+            extra = self.models.enrichment_ready()
+            profile = self.models.enrichment_profile()
+            if not extra or not profile:
+                raise ValueError("Local prompt enrichment support is unavailable")
+            request.update(
+                enrichment_packages=str(safe_file(root, extra["packages"])),
+                enrichment_profile=profile,
+                writer_path=str(safe_file(root, profile["writer_path"])),
+            )
         request_file = root / "cache" / (uuid.uuid4().hex + ".json")
         env = cache_environment(root, self.models.storage.preferences["installation_id"])
         env["HF_HUB_OFFLINE"] = env["TRANSFORMERS_OFFLINE"] = "1"
         atomic_json(request_file, request)
         result = None
+        started = time.monotonic()
         messages = []
         progress(
             "Starting local inference runtime",
@@ -280,32 +317,38 @@ class Songs:
                 threading.Thread(
                     target=lambda: [lines.put(line) for line in output], daemon=True
                 ).start()
-                while process.poll() is None or not lines.empty():
-                    if canceled():
-                        process.terminate()
-                        process.wait(timeout=15)
-                        raise Canceled("Processing canceled; completed songs are preserved")
-                    try:
-                        line = lines.get(timeout=0.2).strip()
-                    except queue.Empty:
-                        continue
-                    if line.startswith("TROGLO_EVENT "):
-                        event = json.loads(line[len("TROGLO_EVENT ") :])
-                        if event["stage"] == "complete":
-                            result = event["result"]
-                        elif event["stage"] == "failed":
-                            messages.append(event["error"])
+                try:
+                    while process.poll() is None or not lines.empty():
+                        if canceled():
+                            stop_inference(process)
+                            raise Canceled("Processing canceled; completed songs are preserved")
+                        if action == "enrich_prompt" and time.monotonic() - started > 150:
+                            stop_inference(process)
+                            raise TimeoutError("Local prompt enrichment preparation timed out")
+                        try:
+                            line = lines.get(timeout=0.2).strip()
+                        except queue.Empty:
+                            continue
+                        if line.startswith("TROGLO_EVENT "):
+                            event = json.loads(line[len("TROGLO_EVENT ") :])
+                            if event["stage"] == "complete":
+                                result = event["result"]
+                            elif event["stage"] == "failed":
+                                messages.append(event["error"])
+                            else:
+                                fraction = event.pop("fraction", 0)
+                                stage = event.pop("stage")
+                                message = (
+                                    event.pop("message", "") or stage.replace("_", " ").capitalize()
+                                )
+                                progress(message, fraction, stage=stage, **event)
                         else:
-                            fraction = event.pop("fraction", 0)
-                            stage = event.pop("stage")
-                            message = (
-                                event.pop("message", "") or stage.replace("_", " ").capitalize()
-                            )
-                            progress(message, fraction, stage=stage, **event)
-                    else:
-                        messages.append(line)
-                if process.returncode or result is None:
-                    raise RuntimeError(messages[-1] if messages else "Inference process failed")
+                            messages.append(line)
+                    if process.returncode or result is None:
+                        raise RuntimeError(messages[-1] if messages else "Inference process failed")
+                finally:
+                    if process.poll() is None:
+                        stop_inference(process)
         finally:
             request_file.unlink(missing_ok=True)
             self.models.storage.owned(
@@ -893,6 +936,7 @@ class Songs:
                         "guide_enhancement",
                         "guide_enhancement_strength",
                         "enrich",
+                        "prompt_enrichment",
                     ],
                 }
                 recipe["draft"]["workflow"] = "arrange-over-song"
@@ -993,6 +1037,65 @@ class Songs:
             ],
         }
 
+    def enrich_request(self, draft, caption, progress, canceled):
+        enabled = prompt_enrichment.requested(draft)
+        if not enabled:
+            return prompt_enrichment.provenance(caption, enabled=False, reason="off")
+        profile = prompt_enrichment.profile_for(self.models.manifest, self.models.selected)
+        if not profile:
+            return prompt_enrichment.provenance(caption, reason="no-qualified-profile")
+        if not self.models.enrichment_ready():
+            return prompt_enrichment.provenance(
+                caption, profile=profile, reason="support-unavailable"
+            )
+        if canceled():
+            raise Canceled("Prompt preparation canceled; supplied inputs are unchanged")
+        try:
+            data = self.invoke(
+                "enrich_prompt",
+                {
+                    "caption": caption,
+                    "seed": random.SystemRandom().randrange(2**31),
+                    "instrumental": draft.get("workflow") != "recording-style"
+                    and not bool(draft.get("lyrics", "").strip()),
+                    "source_authoritative": bool(draft.get("clips") or draft.get("prior_song_ids")),
+                },
+                progress,
+                canceled,
+            )
+            if not isinstance(data, dict) or data.get("original_caption") != caption:
+                return prompt_enrichment.provenance(
+                    caption, profile=profile, reason="invalid-result"
+                )
+            additions = data.get("additions", "")
+            if (
+                not isinstance(additions, str)
+                or len(additions) > profile["max_characters"]
+                or (additions and not prompt_enrichment.accepted(data.get("verdict")))
+            ):
+                return prompt_enrichment.provenance(
+                    caption, profile=profile, reason="invalid-result"
+                )
+            details = {
+                key: data[key]
+                for key in ("seed", "verdict", "load_seconds", "seconds", "peak_vram")
+                if key in data
+            }
+            return prompt_enrichment.provenance(
+                caption,
+                profile=profile,
+                reason=data.get("fallback_reason"),
+                additions=additions,
+                **details,
+            )
+        except Canceled:
+            raise
+        except Exception as error:
+            progress("Using original musical direction", 1, stage="enriching_prompt")
+            return prompt_enrichment.provenance(
+                caption, profile=profile, reason="runtime-error", diagnostic=str(error)[:200]
+            )
+
     def generate(self, draft, progress, canceled):
         workflow = draft.get("workflow", "model")
         if workflow == "arrange-over-song":
@@ -1041,6 +1144,17 @@ class Songs:
             + 300 * self.core.SR * 32
         )
         writable_root(str(self.core.LIB), int(estimate) + 64 * 1024 * 1024)
+        original_options = {**draft.get("options", {}), "variety": 0}
+        base_caption = generation_parameters({**draft, "options": original_options}, sources, 0)[
+            "caption"
+        ]
+        try:
+            enrichment = self.enrich_request(draft, base_caption, progress, canceled)
+        except Canceled as error:
+            error.result = {
+                "outcomes": [{"index": index + 1, "status": "canceled"} for index in range(count)]
+            }
+            raise
         outcomes = []
         for index in range(count):
             if canceled():
@@ -1055,6 +1169,15 @@ class Songs:
             directory.mkdir(parents=True, exist_ok=True)
             seed = random.SystemRandom().randrange(2**31)
             parameters = generation_parameters(draft, sources, seed)
+            original_caption = parameters["caption"]
+            parameters["caption"] += (
+                ("; " + enrichment["additions"]) if enrichment["applied"] else ""
+            )
+            effective_enrichment = {
+                **copy.deepcopy(enrichment),
+                "original_caption": original_caption,
+                "effective_caption": parameters["caption"],
+            }
             current_sources = copy.deepcopy(sources)
 
             def item_progress(message, fraction=0, **details):
@@ -1070,7 +1193,10 @@ class Songs:
             try:
                 if parameters["requested"]["duration"] == "auto":
                     plan = self.invoke(
-                        "plan_song", {"parameters": parameters}, item_progress, canceled
+                        "plan_song",
+                        {"parameters": {**parameters, "caption": original_caption}},
+                        item_progress,
+                        canceled,
                     )
                     suggested = plan.get("duration")
                     if (
@@ -1201,7 +1327,11 @@ class Songs:
                 if mode["fallback_reason"]:
                     item_progress(mode["fallback_reason"], 0, stage="conditioning_fallback")
                 planning, blueprint_metadata = self.musical_blueprint(
-                    parameters, mode, directory, item_progress, canceled
+                    {**parameters, "caption": original_caption},
+                    mode,
+                    directory,
+                    item_progress,
+                    canceled,
                 )
                 inferred = self.invoke(
                     "generate",
@@ -1266,6 +1396,7 @@ class Songs:
                     "workflow": workflow,
                     "planning": planning,
                     "render_mode": mode["effective_mode"],
+                    "prompt_enrichment": effective_enrichment,
                     "conditioning_file": self.relative(arrangement_file),
                     **({"guide_enhancement": enhancement} if enhancement is not None else {}),
                     **(
@@ -1279,6 +1410,7 @@ class Songs:
                         "audio_adherence": mode["audio_adherence"],
                         "guide_enhancement": enhancement_settings["tier"],
                         "guide_enhancement_strength": enhancement_settings["strength"],
+                        "prompt_enrichment": prompt_enrichment.requested(draft),
                         "clips": [
                             {k: v for k, v in c.items() if k not in {"audio", "key"}}
                             for c in draft.get("clips", [])
@@ -1486,6 +1618,7 @@ class Songs:
             "audio_adherence",
             "guide_enhancement",
             "guide_enhancement_strength",
+            "prompt_enrichment",
         ):
             if key in draft and not (
                 recipe.get("workflow") == "arrange-over-song"

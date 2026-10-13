@@ -9,10 +9,11 @@ words. The app therefore keeps original styling authoritative and supplied lyric
 literal. No experimental writer, new compulsory model download or ineffective
 “Enrich prompts” checkbox is shipped from this study.
 
-This is a limited evaluation of three pinned model identities and six protocols,
+The initial study was a limited evaluation of three pinned model identities and six protocols,
 not a conclusion that prompt enrichment cannot work. The desired improvement in
-instrumental genre fidelity remains unproven. A larger or specialized writer and
-user-reviewed suggestions are possible subsequent investigations.
+instrumental genre fidelity remains unproven. A larger or specialized checked local
+writer is a possible subsequent investigation. The requested
+experience remains one automatic toggle; no suggestion-review workflow is planned.
 
 One concrete app defect was repaired: Variety used to append acoustic accents,
 choruses and bridges regardless of the request. Its bounded additions now vary
@@ -168,3 +169,87 @@ once-per-request enrichment, clear original-prompt fallback and portable provena
 Optional assets need explicit verified setup; unexplored music models receive no
 enhancement. Coordinate source-aware work with WRK-9. Enrichment must never become
 a content filter or a compulsory backing-track generator.
+
+## Follow-up: guarded 7B candidate, 13 October 2026
+
+A separate prototype evaluates a single automatic toggle with bounded additive
+directions and original-caption fallback. It is **not in the released app**. The
+music runtime's fingerprint remains unchanged, and support acquisition is separate
+from music readiness. This avoids making already installed music unavailable merely
+because enrichment support is missing. The prototype never downloads during generation.
+
+| Research identity | Pinned revision/version | Role |
+| --- | --- | --- |
+| Qwen/Qwen3-4B-Instruct-2507 | `cdbee75f17c01a7cc42f958dc650907174af0554` | Rejected additive proposals and compatibility-check trials |
+| Qwen/Qwen2.5-7B-Instruct | `a09a35458c702b33eeacc393d103063234e8bc28` | Candidate local additive writer and compatibility check |
+| bitsandbytes | `0.50.2`, official Windows wheel | NF4 double quantization, BF16 compute |
+| laion/clap-htsat-unfused | `8fa0f1c6d0433df6e97c127f64b2a1d6c0dcda8a` | CPU-only development evaluator; not a proposed app dependency |
+
+The 4B writer proposed city noise, inappropriate instrument techniques and visual
+speech directions; its short critic accepted some known contradictions. The 7B
+CPU/GPU/disk configuration was stopped after about 373 seconds without a first usable
+proposal. Standard GPU quantization was practical: observed loads ranged roughly
+18–75 seconds, with approximately 5.43 GiB peak Torch allocation. These are local
+observations, not total driver use or latency promises. Writer weights occupy
+15,242,805,751 bytes (14.20 GiB), in addition to the existing music installation.
+
+Ungated 7B prose still invented city noises and inappropriate additions. A binary
+critic missed an impossible playing-technique fixture in one protocol and rejected
+valid instrumentation in another. The later prototype checks a bounded JSON conflict
+record, accepting only an explicit `ACCEPT` with an empty conflict. Invalid, truncated,
+oversized, rejected or empty responses retain the original direction. Lyrics remain
+outside the writer; only delivery/source context accompanies the original caption.
+An asserted absence of conflict is empirical model behavior, not a formal semantic
+guarantee or a content-moderation decision.
+
+The complete short-description pipeline processed 20 invented requests at seeds
+42 and 71, including solo harpsichord/banjo/kazoo, quiet jazz, sparse ambient, speech
+in English/Japanese, profanity/politics, vocal-only chant and broad music genres.
+Restricted requests generally fell back or received compatible limited detail.
+Held-out conflict checks included impossible techniques, excluded accompaniment,
+unwanted lyrics/topics, another genre, extraneous noises and excessive density.
+Conservative false rejections remain a limitation. A native production-worker trial
+reproduced the city-pop proposal in 50.91 seconds, including 48.03 seconds loading.
+Fresh locked support installation added only bitsandbytes, without another Torch copy.
+
+### Matched-seed audio comparison
+
+An initial prose candidate produced three 30-second original/enriched pairs at seed
+42. CLAP similarity against the **original** caption changed as follows: city pop
+0.3738→0.4024, detailed salsa 0.5990→0.5227, and sparse ambient 0.3874→0.3510. That
+candidate was not activated.
+
+The complete short-description candidate then produced ten 30-second pairs across
+five broad styles and two music seeds. Base used the same pinned runtime, 32 ODE
+steps, guidance 8, shift 3 and blank lyrics for both sides. These comparisons isolate
+caption additions; optional musical metadata blueprints were absent. CLAP ran on CPU,
+averaging fixed 0–10, 10–20 and 20–30 second windows against the original captions.
+
+| Original style | Seed 42 original → enriched | Seed 71 original → enriched |
+| --- | --- | --- |
+| 1980s Japanese city pop, instrumental | 0.3738 → 0.3796 | 0.4153 → 0.4025 |
+| salsa, instrumental | 0.1684 → 0.6523 | 0.4067 → 0.5825 |
+| 1970s funk, instrumental | 0.4676 → 0.4676 | 0.6727 → 0.6727 |
+| dark ambient, instrumental | 0.4129 → 0.3343 | 0.4078 → 0.3445 |
+| bluegrass, instrumental | 0.6190 → 0.5419 | 0.5853 → 0.6278 |
+
+Four pairs improved on this proxy, four worsened and two used unchanged original-
+caption fallback. Mean difference was +0.0476, driven by salsa; the median difference
+was zero. Eighteen actual renders served the ten pairs because rejected funk additions
+reused the identical baseline. This is semantic similarity, **not a listening score,
+percentage improvement, instrumental-presence rating or proof of better songs**.
+No human blind-listening result has been received. One Windows worker access violation
+occurred during text-encoder offload; the identical isolated retry passed. The failure
+was retained and its cause is not claimed resolved.
+
+These results support a potential benefit for some requests, especially the tested
+salsa captions, but do not establish reliable improvement across genres. The profile
+remains inactive pending the user's decision on whether an experimental guarded
+toggle with these costs/limits is acceptable. It is not marked complete or released.
+No per-genre keyword workaround or hidden multiple-render reranking was introduced.
+
+Primary implementation references:
+[Qwen2.5 model card](https://huggingface.co/Qwen/Qwen2.5-7B-Instruct),
+[official bitsandbytes installation](https://huggingface.co/docs/bitsandbytes/main/installation),
+[CLAP model card](https://huggingface.co/laion/clap-htsat-unfused) and
+[CLAP paper](https://arxiv.org/abs/2211.06687).

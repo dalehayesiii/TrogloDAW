@@ -236,6 +236,7 @@ class Storage:
             for model in [
                 *self.model_manifest.get("models", {}).values(),
                 *self.model_manifest.get("planners", {}).values(),
+                *self.model_manifest.get("enrichment_profiles", {}).values(),
             ]:
                 assets.extend(model["assets"])
             return any(safe_file(root, a["path"]).is_file() for a in assets if "path" in a) or any(
@@ -259,14 +260,22 @@ class Storage:
         for model in [
             *self.model_manifest.get("models", {}).values(),
             *self.model_manifest.get("planners", {}).values(),
+            *self.model_manifest.get("enrichment_profiles", {}).values(),
         ]:
             assets.extend(model["assets"])
         paths.update(asset["path"] for asset in assets if "path" in asset)
         ready = root / ".troglodaw" / ("ready-" + owner + ".json")
         state = self.core._read_json(ready)
-        directories = [state.get("code"), state.get("packages"), f"cache/{owner}"]
+        enrichment_ready = root / ".troglodaw" / ("enrichment-" + owner + ".json")
+        enrichment_state = self.core._read_json(enrichment_ready)
+        directories = [
+            state.get("code"),
+            state.get("packages"),
+            enrichment_state.get("packages"),
+            f"cache/{owner}",
+        ]
         if self.model_manifest.get("runtime_revision"):
-            from models import runtime_signature
+            from models import runtime_signature, enrichment_signature
 
             directories.extend(
                 [
@@ -274,11 +283,13 @@ class Storage:
                     f"runtime-packages/{runtime_signature()[:16]}",
                 ]
             )
+            if self.model_manifest.get("enrichment_profiles"):
+                directories.append(f"enrichment-packages/{enrichment_signature()[:16]}")
         for directory in directories:
             if directory:
                 base = safe_file(root, directory)
                 paths.update(p.relative_to(root).as_posix() for p in base.rglob("*") if p.is_file())
-        for control in [manifest, ready]:
+        for control in [manifest, ready, enrichment_ready]:
             if control.is_file():
                 paths.add(control.relative_to(root).as_posix())
         return {relative for relative in paths if safe_file(root, relative).is_file()}
@@ -345,6 +356,7 @@ class Storage:
             for model in [
                 *self.model_manifest.get("models", {}).values(),
                 *self.model_manifest.get("planners", {}).values(),
+                *self.model_manifest.get("enrichment_profiles", {}).values(),
             ]:
                 assets.extend(model["assets"])
             expected = {**{a["path"]: a["sha256"] for a in assets if "path" in a}, **expected}
@@ -361,14 +373,20 @@ class Storage:
                 unowned_runtime = {
                     relative
                     for relative in copied
-                    if relative.startswith(("inference-code/", "runtime-packages/"))
+                    if relative.startswith(
+                        ("inference-code/", "runtime-packages/", "enrichment-packages/")
+                    )
                     and relative not in expected
                 }
                 expected.update(dict.fromkeys(unowned_runtime))
                 # Co-owners still use the original root. Their copied manifests must
                 # not claim references in this installation's independent copy.
                 for manifest in (new / ".troglodaw").glob("*.json"):
-                    if manifest.name not in {own_name, "ready-" + own_name}:
+                    if manifest.name not in {
+                        own_name,
+                        "ready-" + own_name,
+                        "enrichment-" + own_name,
+                    }:
                         manifest.unlink()
                 if mode == "move" and copied:
                     # Keep a changed original's ownership checksum, never claim its replacement.

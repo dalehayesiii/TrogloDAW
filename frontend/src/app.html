@@ -583,6 +583,26 @@
               (ngModelChange)="saveDraft()"
               placeholder="Genre, mood, instruments or vocal character"
             ></textarea>
+            <label for="prompt-enrichment" class="check-label">
+              <input
+                id="prompt-enrichment"
+                type="checkbox"
+                [(ngModel)]="draft.prompt_enrichment"
+                (ngModelChange)="saveDraft()"
+                [disabled]="busy"
+                aria-describedby="prompt-enrichment-help"
+              />
+              Enrich prompt
+            </label>
+            <p class="muted" id="prompt-enrichment-help">
+              Adds compatible musical detail locally while keeping your words and intent. Turn it
+              off to use your original prompt. @if(library.models.selected &&
+              !library.models.enrichment?.available){ Enrichment is unavailable for this model; your
+              original prompt will be used. }@else if(draft.prompt_enrichment &&
+              library.models.enrichment?.available && !library.models.enrichment?.ready){ Supporting
+              files are not installed yet. Use Install / verify selected model in Settings;
+              generation can still use your original prompt. }
+            </p>
           </div>
           }
         </div>
@@ -1176,7 +1196,9 @@
           <p class="muted">
             {{selectedModel?.hardware}} · approximately {{((selectedModel?.bytes ||
             0)/1000000000).toFixed(1)}} GB of music weights, plus about 12 GB for inference tools
-            and voice analysis.
+            and voice analysis. @if(selectedModel?.enrichment_bytes){ Local style enrichment also
+            uses {{(selectedModel.enrichment_bytes/1073741824).toFixed(2)}} GiB of supporting
+            weights in this folder. }
           </p>
           <label for="model-location">Model storage folder</label>
           <div class="folder-picker-row">

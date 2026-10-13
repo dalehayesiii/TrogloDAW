@@ -17,19 +17,22 @@ import time
 from pathlib import Path
 
 from storage import atomic_json, digest, safe_file, writable_root
+import prompt_enrichment
 
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = ROOT / "config" / "model-manifest.json"
 CREATE_FLAGS = 0x08000000 if os.name == "nt" else 0
 
 
-def runtime_signature(root=ROOT):
-    """Fingerprint the locked inference graph, independent of unrelated app dependencies."""
+def dependency_graph(root=ROOT, extra="inference", include_base=False):
+    """Read one locked optional graph; no installation or resolution happens here."""
     lock = tomllib.loads((root / "uv.lock").read_text(encoding="utf-8"))
     project = tomllib.loads((root / "pyproject.toml").read_text(encoding="utf-8"))
     packages = lock["package"]
     local = next(p for p in packages if p["name"] == project["project"]["name"])
-    names = {p["name"] for p in local["optional-dependencies"]["inference"]}
+    names = {p["name"] for p in local.get("optional-dependencies", {}).get(extra, [])}
+    if include_base:
+        names.update(p["name"] for p in local.get("dependencies", []))
     selected = []
     pending = set(names)
     while pending:
@@ -42,12 +45,22 @@ def runtime_signature(root=ROOT):
                 if dependency["name"] not in names:
                     names.add(dependency["name"])
                     pending.add(dependency["name"])
-    value = {
+    return {
         "packages": sorted(selected, key=lambda p: (p["name"], p["version"])),
         "python": sys.implementation.cache_tag,
         "platform": sys.platform,
-        "pins": project["project"]["optional-dependencies"]["inference"],
+        "pins": project["project"]["optional-dependencies"].get(extra, []),
     }
+
+
+def runtime_signature(root=ROOT):
+    """Fingerprint the unchanged music graph, independent of optional add-ons."""
+    value = dependency_graph(root)
+    return hashlib.sha256(json.dumps(value, sort_keys=True).encode()).hexdigest()
+
+
+def enrichment_signature(root=ROOT):
+    value = {"music": runtime_signature(root), "addon": dependency_graph(root, "enrichment")}
     return hashlib.sha256(json.dumps(value, sort_keys=True).encode()).hexdigest()
 
 
@@ -348,6 +361,51 @@ class Models:
             / ("ready-" + self.storage.preferences["installation_id"] + ".json")
         )
 
+    def enrichment_state_path(self, root=None):
+        return (
+            (root or self.storage.models)
+            / ".troglodaw"
+            / ("enrichment-" + self.storage.preferences["installation_id"] + ".json")
+        )
+
+    def enrichment_profile(self, model=None):
+        return prompt_enrichment.profile_for(self.manifest, model or self.selected)
+
+    def enrichment_ready(self):
+        try:
+            profile = self.enrichment_profile()
+            if not profile or not self.ready():
+                return None
+            state = json.loads(self.enrichment_state_path().read_text(encoding="utf-8"))
+            if state.get("profile") != profile["id"] or state.get("lock") != enrichment_signature():
+                return None
+            verified = {entry["path"]: entry for entry in state.get("verified", [])}
+            for asset in profile["assets"]:
+                entry = verified.get(asset["path"], {})
+                path = safe_file(self.storage.models, asset["path"])
+                if (
+                    entry.get("sha256") != asset["sha256"]
+                    or not path.is_file()
+                    or path.stat().st_size != asset["bytes"]
+                ):
+                    return None
+                if (
+                    path.stat().st_mtime_ns != entry.get("mtime")
+                    and digest(path) != asset["sha256"]
+                ):
+                    return None
+            packages = safe_file(self.storage.models, state["packages"])
+            marker = packages / ".complete"
+            if (
+                not marker.is_file()
+                or marker.read_text() != state["lock"]
+                or not (packages / "bitsandbytes" / "__init__.py").is_file()
+            ):
+                return None
+            return state
+        except (OSError, ValueError, KeyError, TypeError):
+            return None
+
     def ready(self):
         try:
             return self._ready()
@@ -433,11 +491,127 @@ class Models:
             *(extra["assets"] if planner else []),
         ]
 
+    def setup_assets(self, model, planner=False):
+        profile = self.enrichment_profile(model)
+        return [*self.assets(model, planner), *(profile["assets"] if profile else [])]
+
+    def install_enrichment_support(
+        self, profile, verified, music_packages, env, progress, canceled, checkpoint
+    ):
+        root = self.storage.models
+        lock = enrichment_signature()
+        packages = safe_file(root, "enrichment-packages/" + lock[:16])
+        marker = packages / ".complete"
+        if marker.exists() and marker.read_text() != lock:
+            raise ValueError("Existing enrichment support differs from the locked installation")
+        if not marker.is_file():
+            found = shutil.which("uv")
+            uv = Path(sys.executable).parent / ("uv.exe" if os.name == "nt" else "uv")
+            if not uv.is_file():
+                if not found:
+                    raise RuntimeError("Bundled inference setup tool is unavailable")
+                uv = Path(found)
+            covered = {p["name"] for p in dependency_graph(include_base=True)["packages"]}
+            omitted = [value for name in sorted(covered) for value in ("--no-emit-package", name)]
+            temporary = root / "cache" / ("enrichment-requirements-" + uuid.uuid4().hex + ".txt")
+            temporary.parent.mkdir(parents=True, exist_ok=True)
+            try:
+                run_setup(
+                    [
+                        str(uv),
+                        "export",
+                        "--project",
+                        str(ROOT),
+                        "--locked",
+                        "--extra",
+                        "enrichment",
+                        "--no-dev",
+                        "--no-emit-project",
+                        *omitted,
+                        "--format",
+                        "requirements-txt",
+                        "--output-file",
+                        str(temporary),
+                    ],
+                    env,
+                    progress,
+                    canceled,
+                    stage="preparing_enrichment",
+                )
+                checkpoint()
+                packages.mkdir(parents=True, exist_ok=True)
+                run_setup(
+                    [
+                        str(uv),
+                        "pip",
+                        "install",
+                        "--python",
+                        sys.executable,
+                        "--target",
+                        str(packages),
+                        "--no-deps",
+                        "--require-hashes",
+                        "--only-binary",
+                        ":all:",
+                        "-r",
+                        str(temporary),
+                    ],
+                    env,
+                    progress,
+                    canceled,
+                    stage="installing_enrichment",
+                )
+                marker.write_text(lock)
+                checkpoint()
+            finally:
+                temporary.unlink(missing_ok=True)
+                self.storage.owned(root, [p for p in packages.rglob("*") if p.is_file()])
+        else:
+            self.storage.reference(root, [p for p in packages.rglob("*") if p.is_file()])
+            checkpoint(2)
+        probe = root / "cache" / ("enrichment-probe-" + uuid.uuid4().hex + ".json")
+        atomic_json(
+            probe,
+            {
+                "action": "probe_enrichment",
+                "packages": str(music_packages),
+                "enrichment_packages": str(packages),
+            },
+        )
+        try:
+            run_setup(
+                [sys.executable, str(ROOT / "backend/inference_runner.py"), str(probe)],
+                env,
+                progress,
+                canceled,
+                stage="checking_enrichment",
+            )
+            checkpoint()
+        finally:
+            probe.unlink(missing_ok=True)
+        profile_paths = {asset["path"] for asset in profile["assets"]}
+        state = {
+            "profile": profile["id"],
+            "lock": lock,
+            "packages": packages.relative_to(root).as_posix(),
+            "verified": [entry for entry in verified if entry["path"] in profile_paths],
+        }
+        atomic_json(self.enrichment_state_path(root), state)
+        self.storage.owned(root, [self.enrichment_state_path(root)])
+        checkpoint()
+
     def describe(self):
         planner = self.planner()
         planner_id = self.manifest["models"][self.selected].get("planner")
         writer_id = planner.get("writer") if planner else None
         return {
+            "enrichment": {
+                "available": bool(self.enrichment_profile()),
+                "ready": bool(self.enrichment_ready()),
+                "support_bytes": sum(
+                    asset["bytes"] for asset in (self.enrichment_profile() or {}).get("assets", [])
+                ),
+            },
             "selected": self.selected,
             "ready": bool(self.ready()),
             "destination": str(self.storage.models),
@@ -476,6 +650,10 @@ class Models:
                     "id": key,
                     "name": value["name"],
                     "bytes": sum(a["bytes"] for a in value["assets"]),
+                    "enrichment_bytes": sum(
+                        asset["bytes"]
+                        for asset in (self.enrichment_profile(key) or {}).get("assets", [])
+                    ),
                     "hardware": "RTX 3070 validated; sequential CPU offload"
                     if key == "acestep-v15-base"
                     else "Compatible Base-family alternative; not separately benchmarked",
@@ -505,11 +683,15 @@ class Models:
             def record_cache(done, total):
                 details = {}
                 if succeeded:
-                    count = len(self.assets(model, planner))
+                    count = len(self.setup_assets(model, planner))
                     details = {
                         "setup_phase": "installation",
-                        "installation_steps_complete": count + (6 if done == total else 5),
-                        "installation_steps_total": count + 6,
+                        "installation_steps_complete": count
+                        + (6 if done == total else 5)
+                        + (4 if self.enrichment_profile(model) else 0),
+                        "installation_steps_total": count
+                        + 6
+                        + (4 if self.enrichment_profile(model) else 0),
                     }
                 progress(
                     "Recording setup cache for safe uninstall",
@@ -531,7 +713,9 @@ class Models:
     def _install(self, model: str, progress, canceled, *, planner=False):
         if model not in self.manifest["models"]:
             raise ValueError("Unsupported music model")
-        assets = self.assets(model, planner)
+        assets = self.setup_assets(model, planner)
+        profile = self.enrichment_profile(model)
+        core_paths = {asset["path"] for asset in self.assets(model, planner)}
         root = writable_root(str(self.storage.models))
         runtime_lock = runtime_signature()
         runtime_marker = safe_file(root, "runtime-packages/" + runtime_lock[:16] + "/.complete")
@@ -571,7 +755,7 @@ class Models:
                 else "installation"
             )
             details["installation_steps_complete"] = installation_complete
-            details["installation_steps_total"] = len(assets) + 6
+            details["installation_steps_total"] = len(assets) + 6 + (4 if profile else 0)
             report(message, fraction, **details)
 
         for index, asset in enumerate(assets):
@@ -746,12 +930,21 @@ class Models:
             installation_complete += 1
         finally:
             probe.unlink(missing_ok=True)
+        if profile:
+
+            def checkpoint(count=1):
+                nonlocal installation_complete
+                installation_complete += count
+
+            self.install_enrichment_support(
+                profile, verified, packages, env, progress, canceled, checkpoint
+            )
         state = {
             "model": model,
             "lock": lock,
             "packages": packages.relative_to(root).as_posix(),
             "code": code.relative_to(root).as_posix(),
-            "verified": verified,
+            "verified": [entry for entry in verified if entry["path"] in core_paths],
             "runtime_revision": self.manifest["runtime_revision"],
             "code_verified": [
                 {

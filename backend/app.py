@@ -83,6 +83,7 @@ class MusicService:
         import platform
         import hashlib
         from songs import generation_mode, generation_parameters
+        from prompt_enrichment import requested
 
         profile = {
             "operation": action,
@@ -103,6 +104,9 @@ class MusicService:
                 backing = self.core.get_item(values.get("backing_song_id", ""))
                 profile.update(
                     workflow="arrange-over-song",
+                    prompt_enrichment=False,
+                    enrichment_profile=None,
+                    enrichment_ready=False,
                     backend="cpu",
                     model=None,
                     runtime=None,
@@ -114,6 +118,7 @@ class MusicService:
             elif action == "song_generate":
                 sources = self.songs.collect_sources(values)
                 params = generation_parameters(values, sources, 0)
+                enrichment = self.models.enrichment_profile() if requested(values) else None
                 profile.update(
                     workflow=values.get("workflow", "model"),
                     planning="source_structure"
@@ -124,6 +129,9 @@ class MusicService:
                     in self.models.manifest["models"][self.models.selected].get("planning", [])
                     and self.models.planner_ready()
                     else "unplanned",
+                    prompt_enrichment=requested(values),
+                    enrichment_profile=enrichment["id"] if enrichment else None,
+                    enrichment_ready=bool(enrichment and self.models.enrichment_ready()),
                     duration=None
                     if params["requested"]["duration"] == "auto"
                     else params["duration"],

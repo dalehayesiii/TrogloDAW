@@ -22,6 +22,7 @@ describe('Generation workflow boundaries', () => {
     app.draft.lyrics = 'Keep these literal words';
     app.draft.styles = 'dry spoken voice';
     app.draft.audio_mode = 'postmix';
+    app.draft.prompt_enrichment = false;
     app.draft.clips = [
       { key: 'prior', id: 'prior', label: 'Prior', source_type: 'prior-song', settings: {} },
     ];
@@ -32,16 +33,20 @@ describe('Generation workflow boundaries', () => {
       { key: 'take', id: 'take', label: 'Take', source_type: 'microphone', settings: {} },
     ];
     app.draft.styles = 'warm acoustic';
+    expect(app.draft.prompt_enrichment).toBe(false);
+    app.draft.prompt_enrichment = true;
     app.switchGenerationWorkflow('arrange-over-song');
     app.draft.backing_song_id = 'backing';
     app.switchGenerationWorkflow('model');
     expect(app.draft.lyrics).toBe('Keep these literal words');
     expect(app.draft.audio_mode).toBe('postmix');
+    expect(app.draft.prompt_enrichment).toBe(false);
     expect(app.draft.clips[0].id).toBe('prior');
     await Promise.resolve();
     const reloaded = TestBed.createComponent(AppComponent).componentInstance;
     reloaded.switchGenerationWorkflow('recording-style');
     expect(reloaded.draft.styles).toBe('warm acoustic');
+    expect(reloaded.draft.prompt_enrichment).toBe(true);
     expect(reloaded.draft.clips[0].id).toBe('take');
     reloaded.switchGenerationWorkflow('arrange-over-song');
     expect(reloaded.draft.backing_song_id).toBe('backing');
@@ -75,6 +80,19 @@ describe('Generation workflow boundaries', () => {
     expect(TestBed.createComponent(AppComponent).componentInstance.draft.audio_mode).toBe(
       'postmix',
     );
+  });
+
+  it('defaults enrichment on when restoring a workflow saved before the flag existed', () => {
+    localStorage.setItem(
+      'troglodaw-workflow-drafts',
+      JSON.stringify({
+        'recording-style': { workflow: 'recording-style', styles: 'folk', clips: [] },
+      }),
+    );
+    const app = TestBed.createComponent(AppComponent).componentInstance;
+    app.switchGenerationWorkflow('recording-style');
+    expect(app.draft.prompt_enrichment).toBe(true);
+    expect(app.draft.styles).toBe('folk');
   });
 
   it('selectively reuses a workflow without overwriting the draft being left', async () => {

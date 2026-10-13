@@ -37,6 +37,7 @@ interface Draft {
   lyric_idea: string;
   lyric_language: string;
   styles: string;
+  prompt_enrichment: boolean;
   title: string;
   count: number;
   options: Record<string, Value>;
@@ -73,6 +74,7 @@ const defaults = (): Draft => ({
   lyric_idea: '',
   lyric_language: 'en',
   styles: '',
+  prompt_enrichment: true,
   title: '',
   count: 2,
   audio_mode: 'conditioned',
@@ -438,7 +440,11 @@ export class AppComponent {
     this.workflowDrafts[this.draft.workflow] = structuredClone(this.draft);
     const existing = this.workflowDrafts[next];
     this.draft = existing
-      ? structuredClone(existing)
+      ? {
+          ...defaults(),
+          ...structuredClone(existing),
+          options: { ...defaults().options, ...existing.options },
+        }
       : {
           ...structuredClone(this.draft),
           workflow: next,
@@ -1038,6 +1044,7 @@ export class AppComponent {
           audio_adherence: 'Audio adherence',
           guide_enhancement: 'Guide enhancement',
           guide_enhancement_strength: 'Guide enhancement strength',
+          prompt_enrichment: 'Prompt enrichment choice',
           arrangement: 'Sample transformations and placements',
         } as Record<string, string>
       )[key] || key
