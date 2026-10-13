@@ -573,13 +573,13 @@
             ><input
               id="song-search"
               [(ngModel)]="search"
-              (ngModelChange)="clearSongSelection()"
+              (ngModelChange)="resetSongPage()"
               [disabled]="bulkSubmitting"
             /><label for="folder-filter">Folder</label
             ><select
               id="folder-filter"
               [(ngModel)]="folderFilter"
-              (ngModelChange)="clearSongSelection()"
+              (ngModelChange)="resetSongPage()"
               [disabled]="bulkSubmitting"
             >
               <option value="*">All songs</option>
@@ -604,25 +604,41 @@
             <div class="empty-state">
               @if(search.trim()){
               <p>No songs match “{{search}}” in this view.</p>
-              <button type="button" (click)="search='';folderFilter='*'">
+              <button type="button" (click)="search='';folderFilter='*';resetSongPage()">
                 Clear search and filters
               </button>
               } @else if(folderFilter!=='*'){
               <p>No songs in this folder yet.</p>
-              <button type="button" (click)="folderFilter='*'">Show all songs</button>
+              <button type="button" (click)="folderFilter='*';resetSongPage()">
+                Show all songs
+              </button>
               } @else {
               <p>No songs here yet. Create your first song in Generation.</p>
               <button type="button" (click)="changeTab(0)">Go to Generation</button>
               }
             </div>
-            } @if(filteredSongs.length){
+            } @if(filteredSongs.length || selectionMode){
+            <div class="library-list-tools">
+              <button
+                type="button"
+                (click)="toggleSelectionMode()"
+                [disabled]="busy"
+                [attr.aria-pressed]="selectionMode"
+              >
+                {{selectionMode ? 'Done selecting' : 'Select songs'}}
+              </button>
+            </div>
+            } @if(selectionMode){
             <div class="selection-toolbar" aria-label="Song selection">
               <span aria-live="polite"
-                >{{checkedSongs.size}} selected · {{filteredSongs.length}} shown</span
+                >{{checkedSongs.size}} selected · {{pageSongs.length}} on this page</span
               >
+              <p class="hint">
+                Selection applies to this page. Changing pages or filters clears it.
+              </p>
               <div class="actions">
                 <button type="button" (click)="selectAllShown()" [disabled]="busy">
-                  Select all shown
+                  Select page
                 </button>
                 <button
                   type="button"
@@ -645,8 +661,9 @@
             </div>
             }
             <ul class="song-list">
-              @for(song of filteredSongs;track song.id){
+              @for(song of pageSongs;track song.id){
               <li class="selectable-song" [class.checked-song]="checkedSongs.has(song.id)">
+                @if(selectionMode){
                 <label class="song-checkbox">
                   <input
                     type="checkbox"
@@ -656,6 +673,7 @@
                     [disabled]="busy"
                   />
                 </label>
+                }
                 <button
                   type="button"
                   class="song-row"
@@ -669,6 +687,43 @@
               </li>
               }
             </ul>
+            @if(filteredSongs.length){
+            <nav class="library-pagination" aria-label="Song pages">
+              <label for="songs-per-page"
+                >Songs per page
+                <select
+                  id="songs-per-page"
+                  [(ngModel)]="songPageSize"
+                  (ngModelChange)="resetSongPage()"
+                  [disabled]="busy"
+                >
+                  <option [ngValue]="10">10</option>
+                  <option [ngValue]="20">20</option>
+                  <option [ngValue]="50">50</option>
+                </select>
+              </label>
+              <span aria-live="polite"
+                >Showing {{songRangeStart}}–{{songRangeEnd}} of {{filteredSongs.length}} songs</span
+              >
+              <div class="actions">
+                <button
+                  type="button"
+                  (click)="changeSongPage(songPage-1)"
+                  [disabled]="busy || songPage===1"
+                >
+                  Previous page
+                </button>
+                <span>Page {{songPage}} of {{songPageCount}}</span>
+                <button
+                  type="button"
+                  (click)="changeSongPage(songPage+1)"
+                  [disabled]="busy || songPage===songPageCount"
+                >
+                  Next page
+                </button>
+              </div>
+            </nav>
+            }
           </div>
         </div>
         <div class="stack">
