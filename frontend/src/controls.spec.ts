@@ -40,7 +40,12 @@ describe('Gradio control contracts', () => {
       b = new File(['b'], 'b.wav');
     const files: File[][] = [];
     fixture.componentInstance.filesChange.subscribe((value) => files.push(value));
-    const list = { 0: a, 1: b, length: 2, item: (i: number) => [a, b][i] } as unknown as FileList;
+    const list = {
+      0: a,
+      1: b,
+      length: 2,
+      item: (i: number) => [a, b][i],
+    } as unknown as FileList;
     fixture.componentInstance.emit(list);
     expect(files[0]).toEqual([a]);
     fixture.componentInstance.multiple = true;
@@ -49,5 +54,50 @@ describe('Gradio control contracts', () => {
     fixture.componentInstance.files = [a, b];
     fixture.componentInstance.remove(0);
     expect(files[2]).toEqual([b]);
+  });
+  it('shows differing group values without changing them and accepts a common value', async () => {
+    const fixture = TestBed.createComponent(FieldComponent);
+    fixture.componentRef.setInput('field', {
+      key: 'gain',
+      label: 'Gain',
+      kind: 'slider',
+      initial: 0,
+      min: -24,
+      max: 24,
+    });
+    fixture.componentRef.setInput('value', 0);
+    fixture.componentRef.setInput('mixed', true);
+    const values: unknown[] = [];
+    fixture.componentInstance.valueChange.subscribe((value) => values.push(value));
+    await fixture.whenStable();
+    const input = fixture.nativeElement.querySelector('input[type=number]');
+    expect(input.value).toBe('');
+    expect(input.placeholder).toBe('Mixed');
+    expect(values).toEqual([]);
+    input.value = '0';
+    input.dispatchEvent(new Event('input'));
+    await fixture.whenStable();
+    expect(values).toEqual([0]);
+    fixture.nativeElement.querySelector('button').click();
+    expect(values).toEqual([0, 0]);
+  });
+  it('makes a mixed checkbox visible and lets a click apply one common value', async () => {
+    const fixture = TestBed.createComponent(FieldComponent);
+    fixture.componentRef.setInput('field', {
+      key: 'normalize',
+      label: 'Normalize',
+      kind: 'check',
+      initial: false,
+    });
+    fixture.componentRef.setInput('mixed', true);
+    const values: unknown[] = [];
+    fixture.componentInstance.valueChange.subscribe((value) => values.push(value));
+    await fixture.whenStable();
+    const input = fixture.nativeElement.querySelector('input');
+    expect(input.indeterminate).toBe(true);
+    expect(values).toEqual([]);
+    input.click();
+    await fixture.whenStable();
+    expect(values).toEqual([true]);
   });
 });

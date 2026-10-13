@@ -8,7 +8,7 @@ async function open(page) {
   if (setup) await page.getByRole('button', { name: 'Set up later', exact: true }).click();
   await expect(page.getByRole('tab').first()).toBeVisible();
 }
-async function seed(request) {
+async function seed(request, late = false) {
   const library = await (await request.get('/api/library')).json();
   return JSON.parse(
     execFileSync(
@@ -16,7 +16,14 @@ async function seed(request) {
       process.env.TROGLODAW_TEST_PYTHON
         ? ['scripts/seed_browser_fixture.py']
         : ['run', '--locked', 'python', 'scripts/seed_browser_fixture.py'],
-      { env: { ...process.env, TROGLODAW_LIBRARY: library.library }, encoding: 'utf8' },
+      {
+        env: {
+          ...process.env,
+          TROGLODAW_LIBRARY: library.library,
+          TROGLODAW_TEST_LATE_VOCALS: late ? '1' : '0',
+        },
+        encoding: 'utf8',
+      },
     ),
   );
 }
@@ -30,6 +37,171 @@ async function rename(request, id, name) {
     .poll(async () => (await (await request.get('/api/jobs/' + job.id)).json()).status)
     .toBe('complete');
 }
+
+test('all-vocal pitch starts at the first vocal and preserves independent group settings', async ({
+  page,
+  request,
+}, testInfo) => {
+  const fixture = await seed(request, true);
+  await rename(request, fixture.song.id, 'Late first group regression');
+  await open(page);
+  await page.getByRole('tab', { name: 'Library', exact: true }).click();
+  await page
+    .locator('#panel-1 .song-row')
+    .filter({ hasText: 'Late first group regression' })
+    .click();
+  await page.getByRole('button', { name: 'Edit Vocal FX', exact: true }).click();
+  const target = page.getByLabel('Apply effects to', { exact: true });
+  await expect(target).toHaveValue('all');
+  await expect(
+    page.getByRole('button', { name: 'Play Solo all vocals', exact: true }),
+  ).toBeVisible();
+  await page.getByLabel('Pitch (semitones) value', { exact: true }).fill('12');
+  let renderSettings;
+  page.on('request', (req) => {
+    if (
+      req.method() === 'POST' &&
+      req.url().endsWith('/api/jobs') &&
+      req.postDataJSON()?.action === 'vocal_render'
+    )
+      renderSettings = req.postDataJSON().values.group_settings;
+  });
+  await page.getByRole('button', { name: 'Preview remix', exact: true }).click();
+  const remix = page.locator('#panel-2 troglodaw-audio').filter({
+    has: page.getByRole('button', { name: 'Play FX remix', exact: true }),
+  });
+  await expect(remix.locator('canvas')).toBeVisible();
+  expect(Object.keys(renderSettings).sort()).toEqual(['g0', 'g1']);
+  expect(Object.values(renderSettings).every((settings) => settings.pitch === 12)).toBe(true);
+  const ratios = await remix.locator('audio').evaluate(async (audio) => {
+    const context = new AudioContext();
+    try {
+      const buffer = await context.decodeAudioData(await (await fetch(audio.src)).arrayBuffer());
+      const samples = buffer.getChannelData(0),
+        sr = buffer.sampleRate;
+      return [0.1, 5, 12.1].map((time) => {
+        const energy = (hz) => {
+          let real = 0,
+            imaginary = 0;
+          for (let i = 0; i < sr * 0.2; i++) {
+            const value = samples[Math.round(time * sr) + i];
+            real += value * Math.cos((2 * Math.PI * hz * i) / sr);
+            imaginary += value * Math.sin((2 * Math.PI * hz * i) / sr);
+          }
+          return Math.hypot(real, imaginary);
+        };
+        return energy(440) / energy(220);
+      });
+    } finally {
+      await context.close();
+    }
+  });
+  expect(ratios.every((ratio) => ratio > 2)).toBe(true);
+  await target.selectOption('g1');
+  await page.getByLabel('Gain (dB) value', { exact: true }).fill('-6');
+  await target.selectOption('all');
+  await expect(page.getByLabel('Gain (dB) value', { exact: true })).toHaveValue('');
+  await page.getByLabel('Pitch (semitones) value', { exact: true }).fill('7');
+  await target.selectOption('g1');
+  await expect(page.getByLabel('Gain (dB) value', { exact: true })).toHaveValue('-6');
+  await target.selectOption('g0');
+  await expect(page.getByLabel('Gain (dB) value', { exact: true })).toHaveValue('0');
+  await expect(page.getByLabel('Pitch (semitones) value', { exact: true })).toHaveValue('7');
+  await target.selectOption('all');
+  for (const theme of ['light', 'dark']) {
+    if ((await page.locator('html').getAttribute('data-theme')) !== theme)
+      await page
+        .getByRole('button', { name: theme === 'dark' ? 'Dark mode' : 'Light mode', exact: true })
+        .click();
+    for (const width of [1440, 390]) {
+      await page.setViewportSize({ width, height: 900 });
+      await page
+        .locator('#panel-2 .effects-stone')
+        .screenshot({ path: testInfo.outputPath(`fx-mixed-${theme}-${width}.png`) });
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+        true,
+      );
+    }
+  }
+  await page.getByRole('button', { name: 'Save FX version', exact: true }).click();
+  await expect(page.getByRole('status').filter({ hasText: 'Saved new FX version' })).toBeVisible();
+  const library = await (await request.get('/api/library')).json();
+  const saved = library.items.find(
+    (item) => item.recipe?.op === 'vocal-fx-song' && item.recipe.source_song_id === fixture.song.id,
+  );
+  expect(saved.recipe.group_settings.g0.pitch).toBe(7);
+  expect(saved.recipe.group_settings.g1.gain).toBe(-6);
+  expect(saved.recipe.group_settings.all).toBeUndefined();
+});
+
+test('shared playhead follows playback, seeking, pause and replacement in both themes', async ({
+  page,
+  request,
+}, testInfo) => {
+  const fixture = await seed(request, true);
+  await rename(request, fixture.song.id, 'Playback marker regression');
+  await open(page);
+  await page.getByRole('tab', { name: 'Library', exact: true }).click();
+  await page
+    .locator('#panel-1 .song-row')
+    .filter({ hasText: 'Playback marker regression' })
+    .click();
+  const player = page.locator('#panel-1 .playback-stone troglodaw-audio').first();
+  const fraction = async () => {
+    const waveform = await player.locator('.audio-waveform').boundingBox();
+    const marker = await player.locator('.audio-playhead').boundingBox();
+    return (marker.x + marker.width / 2 - waveform.x) / waveform.width;
+  };
+  await expect(player.locator('canvas')).toBeVisible();
+  await expect
+    .poll(async () => player.locator('audio').evaluate((audio) => audio.duration))
+    .toBe(15);
+  for (const theme of ['light', 'dark']) {
+    if ((await page.locator('html').getAttribute('data-theme')) !== theme)
+      await page
+        .getByRole('button', {
+          name: theme === 'dark' ? 'Dark mode' : 'Light mode',
+          exact: true,
+        })
+        .click();
+    for (const width of [1440, 390]) {
+      await page.setViewportSize({ width, height: 900 });
+      const box = await player.locator('canvas').boundingBox();
+      await player.locator('canvas').click({ position: { x: box.width * 0.6, y: box.height / 2 } });
+      await expect.poll(fraction).toBeCloseTo(0.6, 2);
+      expect(
+        await player.locator('audio').evaluate((audio) => audio.currentTime / audio.duration),
+      ).toBeCloseTo(0.6, 2);
+      await page.screenshot({
+        path: testInfo.outputPath(`playhead-${theme}-${width}.png`),
+      });
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+        true,
+      );
+    }
+  }
+  await player.getByRole('button', { name: /^Play / }).click();
+  await expect.poll(fraction).toBeGreaterThan(0.65);
+  await player.getByRole('button', { name: /^Pause / }).click();
+  const paused = await fraction();
+  await page.waitForTimeout(400);
+  expect(await fraction()).toBeCloseTo(paused, 2);
+  await player.locator('audio').evaluate((audio) => {
+    audio.currentTime = audio.duration;
+  });
+  await expect.poll(fraction).toBeGreaterThan(0.98);
+  const replacement = await seed(request);
+  await rename(request, replacement.song.id, 'Replacement marker regression');
+  await page.getByRole('button', { name: 'Refresh library', exact: true }).click();
+  await page
+    .locator('#panel-1 .song-row')
+    .filter({ hasText: 'Replacement marker regression' })
+    .click();
+  await expect.poll(fraction).toBeLessThan(0.02);
+  await page.getByRole('button', { name: 'Use as Input Audio', exact: true }).click();
+  await page.getByRole('button', { name: 'Keep current settings', exact: true }).click();
+  await expect(page.locator('#panel-0 .clip-card .audio-playhead')).toBeVisible();
+});
 
 test('latest Library selection owns loading, audio and failure recovery', async ({
   page,
