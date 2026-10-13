@@ -17,8 +17,85 @@ def phase_safe_audio(audio):
     return audio, "preserved-stereo"
 
 
-PLANNER_VERSION = "phrase-motifs-v2"
+PLANNER_VERSION = "phrase-motifs-v3"
 VARIANTS_PER_REGION = 3
+SOURCE_POLICY_VERSION = "source-roles-v1"
+
+
+def route_sources(sources):
+    """Classify trusted source records independently; never infer from filenames."""
+    priors = sum(source["source_type"] == "prior-song" for source in sources)
+    recordings = len(sources) - priors
+    names = {
+        (1, 0): "one-prior",
+        (2, 0): "multiple-priors",
+        (0, 1): "one-recording",
+        (0, 2): "multiple-recordings",
+        (1, 1): "one-prior+one-recording",
+        (1, 2): "one-prior+multiple-recordings",
+        (2, 1): "multiple-priors+one-recording",
+        (2, 2): "multiple-priors+multiple-recordings",
+    }
+    collection = names.get((min(2, priors), min(2, recordings)), "text-only")
+    result = []
+    for source in sources:
+        prior = source["source_type"] == "prior-song"
+        role = (
+            "mix-accent"
+            if prior and recordings
+            else "mix-hook"
+            if prior
+            else "recording-response"
+            if recordings > 1
+            else "recording-phrase"
+        )
+        cap = (
+            (2 if recordings else 4 if priors > 1 else 6) if prior else (4 if recordings > 1 else 8)
+        )
+        result.append(
+            {
+                **source,
+                "routing": {
+                    "version": SOURCE_POLICY_VERSION,
+                    "collection": collection,
+                    "prior_count": priors,
+                    "recording_count": recordings,
+                    "classification": "finished-mix" if prior else "recording",
+                    "role": role,
+                    "sample_cap": cap,
+                    "duration_weight": 0.55 if prior and recordings else 1.0,
+                    "density_scale": 0.65 if priors else 0.9 if recordings > 1 else 1.0,
+                },
+            }
+        )
+    return result
+
+
+def rhythmic_anchors(mono, sr):
+    """Measured spectral-flux peaks at bounded analysis rate, not a semantic label."""
+    from scipy import signal
+
+    step = max(1, sr // 8000)
+    audio = signal.resample_poly(mono, 1, step) if step > 1 else mono
+    n, hop = 512, 160
+    if len(audio) < n + hop:
+        return []
+    level = float(np.sqrt(np.mean(audio**2)))
+    if level < 1e-8:
+        return []
+    frames = np.lib.stride_tricks.sliding_window_view(audio / level, n)[::hop]
+    magnitude = np.log1p(np.abs(np.fft.rfft(frames * np.hanning(n), axis=1)))
+    flux = np.maximum(np.diff(magnitude, axis=0), 0).sum(axis=1)
+    peaks, _ = signal.find_peaks(
+        flux,
+        height=max(1e-8, float(np.percentile(flux, 70))),
+        distance=max(1, round(0.12 * sr / step / hop)),
+    )
+    # Bound work while keeping peaks spread across the complete source.
+    if len(peaks) > 96:
+        groups = np.array_split(peaks, 96)
+        peaks = np.array([group[np.argmax(flux[group])] for group in groups])
+    return [max(0, round((int(index) + 1) * hop * step)) for index in peaks]
 
 
 def _activity(audio, sr):
@@ -50,7 +127,7 @@ def _activity(audio, sr):
     return mono, energy, active, threshold, hop, phrases, reference
 
 
-def select_regions(audio, sr, settings, analysis, rng=None, guide_seconds=None):
+def select_regions(audio, sr, settings, analysis, rng=None, guide_seconds=None, policy=None):
     """Select mixed source phrases/accents; the budget counts distinct cut families."""
     import random
 
@@ -58,18 +135,25 @@ def select_regions(audio, sr, settings, analysis, rng=None, guide_seconds=None):
     mono, energy, active, threshold, hop, detected, reference = _activity(audio, sr)
     preferred = float(settings["sample_seconds"])
     cap = int(settings["samples"])
+    policy = policy or {}
+    prior = policy.get("classification") == "finished-mix"
+    confident = analysis.get("tempo_confidence", 0) > 2.0 and analysis.get("tempo_raw")
+    beat_seconds = 60 / min(180, max(60, float(analysis["tempo_raw"]))) if confident else None
+    if prior:
+        preferred = min(preferred, max(0.5, 2 * beat_seconds) if beat_seconds else 1.25)
+    cap = min(cap, policy.get("sample_cap", cap))
     active_seconds = float(active.sum() * hop / sr)
     budget = min(cap, max(1, math.ceil(math.sqrt(active_seconds) * 2)))
     if guide_seconds:
         budget = min(budget, max(1, int(guide_seconds / max(0.4, preferred * 0.8))))
     # Preset length remains a short-cut policy; other inputs can retain phrases.
-    preset = bool(settings.get("version"))
+    preset = bool(settings.get("version")) or prior
     phrase_limit = preferred if preset else preferred * 2
     phrases = detected
     candidates: list[dict] = []
     seen = set()
 
-    def add(begin, end, kind):
+    def add(begin, end, kind, anchored=False):
         begin, end = max(0, int(begin)), min(len(audio), int(end))
         if end - begin < min(len(audio), round(0.16 * sr)) or (begin, end) in seen:
             return
@@ -95,6 +179,7 @@ def select_regions(audio, sr, settings, analysis, rng=None, guide_seconds=None):
                 "centroid_hz": centroid,
                 "audible_fraction": audible,
                 "kind": kind,
+                "onset_anchored": anchored,
             }
         )
         seen.add((begin, end))
@@ -121,6 +206,11 @@ def select_regions(audio, sr, settings, analysis, rng=None, guide_seconds=None):
     for start in np.flatnonzero(active)[:: max(1, round(0.35 * sr / hop))][:192]:
         begin = int(start * hop)
         add(begin, begin + preferred * sr, "motif")
+    anchors = rhythmic_anchors(mono, sr) if prior else []
+    for anchor in anchors:
+        begin = max(0, anchor - round(0.025 * sr))
+        add(begin, begin + preferred * sr, "phrase", True)
+        add(begin, begin + min(preferred * 0.45, beat_seconds or 0.5) * sr, "accent", True)
     if not candidates:
         for begin, end in detected:
             add(begin, min(end, begin + preferred * sr), "accent")
@@ -175,6 +265,7 @@ def select_regions(audio, sr, settings, analysis, rng=None, guide_seconds=None):
             )
             return (
                 priority
+                + (0.7 if prior and candidate["onset_anchored"] else 0)
                 + new_kind
                 + candidate["audible_fraction"] * 0.3
                 + min(1.5, spectral)
@@ -210,10 +301,23 @@ def select_regions(audio, sr, settings, analysis, rng=None, guide_seconds=None):
         "candidate_count": len(candidates),
         "threshold_relative": threshold / reference,
         "whole_clip_included": any(c["kind"] == "whole-clip" for c in selected),
+        **(
+            {
+                "routing": policy,
+                "requested_sample_seconds": float(settings["sample_seconds"]),
+                "effective_sample_seconds": preferred,
+                "requested_cap": int(settings["samples"]),
+                "policy_cap": cap,
+                "measured_anchors": len(anchors),
+                "tempo_policy": "confident" if confident else "fallback",
+            }
+            if policy
+            else {}
+        ),
     }
 
 
-def sample_transform(settings, region, index, rng, variant=0, bpm=90, analysis=None):
+def sample_transform(settings, region, index, rng, variant=0, bpm=90, analysis=None, policy=None):
     """Recognizable phrase, pitched response and shorter filtered fill variants."""
     analysis = analysis or {}
     phrase = region["kind"] in {"phrase", "whole-clip"}
@@ -225,8 +329,15 @@ def sample_transform(settings, region, index, rng, variant=0, bpm=90, analysis=N
     interval = 0 if phrase and variant == 0 else rng.choice(intervals[1:])
     if variant == 2:
         interval -= 12
+    prior = (policy or {}).get("classification") == "finished-mix"
+    if prior:
+        interval = (0, 12, -12)[variant]
+        if not -12 <= float(settings["pitch"]) + interval <= 12:
+            interval = 0
     pitch = min(12, max(-12, float(settings["pitch"]) + interval))
     speed = (1.0, rng.uniform(0.9, 1.1), rng.uniform(1.12, 1.3))[variant]
+    if prior:
+        speed = (1.0, 1.0, rng.uniform(0.94, 1.06))[variant]
     balancing = min(6, max(-6, 20 * math.log10(0.08 / max(region["rms"], 1e-6))))
     return {
         "pitch": pitch,
@@ -255,11 +366,12 @@ def _free_gaps(events, length, rest):
     return result
 
 
-def plan_events(samples, length, sr, bpm, rng):
+def plan_events(samples, length, sr, bpm, rng, policy=None):
     """Plan source-derived gestures with sections, pauses and capped motif returns."""
     if not samples:
         return [], {"method": PLANNER_VERSION, "sections": [], "rest_seconds": length / sr}
     beat = sr * 60 / bpm
+    density_scale = (policy or {}).get("density_scale", 1.0)
     grid = max(1, round(beat / 2))
     rest = max(round(0.16 * sr), round(beat * 0.5))
     section_count = max(3, min(16, math.ceil(length / (32 * beat))))
@@ -289,7 +401,8 @@ def plan_events(samples, length, sr, bpm, rng):
                     "refrain": 0.42,
                     "bridge": 0.14,
                     "outro": 0.18,
-                }[name],
+                }[name]
+                * density_scale,
             }
         )
     families = {}
@@ -388,6 +501,8 @@ def plan_events(samples, length, sr, bpm, rng):
             if used >= (section["end"] - section["start"]) * section["target_density"]:
                 break
             cap = 2 if sample["kind"] == "whole-clip" else family_cap
+            if sample.get("source_type") == "prior-song":
+                cap = min(cap, 2 if (policy or {}).get("recording_count") else 3)
             if family_uses[sample["family_id"]] >= cap or sample_uses[sample["id"]] >= 2:
                 continue
             if section["name"] == "bridge" and sample["variant"] == 0:
@@ -406,6 +521,11 @@ def plan_events(samples, length, sr, bpm, rng):
         "placements": len(events),
         "families": len(families),
         "family_repeat_cap": family_cap,
+        **(
+            {"prior_family_repeat_cap": 2 if policy.get("recording_count") else 3}
+            if policy and policy.get("prior_count")
+            else {}
+        ),
         "exact_variant_repeat_cap": 2,
         "rest_seconds": (length - occupied) / sr,
         "occupied_fraction": occupied / length,

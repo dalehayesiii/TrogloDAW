@@ -223,11 +223,12 @@
                 </button>
                 @if(inputHelp){
                 <p id="audio-guidance" role="tooltip">
-                  Audio inputs are intended to be vocal recordings. Previously generated songs can
-                  also be used and may benefit from prior-song presets. Each original clip is
-                  automatically analyzed for phrase, motif and accent cuts. Short clips may also be
-                  used whole. Bounded variations and musical gaps form one full-song audio guide
-                  before generation; selection and arrangement use local audio heuristics.
+                  Recordings and finished Library songs are analyzed independently. Each is
+                  automatically sampled into a shared arrangement; no defaults confirmation is
+                  needed. Each original clip is automatically analyzed for phrase, motif and accent
+                  cuts. Short clips may also be used whole. Bounded variations and musical gaps form
+                  one full-song audio guide before generation; selection and arrangement use local
+                  audio heuristics.
                 </p>
                 }
               </div>
@@ -407,12 +408,6 @@
                   </p>
                 </div>
               </details>
-              @if(clip.source_type==='prior-song' && !clip.preset){<button
-                type="button"
-                (click)="presetClip=clip;openDialog('preset')"
-              >
-                Choose prior-song defaults</button
-              >}
             </article>
             }
           </div>
@@ -981,11 +976,10 @@
     <div class="dialog-heading">
       <h2 id="dialog-heading">
         {{dialogKind==='setup' ? 'Welcome to TrogloDAW' : dialogKind==='storage' ? 'Settings and
-        storage' : dialogKind==='microphone' ? 'Record a vocal clip' : dialogKind==='preset' ?
-        'Prior-song sampling defaults' : dialogKind==='fx-save' ? 'Save this FX edit' :
-        dialogKind==='reference' ? 'Choose creation ingredients' : dialogKind==='bulk-move' ? 'Move
-        selected songs' : dialogKind==='bulk-delete' ? 'Delete selected songs?' : 'Choose a Library
-        item'}}
+        storage' : dialogKind==='microphone' ? 'Record a vocal clip' : dialogKind==='fx-save' ?
+        'Save this FX edit' : dialogKind==='reference' ? 'Choose creation ingredients' :
+        dialogKind==='bulk-move' ? 'Move selected songs' : dialogKind==='bulk-delete' ? 'Delete
+        selected songs?' : 'Choose a Library item'}}
       </h2>
       <button type="button" aria-label="Close dialog" (click)="closeDialog()">×</button>
     </div>
@@ -1333,16 +1327,7 @@
       </details>
       <ng-container [ngTemplateOutlet]="storageControls" />
       <button type="button" (click)="closeDialog()">Done</button>
-      } @case('preset'){
-      <p>
-        {{presetClip?.label}} is a finished song. Recommended defaults select up to eight short
-        one-second samples, +2 semitones, 1.1× stretch and matched loudness for this clip. Your
-        lyrics, styles and other draft fields stay as they are.
-      </p>
-      <button type="button" class="primary" (click)="choosePreset('apply')">
-        Apply recommended prior-song defaults</button
-      ><button type="button" (click)="choosePreset('keep')">Keep current settings</button>}
-      @case('reference'){
+      } @case('reference'){
       <p>Only selected fields replace your current draft.</p>
       @for(key of referenceKeys;track key){<label
         ><input type="checkbox" [(ngModel)]="referenceFields[key]" />{{referenceLabel(key)}}</label
@@ -1362,8 +1347,8 @@
       ><button type="button" (click)="renderFx(true,'new')">Save a new FX version</button>}
       @case('microphone'){
       <p>
-        Audio inputs are intended to be vocal recordings. Previously generated songs can also be
-        used and may benefit from prior-song presets.
+        Recordings and finished Library songs are analyzed independently and automatically sampled
+        into a shared arrangement.
       </p>
       @if(recording){
       <p class="recording" role="status">● Recording</p>

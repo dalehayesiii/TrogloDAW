@@ -1,6 +1,6 @@
 # Automatic sample arrangement validation
 
-The `phrase-motifs-v2` planner replaces uniform cycling of short cuts with mixed-length
+The original `phrase-motifs-v2` planner replaced uniform cycling of short cuts with mixed-length
 source phrases, motifs and accents, up to three bounded transformations per cut, and
 section-based placement with rests and limited returns. Original audio is preserved;
 conditioned and postmix generation share the same guide. See

@@ -50,7 +50,7 @@ Song selection SHALL offer Use as Input Audio, Reuse Creation Ingredients and Ed
 
 #### Scenario: Use a finished song
 - **WHEN** Use as Input Audio is selected
-- **THEN** Generation adds that rendered song with source ID/lineage and prompts the required prior-song preset decision
+- **THEN** Generation adds that rendered song with source ID/lineage and automatic per-source handling without a defaults confirmation
 
 ### Requirement: Persistent recoverable library selection
 Initial setup and Settings SHALL offer a native Windows folder picker and show/persist the complete library location. Selection SHALL validate access, space and conflicts without silent fallback, prompting to move detected data, reuse the destination or cancel. Moves SHALL verify managed assets before committing preferences and deleting unchanged originals, retaining changed/unrelated files. Portable recipes and existing registered media SHALL remain playable.

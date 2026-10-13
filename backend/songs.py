@@ -24,20 +24,13 @@ from arrangement import (
     VARIANTS_PER_REGION,
     phase_safe_audio,
     plan_events,
+    route_sources,
     sample_transform,
     select_regions,
 )
 from models import CREATE_FLAGS, ROOT, Canceled, cache_environment, runtime_signature
 from storage import atomic_json, digest, safe_file, writable_root
 
-PRESET = {
-    "version": "prior-song-v2",
-    "sample_seconds": 1.0,
-    "samples": 8,
-    "pitch": 2.0,
-    "stretch": 1.1,
-    "gain": 0.0,
-}
 CLIP_DEFAULTS = {"sample_seconds": 2.0, "samples": 8, "pitch": 0.0, "stretch": 1.0, "gain": 0.0}
 OPTIONS = {"gender": "", "duration": "auto", "weirdness": 50, "influence": 50, "variety": 0}
 
@@ -312,13 +305,8 @@ class Songs:
             else:
                 item = self.core.get_item(clip["id"])
             prior = song_item(item)
-            if prior and clip.get("preset") not in {"apply", "keep"}:
-                raise ValueError(
-                    "Choose recommended prior-song defaults or keep settings for each prior song"
-                )
             settings = {
                 **CLIP_DEFAULTS,
-                **(PRESET if prior and clip.get("preset") == "apply" else {}),
                 **{
                     key: value
                     for key, value in clip.get("settings", {}).items()
@@ -347,12 +335,12 @@ class Songs:
                     else None,
                     "duration": item["duration"],
                     "preset": clip.get("preset"),
-                    "preset_version": PRESET["version"] if prior else None,
+                    "preset_version": settings.get("version"),
                     "settings": settings,
                     "saved_file": saved,
                 }
             )
-        return sources
+        return route_sources(sources)
 
     def arrange(
         self,
@@ -367,6 +355,8 @@ class Songs:
         assets, placements, analyses = [], [], []
         rng = random.Random(parameters["seed"])
         sample_audio, descriptors, tempos = {}, [], []
+        prior_tempos = []
+        weights = [source.get("routing", {}).get("duration_weight", 1.0) for source in sources]
         for source_index, source in enumerate(sources):
             if canceled():
                 raise Canceled("Sample analysis canceled")
@@ -411,14 +401,21 @@ class Songs:
                 source["settings"],
                 analysis,
                 rng,
-                parameters["duration"] / max(1, len(sources)),
+                parameters["duration"] * weights[source_index] / max(1, sum(weights)),
+                source.get("routing"),
             )
             progress("Analyzed input audio", 1, stage="analyzing", units_complete=1, units_total=1)
             analyses.append({"source_id": source["id"], "analysis": analysis, "selection": budget})
             analyses[-1]["channel_strategy"] = channel_strategy
-            if analysis.get("tempo_confidence", 0) >= 0.25 and analysis.get("tempo_raw"):
+            if analysis.get("tempo_confidence", 0) > 2.0 and analysis.get("tempo_raw"):
                 tempos.append(float(analysis["tempo_raw"]))
-            sample_bpm = min(180, max(60, float(analysis.get("tempo_raw") or 90)))
+                if source["source_type"] == "prior-song":
+                    prior_tempos.append(float(analysis["tempo_raw"]))
+            sample_bpm = (
+                min(180, max(60, float(analysis["tempo_raw"])))
+                if analysis.get("tempo_confidence", 0) > 2.0 and analysis.get("tempo_raw")
+                else 90
+            )
             total = len(regions) * VARIANTS_PER_REGION
             progress(
                 "Transforming source samples",
@@ -440,7 +437,14 @@ class Songs:
                         raise Canceled("Sample transformation canceled")
                     fragment = audio[region["start"] : region["end"]].copy()
                     fx = sample_transform(
-                        source["settings"], region, index, rng, variant, sample_bpm, analysis
+                        source["settings"],
+                        region,
+                        index,
+                        rng,
+                        variant,
+                        sample_bpm,
+                        analysis,
+                        source.get("routing"),
                     )
                     transformed = self.core.apply_fx(fragment, fx)
                     tail = min(0.25, 30 / sample_bpm) if fx["delay"] else 0
@@ -460,6 +464,8 @@ class Songs:
                         "family_id": family,
                         "variant": variant,
                         "source_index": source_index,
+                        "source_type": source["source_type"],
+                        "routing_role": source.get("routing", {}).get("role"),
                         "kind": region["kind"],
                         "role": ("statement", "response", "fill")[variant],
                         "length_samples": len(transformed),
@@ -488,10 +494,12 @@ class Songs:
                         units_complete=complete,
                         units_total=total,
                     )
-        bpm = min(180, max(60, float(np.median(tempos)) if tempos else 90))
+        grid_tempos = prior_tempos or tempos
+        bpm = min(180, max(60, float(np.median(grid_tempos)) if grid_tempos else 90))
         if canceled():
             raise Canceled("Sample arrangement canceled")
-        placements, plan = plan_events(descriptors, len(layer), self.core.SR, bpm, rng)
+        policy = sources[0].get("routing") if sources else None
+        placements, plan = plan_events(descriptors, len(layer), self.core.SR, bpm, rng, policy)
         progress(
             "Arranging transformed samples",
             0,
@@ -526,7 +534,12 @@ class Songs:
             analysis["arrangement"] = {
                 **plan,
                 "bpm": bpm,
-                "tempo_source": "detected" if tempos else "fallback",
+                "tempo_source": "prior-song"
+                if prior_tempos
+                else "recordings"
+                if tempos
+                else "fallback",
+                "source_routing": analysis["selection"].get("routing"),
             }
         return layer, assets, placements, analyses
 
