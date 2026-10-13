@@ -26,6 +26,7 @@ export function workflow(action: string): string {
         accept_audio: 'audio-input',
         library_move: 'library',
         library_delete: 'library',
+        song_import: 'song-import',
       } as Record<string, string>
     )[action] || action
   );
@@ -35,6 +36,7 @@ export function workflowLabel(scope: string): string {
     (
       {
         generation: 'Song generation',
+        'song-import': 'Song import',
         lyrics: 'Lyrics',
         'vocal-fx': 'Vocal FX',
         'model-setup': 'Model setup',

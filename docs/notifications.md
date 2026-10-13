@@ -18,8 +18,10 @@ are unchanged. Dismissing a failed batch does not delete its successful songs.
 
 ## Workflow boundaries
 
-Song generation and lyric writing are separate. Vocal preparation and rendering
-share Vocal FX. Model installation and storage changes are separate. Upload,
+Song generation and lyric writing are separate. WAV song import has its own
+retry/dismissal scope, independent of generation and other Library actions.
+Vocal preparation and rendering share Vocal FX. Model installation and storage
+changes are separate. Upload,
 recording and input selection share Input Audio. Folder creation, organization
 and deletion each have their own scope; library previews/reference selection
 share Library. App updates, shutdown and connection failures have their own

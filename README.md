@@ -13,15 +13,15 @@ Suno. TrogloDAW adds no content moderation or word blacklists: your lyrics and
 styles go to the local model without app-imposed censorship or content-based rewriting. Local models can still have learned biases and their own refusal behavior.
 Technical input limits and imperfect model delivery still apply.
 
-[Get the Windows installer](https://github.com/dalehayesiii/music-maker/releases/latest) ·
-[Song workflows](docs/song-workflows.md) · [Model setup and hardware](docs/local-models.md) ·
+[Get the Windows installer](https://github.com/dalehayesiii/TrogloDAW/releases/latest) ·
+[Song workflows](docs/song-workflows.md) · [Import and arrange over a song](docs/backing-arrangements.md) · [Model setup and hardware](docs/local-models.md) ·
 [Lyrics and automatic length](docs/song-planning.md) · [Guide enhancement](docs/guide-enhancement.md) · [App updates](docs/updates.md) · [Installation and data recovery](docs/installation-recovery.md) ·
 [Development](docs/development.md)
 
 | Workflow | Your next step |
 | --- | --- |
 | <img src="docs/assets/generation.svg" width="32" alt="Cave generation glyph"> **Generation** | Add recordings, lyrics and styles. We derive smaller samples, transform each one and arrange a full-song audio guide for the model. |
-| <img src="docs/assets/library.svg" width="32" alt="Stone library glyph"> **Library** | Play and reuse songs; [select multiple songs](docs/library-bulk-actions.md) to move or delete folder/search results together. Original audio, generated music and recipes stay together. |
+| <img src="docs/assets/library.svg" width="32" alt="Stone library glyph"> **Library** | Import finished WAVs, play and reuse songs; [select multiple songs](docs/library-bulk-actions.md) to move or delete folder/search results together. Original audio, generated music and recipes stay together. |
 | <img src="docs/assets/vocal-fx.svg" width="32" alt="Carved waveform glyph"> **Vocal FX** | Extract vocals, review uncertain voice groups and apply effects while keeping the song's timing. |
 
 ## Inside the sound cave
@@ -43,6 +43,10 @@ arrangement settings** inside Input Audio to set **Audio adherence**, or enable
 **Mix samples after generation** for independent music generation followed by a
 sample overlay. The model can reinterpret samples; originals and the complete
 arrangement remain available for inspection and portable replay.
+
+Choose **Arrange recordings over an existing song** to keep a Library backing and
+add a new sample arrangement without loading a music model. Imported WAVs can be
+backings or prior songs. Model lyrics/styles stay in your draft when switching workflows.
 
 Long jobs show their active stage, completed work, elapsed time and separate
 queue/current-song/whole-request time ranges. Estimates update from real work

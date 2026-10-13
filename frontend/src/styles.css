@@ -1573,12 +1573,15 @@ input[type='file']::file-selector-button {
   font-size: 30px;
   margin-bottom: 3px;
 }
-.creation-stone > button:first-of-type {
+.workflow-choice {
+  margin-bottom: 24px;
+}
+.creation-stone > button:first-of-type:not(.generate-button) {
   text-align: left;
   background: var(--elevated);
   border: 1px solid var(--border);
 }
-.creation-stone > button:first-of-type::after {
+.creation-stone > button:first-of-type:not(.generate-button)::after {
   content: '↙';
   float: right;
   color: var(--brand);
