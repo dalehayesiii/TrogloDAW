@@ -172,7 +172,11 @@ by the checksum/manifest helper.
 NSIS bundles Python 3.12.10, locked runtime wheels, ffmpeg and Angular static files.
 The installed app needs neither Python, Node nor uv installed separately. Windows
 metadata/Apps & Features use the injected version; current TrogloDAW upgrades
-preserve configured library/model locations and preferences. Initial setup installs verified model assets into
+preserve configured library/model locations and preferences. Same-directory updates
+and reinstalls leave existing desktop and Start Menu shortcut files untouched,
+preserving their placement and customization. Missing shortcuts are recreated;
+changing the installation directory refreshes their targets. Renamed shortcuts
+outside the known installed paths are not scanned. Initial setup installs verified model assets into
 a separate chosen folder; uninstall offers default-checked ownership-aware model
 removal, with opt-out, and preserves libraries. The installed uv binary is a setup
 tool; generation itself needs no network. Static validation fails on invalid wheels,

@@ -85,7 +85,11 @@ try {
         } catch { }
         Start-Sleep -Milliseconds 150
     }
-    if (-not $failed -or $status.message -notmatch 'identity') { throw 'Native post-install failure did not expose recovery status' }
+    if (-not $failed -or $status.message -notmatch 'identity') {
+        $fileStatus = if (Test-Path -LiteralPath $statusPath) { Get-Content -LiteralPath $statusPath -Raw } else { 'No status file' }
+        $helperError = if (Test-Path -LiteralPath (Join-Path $helperRoot 'helper.stderr')) { Get-Content -LiteralPath (Join-Path $helperRoot 'helper.stderr') -Raw } else { 'No stderr' }
+        throw ("Native post-install failure did not expose recovery status. Last HTTP: " + ($status | ConvertTo-Json -Compress) + "; File: " + $fileStatus + "; Stderr: " + $helperError)
+    }
     if (-not (Test-Path -LiteralPath $installer) -or [Convert]::ToBase64String($before) -ne [Convert]::ToBase64String([IO.File]::ReadAllBytes($configPath))) { throw 'Native failure discarded recovery artifact or preferences' }
     Stop-Process -Id $runner.Id -Force
     $runner.WaitForExit()
