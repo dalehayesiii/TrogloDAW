@@ -23,6 +23,7 @@ from pydantic import BaseModel
 
 import troglocore as troglodaw
 import folders
+import library_actions
 from typing import Literal
 from models import Canceled, Models
 from songs import Songs, song_item
@@ -248,6 +249,8 @@ class MusicService:
             "vocal_render",
             "folder",
             "organize",
+            "library_move",
+            "library_delete",
             "storage",
             "model_install",
             "rerender_song",
@@ -354,6 +357,10 @@ class MusicService:
 
     def execute(self, action, v, progress, canceled=lambda: False):
         core = self.core
+        if action == "library_move":
+            return self.result(**library_actions.move(core, v, canceled))
+        if action == "library_delete":
+            return self.result(**library_actions.delete(core, v, progress, canceled))
         if action == "accept_audio":
             accepted = []
             for token in v.get("uploads", []):
