@@ -19,10 +19,6 @@
 - Keep the PR open unless merging is authorized. If authorized, ensure it is current
   with main and all checks pass, then squash merge with the exact validated PR title
   and preserve any `BREAKING CHANGE:` footer in the body. Never bypass protection.
-- On Steve's computer use `gh` for GitHub operations, preferring
-  `purpledragondude7` when it has access, otherwise `s116821`. Verify identity and
-  repository permissions before writes. Use git through PowerShell with profiles
-  loaded so the identity hook runs; do not bypass it.
 - WRITE access cannot enforce branch protection: report owner setup requirements
   from `docs/repository-settings.md` when needed.
 

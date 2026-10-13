@@ -114,7 +114,7 @@ def find_cli():
 
 
 def candidates(target=TARGET):
-    """Keep tokens in memory, with the user's preferred CLI identity first."""
+    """Keep tokens in memory and reuse only the active CLI identity."""
     result = []
     try:
         if token := read(target):
@@ -124,25 +124,21 @@ def candidates(target=TARGET):
     if token := os.environ.get("TROGLODAW_GITHUB_TOKEN"):
         result.append((token, "Environment"))
     if gh := find_cli():
-        for account in ["purpledragondude7", "s116821", None]:
-            try:
-                arguments = [gh, "auth", "token", "--hostname", "github.com"]
-                if account is not None:
-                    arguments.extend(["--user", account])
-                command = subprocess.run(
-                    arguments,
-                    stdin=subprocess.DEVNULL,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.DEVNULL,
-                    text=True,
-                    timeout=5,
-                    creationflags=0x08000000 if os.name == "nt" else 0,
-                )
-                if command.returncode == 0 and (token := command.stdout.strip()):
-                    if all(token != existing for existing, _ in result):
-                        result.append((token, "GitHub CLI: " + (account or "active account")))
-            except (OSError, subprocess.TimeoutExpired):
-                pass
+        try:
+            command = subprocess.run(
+                [gh, "auth", "token", "--hostname", "github.com"],
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+                text=True,
+                timeout=5,
+                creationflags=0x08000000 if os.name == "nt" else 0,
+            )
+            if command.returncode == 0 and (token := command.stdout.strip()):
+                if all(token != existing for existing, _ in result):
+                    result.append((token, "GitHub CLI: active account"))
+        except (OSError, subprocess.TimeoutExpired):
+            pass
     return [*result, ("", "Public release access")]
 
 
