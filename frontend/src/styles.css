@@ -69,6 +69,40 @@ details.group[open] > * + * {
   display: grid;
   gap: 8px;
 }
+.selection-toolbar {
+  display: grid;
+  gap: 12px;
+  margin-block: 16px;
+}
+.selectable-song {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  min-width: 0;
+}
+.song-checkbox {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  cursor: pointer;
+}
+.selectable-song .song-row {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.checked-song .song-checkbox {
+  border-radius: 8px;
+  background: var(--surface);
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+.bulk-song-names {
+  max-height: 200px;
+  overflow-y: auto;
+  overflow-wrap: anywhere;
+  padding-inline-start: 24px;
+}
 .song-row {
   display: flex;
   flex-direction: column;

@@ -119,6 +119,30 @@ test('latest Library selection owns loading, audio and failure recovery', async 
   await expect(
     panel.getByRole('button', { name: 'Play Latest preview song', exact: true }),
   ).toBeVisible();
+  // Bulk deletion refresh must also invalidate an in-flight preview of its removed song.
+  await page.unroute('**/api/items/' + b.song.id);
+  let releaseRemoved;
+  let removedStarted = false;
+  const removedGate = new Promise((resolve) => (releaseRemoved = resolve));
+  await page.route('**/api/items/' + b.song.id, async (route) => {
+    const response = await route.fetch();
+    removedStarted = true;
+    await removedGate;
+    await route.fulfill({ response });
+  });
+  await panel.locator('.song-row').filter({ hasText: 'Latest preview song' }).click();
+  await expect.poll(() => removedStarted).toBe(true);
+  await panel.getByRole('checkbox', { name: 'Select Latest preview song', exact: true }).check();
+  await panel.getByRole('button', { name: 'Delete selected…', exact: true }).click();
+  await page
+    .getByRole('dialog')
+    .getByRole('button', { name: 'Delete 1 song', exact: true })
+    .click();
+  await expect(panel.locator('.playback-stone')).toHaveCount(0);
+  const removedResponse = page.waitForResponse('**/api/items/' + b.song.id);
+  releaseRemoved();
+  await removedResponse;
+  await expect(panel.locator('.playback-stone')).toHaveCount(0);
 });
 
 test('audio controls explain mute, failures and source changes without the club action', async ({

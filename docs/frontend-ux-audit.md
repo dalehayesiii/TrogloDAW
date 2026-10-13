@@ -1,6 +1,8 @@
 # Frontend usability audit
 
 Reviewed 2026-10-12 against merged main commit `bceed53`, with fixes in the same PR.
+Integrated the later Library bulk-action revision `5409314` and revalidated the
+combined flows, including deletion during a pending preview.
 The existing layout and three workflows are coherent. Nine usability findings
 were worth repairing; no visual redesign was indicated. The user explicitly
 prioritized ordinary usability over accessibility compliance.
@@ -9,7 +11,7 @@ prioritized ordinary usability over accessibility compliance.
 
 | Priority | Location | User consequence | Repair and evidence |
 | --- | --- | --- | --- |
-| High | `frontend/src/app.ts`, Library selection/preview | Selecting B leaves A's playable audio under B's heading while loading; a slow response for A can overwrite B's preview. A failed load also retains stale media. | Remove previous audio/assets immediately, show loading, accept only the latest selection response and offer Retry preview. Real-service E2E holds A's response until B finishes, then verifies B retains ownership; a current failure/retry is also exercised. |
+| High | `frontend/src/app.ts`, Library selection/preview | Selecting B leaves A's playable audio under B's heading while loading; a slow response for A can overwrite B's preview. A failed load also retains stale media. | Remove previous audio/assets immediately, show loading, accept only the latest selection response and offer Retry preview. Real-service E2E holds A's response until B finishes, then verifies B retains ownership; a current failure/retry is also exercised. Single/bulk deletion preserves newer selections and invalidates pending previews of removed songs. |
 | Medium | `frontend/src/controls.ts`, audio players | Mute has no visible on/off state. The club-shaped local-link action is ambiguous and appears ineffective. Playback failures are silent; source/label changes can leave displayed transport state inconsistent. Download/copy/mute hit areas were approximately 10×24, 10×22 and 14×24px. | Remove the club/local-link control and its handler/styles; retain download. Show a distinct mute state, explain playback failure and reset stale state only when the audio source changes. Use at least 32px click areas for remaining actions and the speed selector. E2E checks control removal, failures, source replacement, actual mute/rate and clickable actions with a 120-character title at both widths/themes. |
 | Medium | `frontend/src/app.html` and `app.ts`, Vocal FX preview | After changing effects, the last rendered remix is still presented without indicating it represents previous settings. An in-flight render can finish after further edits. | Label saved song audio, current FX remix and last rendered FX remix separately; compare controls/grouping to the captured render request. A synthetic cached-song E2E checks edits after a preview and during a delayed render, then verifies a fresh render clears the warning. |
 | Low | `frontend/src/app.html`, Library search and pickers | No search matches is described as an empty library. A reference picker can be blank when recordings exist but no songs exist. Empty audio pickers lack a direct recovery action. | Distinguish search, folder and library emptiness, offer clear/show-all/Generation actions, and explain empty picker prerequisites. E2E exercises both empty pickers and clearing an unmatched search. |
@@ -65,8 +67,8 @@ in the next agent session; the current audit read these installed files directly
   run in the established Windows installed-app job; subjective flow/layout review
   still needs rendered inspection when the affected UI changes.
 
-Local validation passed: Ruff/format/ty, 169 Python tests, frontend lint/format,
-12 frontend unit tests, five release-tool tests, strict Angular build and all 21
+Local validation passed: Ruff/format/ty, 181 Python tests, frontend lint/format,
+12 frontend unit tests, five release-tool tests, strict Angular build and all 25
 Playwright tests. Synthetic CLI demo/producer smoke, skill validation and strict
 spec validation also passed. Confirm all five required PR checks on the latest
 revision; the PR carries those final installed-app results.

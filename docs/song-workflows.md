@@ -127,6 +127,11 @@ generated-audio players; missing assets are explicit.
 
 ## Library and Vocal FX
 
+Library supports checkbox selection and **Select all shown** within the current
+folder/search result. **Move selected…** organizes multiple songs into existing or
+new folders; **Delete selected…** confirms their names and reports partial failures
+without losing failed selections. See [bulk actions and recovery](library-bulk-actions.md).
+
 Search, play and rename songs, create folders and move songs without changing IDs
 or asset references. Song actions open Generation/Input Audio, selective recipe
 reuse or Vocal FX directly. Existing catalogs and legacy CLI recipes stay usable.

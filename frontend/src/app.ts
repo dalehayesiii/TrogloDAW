@@ -169,6 +169,11 @@ export class AppComponent {
   private captureClient = crypto.randomUUID();
   dialogKind = '';
   selectedSong = '';
+  checkedSongs = new Set<string>();
+  bulkSongs: Item[] = [];
+  bulkFolder = '';
+  bulkNewFolder = '';
+  bulkSubmitting = false;
   libraryAudio: Media | null = null;
   libraryLoading = false;
   libraryPreviewError = '';
@@ -342,6 +347,16 @@ export class AppComponent {
   }
   async refresh() {
     this.library = await this.api('/api/library');
+    const shown = new Set(this.filteredSongs.map((song) => song.id));
+    this.checkedSongs = new Set([...this.checkedSongs].filter((id) => shown.has(id)));
+    if (this.selectedSong && !this.selected) {
+      this.librarySelection++;
+      this.libraryLoading = false;
+      this.libraryPreviewError = '';
+      this.selectedSong = '';
+      this.libraryAudio = null;
+      this.libraryAssets = [];
+    }
     if (!['storage', 'setup'].includes(this.dialogKind) || !this.libraryPath || !this.modelPath) {
       this.libraryPath = this.library.storage.library_dir;
       this.modelPath = this.library.storage.model_dir;
@@ -359,6 +374,7 @@ export class AppComponent {
   }
   get busy() {
     return (
+      this.bulkSubmitting ||
       this.audioImports > 0 ||
       this.jobs.some((job) => this.active(job) && job.action !== 'model_install')
     );
@@ -381,6 +397,48 @@ export class AppComponent {
   }
   get selected(): Item | undefined {
     return this.songs.find((item) => item.id === this.selectedSong);
+  }
+  toggleSong(id: string, checked: boolean) {
+    if (checked) this.checkedSongs.add(id);
+    else this.checkedSongs.delete(id);
+  }
+  clearSongSelection() {
+    this.checkedSongs = new Set();
+  }
+  selectAllShown() {
+    this.checkedSongs = new Set(this.filteredSongs.map((song) => song.id));
+  }
+  openBulk(kind: 'bulk-move' | 'bulk-delete') {
+    if (this.busy) return;
+    this.bulkSongs = this.filteredSongs.filter((song) => this.checkedSongs.has(song.id));
+    if (!this.bulkSongs.length) return;
+    this.bulkFolder = '';
+    this.bulkNewFolder = '';
+    this.openDialog(kind);
+  }
+  async runBulk() {
+    if (
+      this.busy ||
+      !this.bulkSongs.length ||
+      !['bulk-move', 'bulk-delete'].includes(this.dialogKind)
+    )
+      return;
+    const action = this.dialogKind === 'bulk-move' ? 'library_move' : 'library_delete';
+    const values = {
+      ids: this.bulkSongs.map((song) => song.id),
+      folder: this.bulkFolder === '__new__' ? this.bulkNewFolder : this.bulkFolder.slice(7),
+      create_folder: this.bulkFolder === '__new__',
+    };
+    this.bulkSubmitting = true;
+    this.closeDialog();
+    try {
+      await this.submit(action, values);
+    } catch (error) {
+      this.fail(error, 'library');
+    } finally {
+      this.bulkSubmitting = false;
+      this.cdr.markForCheck();
+    }
   }
   get currentGroup(): any {
     return this.fx?.groups?.find((group: any) => group.id === this.fxGroup);
@@ -426,6 +484,15 @@ export class AppComponent {
   receive(job: Job, announce = true) {
     const result = job.result;
     if (!result) return;
+    if (announce && ['library_move', 'library_delete'].includes(job.action)) {
+      for (const id of result.completed_ids || []) this.checkedSongs.delete(id);
+      if (job.action === 'library_move' && result.completed_ids?.includes(this.selectedSong))
+        this.songFolder = result.folder;
+      if (result.problems?.length) {
+        this.fail(new Error(result.message + '. ' + result.problems.join('; ')), 'library');
+        return;
+      }
+    }
     if (job.action === 'song_generate') this.results = result.outcomes || [];
     if (job.status !== 'complete') return;
     if (announce && job.action === 'lyrics_generate') {
