@@ -18,6 +18,7 @@ $installer = Join-Path $helperRoot $installerName
 Copy-Item -LiteralPath (Join-Path './dist' $installerName) -Destination $installer
 $helper = Join-Path $helperRoot 'app_update.ps1'
 Copy-Item -LiteralPath (Join-Path $installed 'app/scripts/windows/app_update.ps1') -Destination $helper
+& ./scripts/windows/test_update_preflight.ps1 -HelperPath $helper -TestRoot $baseRoot
 $configPath = Join-Path $installed 'app/config.local.json'
 $before = [System.IO.File]::ReadAllBytes($configPath)
 $probe = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback,0)
@@ -49,7 +50,15 @@ try {
     $plan=@{installer=$installer;sha256=('0'*64);version=$manifest.version;source_sha=$manifest.sha;install_root=$installed;pid=$server.Id;host='127.0.0.1';port=$port;status=$statusPath}
     [System.IO.File]::WriteAllText($planPath,($plan|ConvertTo-Json),[System.Text.UTF8Encoding]::new($false))
     $runner=Start-TestHelper
-    if (-not $runner.WaitForExit(15000) -or $runner.ExitCode -eq 0) { throw 'Tampered installer was not rejected before handoff' }
+    $null=$runner.Handle
+    if (-not $runner.WaitForExit(15000)) {
+        $detail=if (Test-Path -LiteralPath $statusPath) { Get-Content -LiteralPath $statusPath -Raw } else { 'No helper status was written' }
+        throw ("Tamper rejection timed out: " + $detail)
+    }
+    $runner.Refresh()
+    if ($runner.ExitCode -ne 1) { throw ("Tamper rejection returned exit code $($runner.ExitCode): " + (Get-Content -LiteralPath (Join-Path $helperRoot 'helper.stderr') -Raw)) }
+    $rejected=Get-Content -LiteralPath $statusPath -Raw | ConvertFrom-Json
+    if ($rejected.phase -ne 'failed' -or $rejected.message -notmatch 'Installer verification failed') { throw 'Tamper rejection did not retain its checksum failure' }
     $server.Refresh()
     if ($server.HasExited -or (Wait-Healthy).application -ne 'troglodaw') { throw 'Pre-handoff failure stopped the running app' }
     $plan.sha256=(Get-FileHash -LiteralPath $installer -Algorithm SHA256).Hash.ToLower()

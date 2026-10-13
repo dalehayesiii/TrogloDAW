@@ -6,6 +6,7 @@ $installerProcess = $null
 $settings = $null
 $state = $null
 $restartProcess = $null
+$serviceStopped = $false
 function Get-InstallerHash([string]$path) {
     $stream=[System.IO.File]::OpenRead($path)
     $hash=[System.Security.Cryptography.SHA256]::Create()
@@ -98,6 +99,8 @@ try {
         }
         Start-Sleep -Milliseconds 100
     }
+    # Only take over recovery status after the validated original app has exited.
+    $serviceStopped = $true
     Start-UpdateListener
     if ((Get-InstallerHash $installer) -ne $settings.sha256) { throw 'Installer changed before launch' }
     Write-UpdateState 'installing' 'Installing the verified update. Your library and models are kept.'
@@ -147,7 +150,7 @@ try {
     if ($settings) {
         try {
             Write-UpdateState 'failed' ("Update could not finish: $failure. Your library/models are kept. Verified installer: $installer")
-            if (-not $listener) {
+            if ($serviceStopped -and -not $listener) {
                 try { Start-UpdateListener } catch { $listener = $null }
             }
             if ($listener) {
