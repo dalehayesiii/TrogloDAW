@@ -91,11 +91,11 @@ app, not an authenticated remote hosting service.
 ## OpenSpec
 Refresh the committed, pinned workflows with:
 ```sh
-npm run openspec -- init --tools codex,gemini,antigravity,grok --profile core
+npm run openspec -- init --tools codex,gemini,antigravity --profile core
 ```
 Codex/Antigravity share `.agents/skills/`; Antigravity has `.agents/workflows/`.
-Gemini uses `.gemini/skills/` and `.gemini/commands/opsx/`; official Grok Build
-uses `.grok/skills/`. A different hosted Grok bot needs its own file-loading mechanism.
+Gemini uses `.gemini/skills/` and `.gemini/commands/opsx/`. Agents without slash
+commands read `.agents/skills/openspec-*/SKILL.md` directly (see AGENTS.md).
 Restart editors after setup.
 
 | Tool | Propose | Apply | Archive |
@@ -103,7 +103,6 @@ Restart editors after setup.
 | Codex | `$openspec-propose` | `$openspec-apply-change` | `$openspec-archive-change` |
 | Gemini | `/opsx:propose` | `/opsx:apply` | `/opsx:archive` |
 | Antigravity | `/opsx-propose` | `/opsx-apply` | `/opsx-archive` |
-| Grok Build | `/openspec-propose` | `/openspec-apply-change` | `/openspec-archive-change` |
 
 Normally request the entire lifecycle in one PR: proposal/design/specs/tasks,
 implementation, tests, canonical spec sync and archive. CLI equivalents:

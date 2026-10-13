@@ -26,6 +26,13 @@
 - WRITE access cannot enforce branch protection: report owner setup requirements
   from `docs/repository-settings.md` when needed.
 
+## Agents without slash commands
+- Read the `.agents/skills/openspec-*/SKILL.md` files directly and follow their
+  steps by hand, using `npm run openspec -- ...` for CLI commands.
+- Always start work from the latest `origin/main` (fetch first).
+- The Steve's-computer identity rules above apply only on Steve's computer.
+  Elsewhere, verify `gh auth status` and repository permissions before writes.
+
 ## OpenSpec
 - Read `openspec/specs/` and `openspec/config.yaml` before changing behavior.
 - Use OpenSpec for app behavior, architecture, dependencies, persistence, packaging,
