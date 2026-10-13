@@ -164,6 +164,7 @@ export class AppComponent {
   };
   updateToken = '';
   updateHandoff = false;
+  private updateStatusSeenAt = 0;
   private updateTimer?: ReturnType<typeof setTimeout>;
   private captureTimer?: ReturnType<typeof setInterval>;
   private captureClient = crypto.randomUUID();
@@ -1158,6 +1159,7 @@ export class AppComponent {
     if (this.updateTimer) clearTimeout(this.updateTimer);
     try {
       const next = await this.api('/api/updates');
+      this.updateStatusSeenAt = Date.now();
       if (this.updateHandoff && !next.helper && next.version === this.update.available_version) {
         window.location.reload();
         return;
@@ -1165,7 +1167,13 @@ export class AppComponent {
       this.update = next;
     } catch {
       // A brief listener change is expected during the explicit installer handoff.
-      if (!this.updateHandoff && !this.stopped)
+      if (this.updateHandoff && Date.now() - this.updateStatusSeenAt >= 45000)
+        this.update = {
+          ...this.update,
+          status_error:
+            'Update status is unavailable. Try reopening TrogloDAW from its shortcut. If it cannot start, run the downloaded installer to repair it. Your library and models are kept.',
+        };
+      else if (!this.updateHandoff && !this.stopped)
         this.update = {
           ...this.update,
           status_error:
@@ -1228,6 +1236,7 @@ export class AppComponent {
       document.querySelectorAll('audio').forEach((audio) => audio.pause());
       this.closeDialog();
       this.updateHandoff = true;
+      this.updateStatusSeenAt = Date.now();
       this.cdr.markForCheck();
       requestAnimationFrame(() => document.getElementById('update-heading')?.focus());
       void this.refreshUpdates();

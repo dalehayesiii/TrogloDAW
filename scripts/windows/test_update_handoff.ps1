@@ -2,6 +2,9 @@
 param([Parameter(Mandatory=$true)][string]$InstallRoot,[Parameter(Mandatory=$true)][string]$TestRoot)
 $ErrorActionPreference = 'Stop'
 $previousConfig = $env:TROGLODAW_CONFIG_DIR
+$previousTestApp = $env:TROGLODAW_TEST_APP
+$previousMarker = $env:TROGLODAW_TEST_BLOCKED_MARKER
+$previousUnbounded = $env:TROGLODAW_TEST_UNBOUNDED_SHUTDOWN
 $env:TROGLODAW_CONFIG_DIR = Join-Path $InstallRoot 'app'
 $baseRoot = [System.IO.Path]::GetFullPath($TestRoot).TrimEnd('\')
 $installed = [System.IO.Path]::GetFullPath($InstallRoot).TrimEnd('\')
@@ -26,6 +29,7 @@ $url="http://127.0.0.1:$port"
 $planPath=Join-Path $helperRoot 'plan.json'
 $statusPath=Join-Path $helperRoot 'status.json'
 $runner=$null
+$blockedConnection=$null
 function Wait-Healthy {
     $deadline=[DateTime]::UtcNow.AddSeconds(60)
     while ([DateTime]::UtcNow -lt $deadline) {
@@ -76,8 +80,18 @@ try {
     if (-not (Test-Path -LiteralPath $installer) -or [Convert]::ToBase64String($before) -ne [Convert]::ToBase64String([IO.File]::ReadAllBytes($configPath))) { throw 'Native failure discarded recovery artifact or preferences' }
     Stop-Process -Id $runner.Id -Force
     $runner.WaitForExit()
-    $server = Start-Process -FilePath $python -ArgumentList @("`"$app`"",'--port',$port,'--no-browser') -PassThru -WindowStyle Hidden -RedirectStandardOutput (Join-Path $helperRoot 'retry.stdout') -RedirectStandardError (Join-Path $helperRoot 'retry.stderr')
+    $env:TROGLODAW_TEST_APP = $app
+    $env:TROGLODAW_TEST_BLOCKED_MARKER = Join-Path $helperRoot 'blocked-request-entered'
+    $env:TROGLODAW_TEST_UNBOUNDED_SHUTDOWN = '1'
+    $shutdownFixture = [IO.Path]::GetFullPath('scripts/serve_shutdown_fixture.py')
+    $server = Start-Process -FilePath $python -ArgumentList @("`"$shutdownFixture`"",'--port',$port,'--no-browser') -PassThru -WindowStyle Hidden -RedirectStandardOutput (Join-Path $helperRoot 'retry.stdout') -RedirectStandardError (Join-Path $helperRoot 'retry.stderr')
     $null=Wait-Healthy
+    $blockedConnection = [Net.Sockets.TcpClient]::new('127.0.0.1',$port)
+    $requestBytes = [Text.Encoding]::ASCII.GetBytes("GET /api/fixture/blocked HTTP/1.1`r`nHost: localhost`r`nConnection: close`r`n`r`n")
+    $blockedConnection.GetStream().Write($requestBytes,0,$requestBytes.Length)
+    $deadline=[DateTime]::UtcNow.AddSeconds(5)
+    while (-not (Test-Path -LiteralPath $env:TROGLODAW_TEST_BLOCKED_MARKER) -and [DateTime]::UtcNow -lt $deadline) { Start-Sleep -Milliseconds 100 }
+    if (-not (Test-Path -LiteralPath $env:TROGLODAW_TEST_BLOCKED_MARKER)) { throw 'Native stalled HTTP request did not enter the service' }
     $plan.pid=$server.Id
     $plan.source_sha=$manifest.sha
     [IO.File]::WriteAllText($planPath,($plan|ConvertTo-Json),[Text.UTF8Encoding]::new($false))
@@ -95,8 +109,8 @@ try {
     }
     if (-not $acknowledged) { throw 'Native helper did not acknowledge its plan' }
     $null=Invoke-RestMethod "$url/api/shutdown" -Method Post -Headers @{'X-TrogloDAW-Request'='1'} -ContentType 'application/json' -Body '{}'
-    if (-not $server.WaitForExit(15000)) { throw 'Original app did not stop after acknowledged handoff' }
-    $deadline=[DateTime]::UtcNow.AddSeconds(120)
+    if ($server.WaitForExit(1500)) { throw 'Legacy shutdown fixture did not reproduce the lingering process' }
+    $deadline=[DateTime]::UtcNow.AddSeconds(180)
     $observed=$false
     while (-not $runner.HasExited -and [DateTime]::UtcNow -lt $deadline) {
         try {
@@ -107,6 +121,7 @@ try {
         $runner.Refresh()
     }
     if (-not $runner.HasExited -or $runner.ExitCode -ne 0) { throw 'Native update installation/restart failed' }
+    if (-not $server.WaitForExit(5000)) { throw 'Updater fallback left the original process alive' }
     if (-not $observed) { throw 'Temporary update status listener was not observable' }
     $health=Wait-Healthy
     if ($health.version -ne $manifest.version -or $health.sha -ne $manifest.sha) { throw 'Restarted runtime identity differs from the verified update' }
@@ -114,11 +129,16 @@ try {
     if ([Convert]::ToBase64String($before) -ne [Convert]::ToBase64String($after)) { throw 'Native update changed persisted storage preferences' }
     $null=Invoke-RestMethod "$url/api/shutdown" -Method Post -Headers @{'X-TrogloDAW-Request'='1'} -ContentType 'application/json' -Body '{}'
     Start-Sleep -Milliseconds 1000
-    Write-Output 'Real acknowledged native handoff, failure recovery, status listener, verified restart and pre-handoff tamper rejection passed.'
+    if ((Get-Content -LiteralPath $statusPath -Raw | ConvertFrom-Json).phase -ne 'complete') { throw 'Helper did not confirm healthy restart' }
+    Write-Output 'Real stalled-process handoff recovery, status listener, confirmed healthy restart and pre-handoff tamper rejection passed.'
 } finally {
+    if ($blockedConnection) { $blockedConnection.Close() }
     if ($runner -and -not $runner.HasExited) { Stop-Process -Id $runner.Id -Force }
     if (-not $server.HasExited) { Stop-Process -Id $server.Id -Force }
     # Only processes executing inside this isolated installation may be stopped.
     Get-Process python,pythonw -ErrorAction SilentlyContinue | Where-Object { $_.Path -and $_.Path.StartsWith($installed+'\',[StringComparison]::OrdinalIgnoreCase) } | Stop-Process -Force
     $env:TROGLODAW_CONFIG_DIR = $previousConfig
+    $env:TROGLODAW_TEST_APP = $previousTestApp
+    $env:TROGLODAW_TEST_BLOCKED_MARKER = $previousMarker
+    $env:TROGLODAW_TEST_UNBOUNDED_SHUTDOWN = $previousUnbounded
 }

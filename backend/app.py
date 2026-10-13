@@ -906,7 +906,11 @@ def main():
             server.should_exit = True
 
         api = create_app(quit_callback=stop_server, instance_id=instance.id)
-        server = uvicorn.Server(uvicorn.Config(api, host=args.host, port=port, log_config=None))
+        server = uvicorn.Server(
+            uvicorn.Config(
+                api, host=args.host, port=port, log_config=None, timeout_graceful_shutdown=10
+            )
+        )
         if not args.no_browser:
 
             def open_when_ready():

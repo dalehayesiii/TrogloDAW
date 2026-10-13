@@ -7,15 +7,17 @@
       <path class="brand-wave" d="M23 35V42M29 29V47M35 33V44M41 36V41" />
     </svg>
     <h1 id="update-heading" tabindex="-1">
-      {{update.phase==='failed' ? 'Update needs attention' : 'Updating TrogloDAW'}}
+      {{update.phase==='failed' || update.status_error ? 'Update needs attention' : 'Updating
+      TrogloDAW'}}
     </h1>
-    <p>{{update.message}}</p>
+    <p>{{update.status_error || update.message}}</p>
+    @if(!update.status_error){
     <p class="muted">
-      {{update.phase==='failed' ? 'Reopen TrogloDAW from its shortcut to retry, or run the verified
-      installer to repair the app.' : 'Keep this window open. It will return to the app after
-      restart.'}}
+      {{update.phase==='failed' || update.status_error ? 'Reopen TrogloDAW from its shortcut to
+      retry, or run the verified installer to repair the app.' : 'Keep this window open. It will
+      return to the app after restart.'}}
     </p>
-    @if(update.phase==='failed'){<a
+    } @if(update.phase==='failed' || update.status_error){<a
       href="https://github.com/dalehayesiii/music-maker/releases/latest"
       target="_blank"
       rel="noopener"
