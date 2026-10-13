@@ -1,7 +1,7 @@
 # Frontend usability audit
 
 Reviewed 2026-10-12 against merged main commit `bceed53`, with fixes in the same PR.
-The existing layout and three workflows are coherent. Eight usability findings
+The existing layout and three workflows are coherent. Nine usability findings
 were worth repairing; no visual redesign was indicated. The user explicitly
 prioritized ordinary usability over accessibility compliance.
 
@@ -17,6 +17,7 @@ prioritized ordinary usability over accessibility compliance.
 | Medium | `frontend/src/styles.css`, Library names/headings | A valid 120-character unbroken song name spills outside the song row and preview column, creating horizontal overflow even on desktop. | Wrap long song names/headings within their containers while keeping player labels truncated with a full-title tooltip. The same long-title E2E verifies zero page overflow and clickable audio actions in both themes at 1440px/390px. |
 | Low | `frontend/src/styles.css`, success toast | Right-aligned feedback sits away from the visual center of the workflow; page positioning can also affect its foreground-dialog variant. | Center page toasts horizontally near the bottom and dialog toasts inside the dialog, retaining dismissal/expiry. Real folder-creation E2E verifies both placements and bounds in both themes at 1440px/390px. |
 | Low | `frontend/src/app.html` and `styles.css`, Create folder | The Create folder button touches the field above it and reads as an attached input segment. | Add a 12px gap above the action. E2E measures the separation in both themes at desktop/narrow widths and exercises actual folder creation. |
+| Low | `backend/models.py` and `frontend/src/app.html`, Settings/setup model identities | The music model is named, but song writing only shows readiness and users cannot see which models handle lyrics, automatic length or voices. | Expose role/id/name metadata for the configured planner/writer, show their names beside readiness, and disclose fixed voice models. API regression verifies association changes without installs; browser coverage checks setup and ready/not-installed Settings in both themes/widths. |
 
 ## Reusable guard
 
@@ -64,8 +65,8 @@ in the next agent session; the current audit read these installed files directly
   run in the established Windows installed-app job; subjective flow/layout review
   still needs rendered inspection when the affected UI changes.
 
-Local validation passed: Ruff/format/ty, 168 Python tests, frontend lint/format,
-12 frontend unit tests, five release-tool tests, strict Angular build and all 20
+Local validation passed: Ruff/format/ty, 169 Python tests, frontend lint/format,
+12 frontend unit tests, five release-tool tests, strict Angular build and all 21
 Playwright tests. Synthetic CLI demo/producer smoke, skill validation and strict
 spec validation also passed. Confirm all five required PR checks on the latest
 revision; the PR carries those final installed-app results.

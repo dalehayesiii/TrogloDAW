@@ -352,3 +352,70 @@ test('folder actions have space and success toasts center on the page and in dia
     }
   }
 });
+
+test('setup and Settings identify writing and voice models separately from readiness', async ({
+  page,
+}, testInfo) => {
+  let firstRun = true;
+  let ready = false;
+  await page.route('**/api/library', async (route) => {
+    const actual = await (await route.fetch()).json();
+    await route.fulfill({
+      json: {
+        ...actual,
+        storage: { ...actual.storage, setup_seen: !firstRun },
+        models: { ...actual.models, ready, planner: { ...actual.models.planner, ready } },
+      },
+    });
+  });
+  await page.goto('/');
+  const dialog = page.getByRole('dialog');
+  await expect(
+    dialog.getByRole('heading', { name: 'Welcome to TrogloDAW', exact: true }),
+  ).toBeVisible();
+  await expect(dialog.getByText('Qwen3 0.6B', { exact: true })).toBeVisible();
+  await expect(dialog.getByText('ACE-Step 5Hz LM 1.7B', { exact: true })).toBeVisible();
+  firstRun = false;
+  await dialog.getByRole('button', { name: 'Set up later', exact: true }).click();
+  for (const installed of [false, true]) {
+    ready = installed;
+    await page.reload();
+    await expect(page.getByRole('button', { name: 'Settings', exact: true })).toBeEnabled();
+    for (const theme of ['light', 'dark']) {
+      if ((await page.locator('html').getAttribute('data-theme')) !== theme)
+        await page
+          .getByRole('button', { name: theme === 'dark' ? 'Dark mode' : 'Light mode', exact: true })
+          .click();
+      for (const width of [1440, 390]) {
+        await page.setViewportSize({ width, height: 900 });
+        await page.getByRole('button', { name: 'Settings', exact: true }).click();
+        await expect(dialog.getByText('Lyric writing model', { exact: true })).toBeVisible();
+        await expect(dialog.getByText('Qwen3 0.6B', { exact: true })).toBeVisible();
+        await expect(
+          dialog.getByText('Automatic song length model', { exact: true }),
+        ).toBeVisible();
+        await expect(dialog.getByText('ACE-Step 5Hz LM 1.7B', { exact: true })).toBeVisible();
+        await expect(
+          dialog.getByText(
+            new RegExp(`Optional song writing tools: ${installed ? 'ready' : 'not installed'}`),
+          ),
+        ).toBeVisible();
+        const voice = dialog.locator('.voice-models');
+        await expect(voice).not.toHaveAttribute('open');
+        await voice.getByText('Voice processing models', { exact: true }).click();
+        await expect(voice.getByText('HDemucs High', { exact: true })).toBeVisible();
+        await expect(voice.getByText('SpeechBrain ECAPA-TDNN', { exact: true })).toBeVisible();
+        await dialog.getByText('Qwen3 0.6B', { exact: true }).scrollIntoViewIfNeeded();
+        expect(await dialog.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(
+          true,
+        );
+        await page.screenshot({
+          path: testInfo.outputPath(`model-roles-${installed}-${theme}-${width}.png`),
+        });
+        await voice.getByText('Voice processing models', { exact: true }).click();
+        await dialog.getByRole('button', { name: 'Close dialog', exact: true }).click();
+      }
+    }
+  }
+  await page.unrouteAll({ behavior: 'wait' });
+});

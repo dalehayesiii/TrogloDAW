@@ -894,6 +894,14 @@
             Install / verify selected model
           </button>
           @if(library.models.planner;as planner){
+          <dl class="model-roles">
+            @for(model of planner.models || [];track model.role){
+            <div>
+              <dt>{{model.role}} model</dt>
+              <dd>{{model.name}}</dd>
+            </div>
+            }
+          </dl>
           <p class="muted">
             Optional song writing tools: {{planner.ready ? 'ready' : 'not installed'}}.
             {{(planner.bytes/1073741824).toFixed(2)}} GiB of extra weights for local lyrics and
@@ -907,6 +915,21 @@
             Install / verify song writing tools
           </button>
           }
+          <details class="voice-models">
+            <summary>Voice processing models</summary>
+            <dl class="model-roles">
+              @for(model of library.models.voice_models || [];track model.role){
+              <div>
+                <dt>{{model.role}}</dt>
+                <dd>{{model.name}}</dd>
+              </div>
+              }
+            </dl>
+            <p class="muted">
+              These fixed models are included in music model setup. Existing cached voice analysis
+              can be reused.
+            </p>
+          </details>
         </div>
         <details class="group" [open]="dialogKind==='setup'">
           <summary>Library storage</summary>

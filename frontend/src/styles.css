@@ -2232,3 +2232,19 @@ h3,
 .create-folder-button {
   margin-top: 12px;
 }
+.model-roles {
+  display: grid;
+  gap: 12px;
+}
+.model-roles dt {
+  font-size: 14px;
+  font-weight: 600;
+}
+.model-roles dd {
+  margin: 2px 0 0;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.voice-models .model-roles {
+  margin: 12px 0;
+}
