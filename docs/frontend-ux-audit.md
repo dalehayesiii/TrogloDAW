@@ -3,7 +3,7 @@
 Reviewed 2026-10-12 against merged main commit `bceed53`, with fixes in the same PR.
 Integrated the later Library bulk-action revision `5409314` and revalidated the
 combined flows, including deletion during a pending preview.
-The existing layout and three workflows are coherent. Nine usability findings
+The existing layout and three workflows are coherent. Ten usability findings
 were worth repairing; no visual redesign was indicated. The user explicitly
 prioritized ordinary usability over accessibility compliance.
 
@@ -20,6 +20,8 @@ prioritized ordinary usability over accessibility compliance.
 | Low | `frontend/src/styles.css`, success toast | Right-aligned feedback sits away from the visual center of the workflow; page positioning can also affect its foreground-dialog variant. | Center page toasts horizontally near the bottom and dialog toasts inside the dialog, retaining dismissal/expiry. Real folder-creation E2E verifies both placements and bounds in both themes at 1440px/390px. |
 | Low | `frontend/src/app.html` and `styles.css`, Create folder | The Create folder button touches the field above it and reads as an attached input segment. | Add a 12px gap above the action. E2E measures the separation in both themes at desktop/narrow widths and exercises actual folder creation. |
 | Low | `backend/models.py` and `frontend/src/app.html`, Settings/setup model identities | The music model is named, but song writing only shows readiness and users cannot see which models handle lyrics, automatic length or voices. | Expose role/id/name metadata for the configured planner/writer, show their names beside readiness, and disclose fixed voice models. API regression verifies association changes without installs; browser coverage checks setup and ready/not-installed Settings in both themes/widths. |
+
+| Medium | `frontend/src/app.ts`, job submission controls | Before a job POST returns, controls still appear ready; a follow-up click can be lost as polling starts. Installed Edge exposed this during delayed FX rendering. | Include API acceptance, polling and refresh in ordinary/model busy state, with cleanup on success/failure. A held render POST verifies immediate disabling while effects stay editable; notification recovery waits for confirmed success before reload rather than aborting the unfinished request. |
 
 ## Reusable guard
 
@@ -69,6 +71,6 @@ in the next agent session; the current audit read these installed files directly
 
 Local validation passed: Ruff/format/ty, 181 Python tests, frontend lint/format,
 12 frontend unit tests, five release-tool tests, strict Angular build and all 25
-Playwright tests. Synthetic CLI demo/producer smoke, skill validation and strict
+Playwright tests in Edge after the submission-state repair. Synthetic CLI demo/producer smoke, skill validation and strict
 spec validation also passed. Confirm all five required PR checks on the latest
 revision; the PR carries those final installed-app results.

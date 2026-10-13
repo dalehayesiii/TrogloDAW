@@ -244,6 +244,8 @@ export class AppComponent {
     field('variety', 'Variety — vary the styles, keep your lyrics', 'slider', 0, 0, 100, 1),
   ];
   private polling = new Set<string>();
+  private submittingJobs = 0;
+  private submittingModels = 0;
   constructor() {
     try {
       this.appearance = localStorage.getItem('troglodaw-theme') || 'system';
@@ -374,13 +376,17 @@ export class AppComponent {
   }
   get busy() {
     return (
+      this.submittingJobs > 0 ||
       this.bulkSubmitting ||
       this.audioImports > 0 ||
       this.jobs.some((job) => this.active(job) && job.action !== 'model_install')
     );
   }
   get installingModel() {
-    return this.jobs.some((job) => job.action === 'model_install' && this.active(job));
+    return (
+      this.submittingModels > 0 ||
+      this.jobs.some((job) => job.action === 'model_install' && this.active(job))
+    );
   }
   get storageBusy() {
     return this.busy || this.installingModel;
@@ -448,12 +454,20 @@ export class AppComponent {
   }
   async submit(action: string, values: any): Promise<Job> {
     this.beginWorkflow(action);
+    const model = action === 'model_install';
+    if (model) this.submittingModels++;
+    else this.submittingJobs++;
+    this.cdr.markForCheck();
     try {
       const created = await this.api('/api/jobs', { action, values });
       return await this.poll(created.id);
     } catch (error) {
       if (error instanceof PresentedJobError) throw error;
       throw new ScopedError(error, workflow(action));
+    } finally {
+      if (model) this.submittingModels--;
+      else this.submittingJobs--;
+      this.cdr.markForCheck();
     }
   }
   async poll(id: string): Promise<Job> {

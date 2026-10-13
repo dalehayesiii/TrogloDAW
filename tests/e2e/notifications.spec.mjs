@@ -56,6 +56,8 @@ test('persistent failures group, dismiss, survive reload and clear only on relev
   await page.getByRole('button', { name: 'Create folder', exact: true }).click();
   await expect(folders).toHaveCount(0);
   await expect(songs).toBeVisible();
+  // Retry acknowledges old failures immediately; reload only after the new request succeeds.
+  await expect(page.getByLabel('Notification', { exact: true })).toContainText('Folder created');
   await page.reload();
   await expect(folders).toHaveCount(0);
   await expect(page.getByLabel('Notification', { exact: true })).toHaveCount(0);

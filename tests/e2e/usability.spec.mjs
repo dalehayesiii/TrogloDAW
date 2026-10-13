@@ -284,6 +284,7 @@ test('FX distinguishes original and rendered audio when controls change during a
   });
   await page.getByRole('button', { name: 'Preview remix', exact: true }).click();
   await expect.poll(() => started).toBe(true);
+  await expect(page.getByRole('button', { name: 'Preview remix', exact: true })).toBeDisabled();
   await page.getByLabel('Gain (dB) value', { exact: true }).fill('-12');
   release();
   await expect(page.getByRole('button', { name: 'Preview remix', exact: true })).toBeEnabled();
