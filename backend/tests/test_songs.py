@@ -284,18 +284,19 @@ def test_every_input_has_transformed_assets_and_rerenders_portably(core, songs):
     )
 
 
-def test_prior_song_requires_explicit_preset_and_records_choice(core, songs):
+def test_prior_song_routes_automatically_and_preserves_saved_manual_values(core, songs):
     service, _ = songs
     item = core._new_entry("generated", "prior", core.synth_voice(1), "fixture")
-    with pytest.raises(ValueError, match="prior-song defaults"):
-        service.collect_sources({"clips": [{"id": item["id"]}]})
+    automatic = service.collect_sources({"clips": [{"id": item["id"]}]})[0]
     applied = service.collect_sources({"clips": [{"id": item["id"], "preset": "apply"}]})[0]
     kept = service.collect_sources(
         {"clips": [{"id": item["id"], "preset": "keep", "settings": {"pitch": -1}}]}
     )[0]
-    assert applied["settings"]["sample_seconds"] == 1 and applied["settings"]["samples"] == 8
+    assert automatic["settings"] == applied["settings"]
+    assert automatic["settings"]["pitch"] == 0 and automatic["settings"]["stretch"] == 1
+    assert automatic["routing"]["classification"] == "finished-mix"
     assert kept["settings"]["pitch"] == -1 and kept["preset"] == "keep"
-    assert kept["preset_version"] == applied["preset_version"]
+    assert kept["routing"]["version"] == applied["routing"]["version"]
 
 
 def test_partial_generation_failure_keeps_completed_output(core, songs):

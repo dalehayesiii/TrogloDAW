@@ -163,7 +163,7 @@ def test_saved_variants_have_headroom_reproducible_guide_and_unchanged_source(co
         assert all(s["length_samples"] > 0 for s in samples)
         np.testing.assert_array_equal(core.load(service.asset(source[0]["file"])), original)
         assert any(
-            p.get("timing_stage_profile", {}).get("planner") == "phrase-motifs-v2" for p in progress
+            p.get("timing_stage_profile", {}).get("planner") == "phrase-motifs-v3" for p in progress
         )
         assert analysis[0]["arrangement"]["rest_seconds"] > 60
         plans.append((layer, events))

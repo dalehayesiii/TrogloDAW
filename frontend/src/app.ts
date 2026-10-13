@@ -204,7 +204,6 @@ export class AppComponent {
     path: string;
     from: string;
   } | null = null;
-  presetClip?: Clip;
   reference: any = null;
   referenceFields: Record<string, boolean> = {};
   fx: any = null;
@@ -744,29 +743,10 @@ export class AppComponent {
       }
       this.closeDialog();
       this.changeTab(0);
-      if (clip.source_type === 'prior-song' && !clip.preset) {
-        this.presetClip = clip;
-        this.openDialog('preset');
-      }
       this.saveDraft();
     } catch (error) {
       this.fail(error, 'audio-input');
     }
-  }
-  choosePreset(choice: 'apply' | 'keep') {
-    if (this.presetClip) {
-      this.presetClip.preset = choice;
-      if (choice === 'apply')
-        this.presetClip.settings = {
-          sample_seconds: 1,
-          samples: 8,
-          pitch: 2,
-          stretch: 1.1,
-          gain: 0,
-        };
-    }
-    this.closeDialog();
-    this.saveDraft();
   }
   removeClip(index: number) {
     this.draft.clips.splice(index, 1);
