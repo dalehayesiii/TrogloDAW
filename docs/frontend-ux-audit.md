@@ -1,7 +1,7 @@
 # Frontend usability audit
 
 Reviewed 2026-10-12 against merged main commit `bceed53`, with fixes in the same PR.
-The existing layout and three workflows are coherent. Six usability findings
+The existing layout and three workflows are coherent. Eight usability findings
 were worth repairing; no visual redesign was indicated. The user explicitly
 prioritized ordinary usability over accessibility compliance.
 
@@ -10,11 +10,13 @@ prioritized ordinary usability over accessibility compliance.
 | Priority | Location | User consequence | Repair and evidence |
 | --- | --- | --- | --- |
 | High | `frontend/src/app.ts`, Library selection/preview | Selecting B leaves A's playable audio under B's heading while loading; a slow response for A can overwrite B's preview. A failed load also retains stale media. | Remove previous audio/assets immediately, show loading, accept only the latest selection response and offer Retry preview. Real-service E2E holds A's response until B finishes, then verifies B retains ownership; a current failure/retry is also exercised. |
-| Medium | `frontend/src/controls.ts`, audio players | Mute has no visible on/off state. Copy link silently succeeds/fails, without explaining that localhost links are local. Playback failures are silent; source/label changes can leave displayed transport state inconsistent. Download/copy/mute hit areas were approximately 10×24, 10×22 and 14×24px. | Show a distinct mute state, confirm copying with local-link limitations, explain playback/copy failure and reset stale state only when the audio source changes. Use at least 32px click areas for these actions and the speed selector. E2E checks failures, source replacement, actual mute/rate and clickable actions with a 120-character title at both widths/themes. |
+| Medium | `frontend/src/controls.ts`, audio players | Mute has no visible on/off state. The club-shaped local-link action is ambiguous and appears ineffective. Playback failures are silent; source/label changes can leave displayed transport state inconsistent. Download/copy/mute hit areas were approximately 10×24, 10×22 and 14×24px. | Remove the club/local-link control and its handler/styles; retain download. Show a distinct mute state, explain playback failure and reset stale state only when the audio source changes. Use at least 32px click areas for remaining actions and the speed selector. E2E checks control removal, failures, source replacement, actual mute/rate and clickable actions with a 120-character title at both widths/themes. |
 | Medium | `frontend/src/app.html` and `app.ts`, Vocal FX preview | After changing effects, the last rendered remix is still presented without indicating it represents previous settings. An in-flight render can finish after further edits. | Label saved song audio, current FX remix and last rendered FX remix separately; compare controls/grouping to the captured render request. A synthetic cached-song E2E checks edits after a preview and during a delayed render, then verifies a fresh render clears the warning. |
 | Low | `frontend/src/app.html`, Library search and pickers | No search matches is described as an empty library. A reference picker can be blank when recordings exist but no songs exist. Empty audio pickers lack a direct recovery action. | Distinguish search, folder and library emptiness, offer clear/show-all/Generation actions, and explain empty picker prerequisites. E2E exercises both empty pickers and clearing an unmatched search. |
 | Medium | `frontend/src/app.html` and `app.ts`, Number of Generations | Empty, fractional or out-of-range values can be submitted because the action is outside a native form; validation appears later as a job error. | Show the existing whole-number 1–32 contract beside the field and prevent invalid submissions. E2E verifies four invalid values create zero jobs, then preserves a valid count across reload. |
 | Medium | `frontend/src/styles.css`, Library names/headings | A valid 120-character unbroken song name spills outside the song row and preview column, creating horizontal overflow even on desktop. | Wrap long song names/headings within their containers while keeping player labels truncated with a full-title tooltip. The same long-title E2E verifies zero page overflow and clickable audio actions in both themes at 1440px/390px. |
+| Low | `frontend/src/styles.css`, success toast | Right-aligned feedback sits away from the visual center of the workflow; page positioning can also affect its foreground-dialog variant. | Center page toasts horizontally near the bottom and dialog toasts inside the dialog, retaining dismissal/expiry. Real folder-creation E2E verifies both placements and bounds in both themes at 1440px/390px. |
+| Low | `frontend/src/app.html` and `styles.css`, Create folder | The Create folder button touches the field above it and reads as an attached input segment. | Add a 12px gap above the action. E2E measures the separation in both themes at desktop/narrow widths and exercises actual folder creation. |
 
 ## Reusable guard
 
@@ -63,7 +65,7 @@ in the next agent session; the current audit read these installed files directly
   still needs rendered inspection when the affected UI changes.
 
 Local validation passed: Ruff/format/ty, 168 Python tests, frontend lint/format,
-12 frontend unit tests, five release-tool tests, strict Angular build and all 19
+12 frontend unit tests, five release-tool tests, strict Angular build and all 20
 Playwright tests. Synthetic CLI demo/producer smoke, skill validation and strict
 spec validation also passed. Confirm all five required PR checks on the latest
 revision; the PR carries those final installed-app results.

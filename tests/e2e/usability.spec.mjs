@@ -121,7 +121,7 @@ test('latest Library selection owns loading, audio and failure recovery', async 
   ).toBeVisible();
 });
 
-test('audio controls explain mute, local links, failures and source changes', async ({
+test('audio controls explain mute, failures and source changes without the club action', async ({
   page,
   request,
 }) => {
@@ -141,30 +141,10 @@ test('audio controls explain mute, local links, failures and source changes', as
   expect(await player.locator('audio').evaluate((audio) => audio.muted)).toBe(true);
   await player.getByLabel('Playback speed', { exact: true }).selectOption('2');
   expect(await player.locator('audio').evaluate((audio) => audio.playbackRate)).toBe(2);
-  await page.evaluate(() => {
-    Object.defineProperty(navigator, 'clipboard', {
-      configurable: true,
-      value: {
-        writeText: async () => {
-          throw new Error('Synthetic clipboard denial');
-        },
-      },
-    });
-  });
-  await player
-    .getByRole('button', { name: 'Copy local link to Player feedback song', exact: true })
-    .click();
-  await expect(player.getByText(/Could not copy the local link/)).toBeVisible();
-  await page.evaluate(() => {
-    Object.defineProperty(navigator, 'clipboard', {
-      configurable: true,
-      value: { writeText: async () => {} },
-    });
-  });
-  await player
-    .getByRole('button', { name: 'Copy local link to Player feedback song', exact: true })
-    .click();
-  await expect(player.getByText(/Local link copied.*Download the audio to share it/)).toBeVisible();
+  await expect(player.locator('.audio-share')).toHaveCount(0);
+  await expect(
+    player.getByRole('link', { name: 'Download Player feedback song', exact: true }),
+  ).toBeVisible();
   await player.locator('audio').evaluate((audio) => {
     audio.play = async () => {
       throw new Error('Synthetic playback denial');
@@ -183,23 +163,6 @@ test('audio controls explain mute, local links, failures and source changes', as
       .locator('audio')
       .evaluate((audio) => ({ rate: audio.playbackRate, muted: audio.muted })),
   ).toEqual({ rate: 1, muted: false });
-  await expect(player.locator('.audio-feedback')).toHaveCount(0);
-  await page.evaluate(() => {
-    Object.defineProperty(navigator, 'clipboard', {
-      configurable: true,
-      value: {
-        writeText: () => new Promise((resolve) => (globalThis.finishCopy = resolve)),
-      },
-    });
-  });
-  await player
-    .getByRole('button', { name: 'Copy local link to Replacement player song', exact: true })
-    .click();
-  await panel.locator('.song-row').filter({ hasText: 'Player feedback song' }).click();
-  await expect(
-    player.getByRole('button', { name: 'Play Player feedback song', exact: true }),
-  ).toBeVisible();
-  await page.evaluate(() => globalThis.finishCopy());
   await expect(player.locator('.audio-feedback')).toHaveCount(0);
 });
 
@@ -331,7 +294,6 @@ test('long song names leave audio actions clickable at desktop and narrow widths
       );
       for (const action of [
         player.locator('.audio-download'),
-        player.locator('.audio-share'),
         player.locator('.audio-controls > button'),
       ]) {
         const box = await action.boundingBox();
@@ -342,6 +304,51 @@ test('long song names leave audio actions clickable at desktop and narrow widths
       const label = await player.locator('.corner-label').boundingBox();
       const download = await player.locator('.audio-download').boundingBox();
       expect(label.x + label.width).toBeLessThanOrEqual(download.x);
+    }
+  }
+});
+
+test('folder actions have space and success toasts center on the page and in dialogs', async ({
+  page,
+}, testInfo) => {
+  await open(page);
+  await page.getByRole('tab', { name: 'Library', exact: true }).click();
+  await page.getByText('Create a folder', { exact: true }).click();
+  for (const theme of ['light', 'dark']) {
+    if ((await page.locator('html').getAttribute('data-theme')) !== theme)
+      await page
+        .getByRole('button', { name: theme === 'dark' ? 'Dark mode' : 'Light mode', exact: true })
+        .click();
+    for (const width of [1440, 390]) {
+      await page.setViewportSize({ width, height: 900 });
+      const input = page.getByLabel('New folder name', { exact: true });
+      const button = page.getByRole('button', { name: 'Create folder', exact: true });
+      const fieldBox = await input.boundingBox();
+      const actionBox = await button.boundingBox();
+      expect(actionBox.y - fieldBox.y - fieldBox.height).toBeGreaterThanOrEqual(12);
+      await input.fill(`Toast review ${theme} ${width}`);
+      await button.click();
+      const toast = page.getByLabel('Notification', { exact: true });
+      await expect(toast).toBeVisible();
+      const pageToast = await toast.boundingBox();
+      expect(Math.abs(pageToast.x + pageToast.width / 2 - width / 2)).toBeLessThanOrEqual(1);
+      expect(pageToast.x).toBeGreaterThanOrEqual(0);
+      expect(pageToast.x + pageToast.width).toBeLessThanOrEqual(width);
+      await page.screenshot({ path: testInfo.outputPath(`folder-toast-${theme}-${width}.png`) });
+      await page.getByRole('button', { name: 'Settings', exact: true }).click();
+      const dialog = page.getByRole('dialog');
+      await expect(dialog.getByLabel('Notification', { exact: true })).toBeVisible();
+      const dialogBox = await dialog.boundingBox();
+      const dialogToast = await toast.boundingBox();
+      expect(
+        Math.abs(dialogToast.x + dialogToast.width / 2 - dialogBox.x - dialogBox.width / 2),
+      ).toBeLessThanOrEqual(1);
+      expect(dialogToast.x).toBeGreaterThanOrEqual(dialogBox.x);
+      expect(dialogToast.x + dialogToast.width).toBeLessThanOrEqual(dialogBox.x + dialogBox.width);
+      await page.screenshot({ path: testInfo.outputPath(`dialog-toast-${theme}-${width}.png`) });
+      await dialog.getByRole('button', { name: 'Close dialog', exact: true }).click();
+      await toast.getByRole('button', { name: 'Dismiss notification', exact: true }).click();
+      await expect(toast).toHaveCount(0);
     }
   }
 });

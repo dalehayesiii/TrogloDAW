@@ -581,6 +581,7 @@
               <label for="new-folder">New folder name</label
               ><input id="new-folder" [(ngModel)]="newFolder" /><button
                 type="button"
+                class="create-folder-button"
                 (click)="createFolder()"
                 [disabled]="busy"
               >

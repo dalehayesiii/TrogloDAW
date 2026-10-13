@@ -265,15 +265,6 @@ export class DownloadComponent {
         title="Download audio"
         >↓</a
       >
-      <button
-        type="button"
-        class="audio-share"
-        [attr.aria-label]="'Copy local link to ' + label"
-        title="Copy local playback link (works while this app is running)"
-        (click)="copyLink()"
-      >
-        ♧
-      </button>
     }
     <audio
       #player
@@ -461,20 +452,6 @@ export class AudioComponent implements OnChanges, AfterViewInit, OnDestroy {
     if (!this.media) return;
     this.playing = false;
     this.feedback = 'Could not play this audio. Try Play again or download the file.';
-    this.cdr.markForCheck();
-  }
-  async copyLink() {
-    if (!this.media) return;
-    const url = this.media.url;
-    try {
-      await navigator.clipboard.writeText(new URL(url, location.href).href);
-      if (this.media?.url !== url) return;
-      this.feedback =
-        'Local link copied. It works on this computer while the app is running. Download the audio to share it.';
-    } catch {
-      if (this.media?.url !== url) return;
-      this.feedback = 'Could not copy the local link. Try again, or download the audio file.';
-    }
     this.cdr.markForCheck();
   }
   clock(value: number, round = false) {

@@ -1039,20 +1039,6 @@ troglodaw-icon svg {
   font-size: 16px !important;
   letter-spacing: -5px;
 }
-.audio-share {
-  position: absolute;
-  right: 4px;
-  top: 0;
-  min-height: 22px;
-  height: 22px;
-  padding: 0;
-  background: none;
-  font-size: 14px;
-  color: var(--muted);
-}
-.audio-download {
-  right: 32px;
-}
 .audio-controls > button {
   color: var(--light);
 }
@@ -1758,7 +1744,9 @@ troglodaw-job-status {
 .success-toast {
   position: fixed;
   bottom: 24px;
-  right: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: max-content;
   display: flex;
   align-items: center;
   gap: 16px;
@@ -1774,6 +1762,11 @@ troglodaw-job-status {
 }
 .success-toast p {
   margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.success-toast button {
+  flex-shrink: 0;
 }
 .app-version {
   color: var(--muted);
@@ -1783,7 +1776,10 @@ troglodaw-job-status {
   position: sticky;
   inset: auto;
   top: 0;
-  margin-bottom: 16px;
+  transform: none;
+  width: fit-content;
+  max-width: 100%;
+  margin: 0 auto 16px;
 }
 .job-panel {
   margin-bottom: 24px;
@@ -1885,7 +1881,6 @@ troglodaw-job-status {
 .audio-controls > button {
   color: var(--text);
 }
-.audio-share,
 .audio-download {
   color: var(--muted);
 }
@@ -2186,13 +2181,12 @@ dialog > .job-panel {
   min-height: 200px;
 }
 .audio-panel .corner-label {
-  max-width: calc(100% - 92px);
+  max-width: calc(100% - 52px);
 }
 .audio-panel .corner-label > span {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.audio-share,
 .audio-download {
   width: 32px;
   min-height: 32px;
@@ -2201,11 +2195,8 @@ dialog > .job-panel {
   display: grid;
   place-items: center;
 }
-.audio-share {
-  right: 4px;
-}
 .audio-download {
-  right: 40px;
+  right: 8px;
 }
 .audio-controls > button {
   min-width: 32px;
@@ -2237,4 +2228,7 @@ h3,
 }
 .song-row > * {
   max-width: 100%;
+}
+.create-folder-button {
+  margin-top: 12px;
 }
