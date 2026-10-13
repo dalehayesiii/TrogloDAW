@@ -67,8 +67,9 @@ Official semantic-release SHALL run only on main after build and prerequisite jo
 - **THEN** prepare fails before tagging or publishing, without running the full browser/audio workflows again
 
 ### Requirement: Full OpenSpec lifecycle and agent support
-The repo SHALL provide pinned OpenSpec CLI/workflows for Codex, Gemini CLI,
-Antigravity and Grok Build. Changes warranting specs SHALL normally include
+The repo SHALL provide pinned OpenSpec CLI/workflows for Codex, Gemini CLI and
+Antigravity; agents without them SHALL follow `.agents/skills/openspec-*` manually.
+Changes warranting specs SHALL normally include
 proposal, design, tasks, implementation, canonical spec sync and archive in one PR.
 Proposal-only exceptions SHALL require explicit user intent, a docs PR and the
 openspec:proposal-only label. CI SHALL reject unfinished archived tasks and
@@ -77,6 +78,10 @@ unapproved active changes.
 #### Scenario: Normal implementation
 - **WHEN** an agent finishes a behavior or delivery change
 - **THEN** its PR contains completed archived artifacts and updated canonical specs
+
+#### Scenario: Agent without slash commands
+- **WHEN** an agent cannot run OpenSpec slash commands or auto-load skills
+- **THEN** it follows the canonical `.agents/skills/openspec-*` instructions by hand
 
 ### Requirement: Agent delivery and merge gates
 Agents SHALL deliver PRs and only merge if authorized and latest required checks pass.
