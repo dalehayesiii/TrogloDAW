@@ -199,18 +199,29 @@
         <label for="generation-workflow">Generation workflow</label>
         <select
           id="generation-workflow"
-          [(ngModel)]="draft.workflow"
-          (ngModelChange)="saveDraft()"
+          [ngModel]="draft.workflow"
+          (ngModelChange)="switchGenerationWorkflow($event)"
           [disabled]="busy || recording"
         >
           <option value="model">Generate a new song</option>
           <option value="arrange-over-song">Arrange recordings over an existing song</option>
+          <option value="recording-style">Recording + style</option>
         </select>
         @if(backingWorkflow){
         <p class="muted">
           Keep your backing song and arrange transformed recordings around it. No music model is
           needed. Lyrics, styles and model options are kept for when you return to generating a new
           song.
+        </p>
+        } @else if(recordingWorkflow){
+        <p class="muted">
+          Reimagine exactly one original recording in your chosen style. The complete recording
+          guides the model at its own length; no sample cuts, lyrics entry or prior songs.
+        </p>
+        } @else {
+        <p class="muted">
+          Build a new song from a mixture of sampled recordings, Library songs and optional
+          lyrics/styles. Your sample arrangement guides generation by default.
         </p>
         }
       </div>
@@ -242,52 +253,89 @@
                 </button>
                 @if(inputHelp){
                 <p id="audio-guidance" role="tooltip">
-                  @if(backingWorkflow){ Separate inputs are sampled, transformed and arranged along
-                  the selected backing's timeline, favoring measured beats and quieter intervals.
-                  The backing is kept once; no generation model is used. Audio heuristics can miss
-                  musical or vocal gaps. }@else{ Recordings and finished Library songs are analyzed
-                  independently. Each is automatically sampled into a shared arrangement; no
-                  defaults confirmation is needed. Each original clip is automatically analyzed for
-                  phrase, motif and accent cuts. Short clips may also be used whole. Bounded
-                  variations and musical gaps form one full-song audio guide before generation;
-                  selection and arrangement use local audio heuristics. }
+                  @if(recordingWorkflow){ One uploaded or microphone recording goes directly to the
+                  model with your styles. It is not sliced, transformed or mixed in again afterward.
+                  The model can reinterpret its melody, voice and words; exact preservation is not
+                  guaranteed. } @else if(backingWorkflow){ Separate inputs are sampled, transformed
+                  and arranged along the selected backing's timeline, favoring measured beats and
+                  quieter intervals. The backing is kept once; no generation model is used. Audio
+                  heuristics can miss musical or vocal gaps. }@else{ Recordings and finished Library
+                  songs are analyzed independently. Each is automatically sampled into a shared
+                  arrangement; no defaults confirmation is needed. Each original clip is
+                  automatically analyzed for phrase, motif and accent cuts. Short clips may also be
+                  used whole. Bounded variations and musical gaps form one full-song audio guide
+                  before generation; selection and arrangement use local audio heuristics. }
                 </p>
                 }
               </div>
             </div>
             <p class="muted">
-              Add original recordings. We derive varied smaller cuts, sometimes use a short clip
-              whole, and transform and arrange samples with spaced motifs and rests. Audio is
-              {{backingWorkflow ? 'required in addition to the backing song.' : 'optional when you
-              provide lyrics or styles.'}}
+              @if(recordingWorkflow){ Upload or record one take. Uploading or keeping a new take
+              replaces this workflow's accepted recording; discarded retakes keep the previous one.
+              Supported source length is 1–300 seconds. } @else { Add original recordings. We derive
+              varied smaller cuts, sometimes use a short clip whole, and transform and arrange
+              samples with spaced motifs and rests. Audio is {{backingWorkflow ? 'required in
+              addition to the backing song.' : 'optional when you provide lyrics or styles.'}} }
             </p>
-            <label for="audio-files">Add audio files</label
+            <label for="audio-files"
+              >{{recordingWorkflow ? 'Choose one recording' : 'Add audio files'}}</label
             ><input
               id="audio-files"
               type="file"
               accept="audio/*,video/webm"
-              multiple
+              [multiple]="!recordingWorkflow"
               (change)="addFiles($event)"
             />
             <div class="actions">
-              <button type="button" (click)="beginRecording()" [disabled]="busy">
-                Record a clip</button
-              ><button type="button" (click)="openDialog('audio-picker')">
-                Choose from Library
-              </button>
+              <button
+                type="button"
+                (click)="beginRecording(recordingWorkflow && draft.clips.length ? 0 : -1)"
+                [disabled]="busy"
+              >
+                {{recordingWorkflow && draft.clips.length ? 'Replace recording with a take' :
+                'Record a clip'}}</button
+              >@if(!recordingWorkflow){<button type="button" (click)="openDialog('audio-picker')">
+                Choose from Library</button
+              >}
             </div>
-            @if(draft.clips.length && !backingWorkflow){
+            @if(draft.clips.length && !backingWorkflow && !recordingWorkflow){
             <details class="audio-arrangement-settings">
               <summary>Audio arrangement settings</summary>
-              <label for="postmix-mode" class="check-label"
-                ><input
-                  id="postmix-mode"
-                  type="checkbox"
-                  [ngModel]="draft.audio_mode==='postmix'"
-                  (ngModelChange)="draft.audio_mode=$event ? 'postmix' : 'conditioned';saveDraft()"
-                />
-                Mix samples after generation</label
-              >
+              <div class="heading-row">
+                <label for="postmix-mode" class="check-label"
+                  ><input
+                    id="postmix-mode"
+                    type="checkbox"
+                    [ngModel]="draft.audio_mode==='postmix'"
+                    (ngModelChange)="draft.audio_mode=$event ? 'postmix' : 'conditioned';saveDraft()"
+                  />
+                  Mix samples after generation</label
+                >
+                <div class="input-help">
+                  <button
+                    type="button"
+                    aria-label="Sample mixing guidance"
+                    aria-describedby="postmix-guidance"
+                    [attr.aria-expanded]="postmixHelp"
+                    (mouseenter)="postmixHelp=true"
+                    (mouseleave)="postmixHelp=false"
+                    (focus)="postmixHelp=true"
+                    (blur)="postmixHelp=false"
+                    (click)="postmixHelp=true"
+                    (keydown.escape)="postmixHelp=false"
+                  >
+                    ⓘ
+                  </button>
+                  @if(postmixHelp){
+                  <p id="postmix-guidance" role="tooltip">
+                    Unchecked: the model hears your complete transformed arrangement with lyrics and
+                    styles, and generates the whole mix. It may reinterpret the samples. Checked:
+                    the model generates independently; your actual transformed samples are mixed
+                    into it afterward. Audio adherence applies only when unchecked and supported.
+                  </p>
+                  }
+                </div>
+              </div>
               @if(draft.audio_mode==='postmix'){
               <p class="muted">
                 Generate music independently, then mix your transformed sample arrangement into it.
@@ -302,7 +350,33 @@
                 Arrange your transformed samples first, then let the model build the whole song
                 around that audio. It can change the samples' sound.
               </p>
-              <label for="audio-adherence">Audio adherence ({{draft.audio_adherence}}%)</label>
+              <div class="heading-row">
+                <label for="audio-adherence">Audio adherence ({{draft.audio_adherence}}%)</label>
+                <div class="input-help">
+                  <button
+                    type="button"
+                    aria-label="Audio adherence guidance"
+                    aria-describedby="adherence-guidance"
+                    [attr.aria-expanded]="adherenceHelp"
+                    (mouseenter)="adherenceHelp=true"
+                    (mouseleave)="adherenceHelp=false"
+                    (focus)="adherenceHelp=true"
+                    (blur)="adherenceHelp=false"
+                    (click)="adherenceHelp=true"
+                    (keydown.escape)="adherenceHelp=false"
+                  >
+                    ⓘ
+                  </button>
+                  @if(adherenceHelp){
+                  <p id="adherence-guidance" role="tooltip">
+                    Controls how strongly the model follows your arrangement during generation. Zero
+                    disables source influence; higher values do not guarantee the exact waveform,
+                    voice or words. This is separate from Style Influence and sample volume, and has
+                    no effect in postmix mode.
+                  </p>
+                  }
+                </div>
+              </div>
               <div class="range-row">
                 <span>0</span
                 ><input
@@ -360,7 +434,11 @@
             } @for (clip of draft.clips; track clip.key; let index=$index) {
             <article class="clip-card">
               <label [for]="'clip-label-'+index">Clip label</label
-              ><input [id]="'clip-label-'+index" [(ngModel)]="clip.label" />
+              ><input
+                [id]="'clip-label-'+index"
+                [(ngModel)]="clip.label"
+                (ngModelChange)="saveDraft()"
+              />
               <p class="muted">
                 {{clip.source_type === 'prior-song' ? 'Prior song — resample its finished audio' :
                 clip.source_type === 'microphone' ? 'Accepted microphone take' : 'Audio recording'}}
@@ -375,6 +453,16 @@
                   Retake</button
                 >}<button type="button" (click)="removeClip(index)">Remove clip</button>
               </div>
+              @if(recordingWorkflow){
+              <label [for]="'replace-clip-'+index">Replace this recording with a file</label
+              ><input
+                [id]="'replace-clip-'+index"
+                type="file"
+                accept="audio/*,.webm,.m4a"
+                (change)="replaceFile($event,index)"
+                [disabled]="busy"
+              />
+              } @else {
               <details class="clip-adjustments">
                 <summary>Clip adjustments</summary>
                 <div class="stack options">
@@ -431,6 +519,7 @@
                   </p>
                 </div>
               </details>
+              }
             </article>
             }
           </div>
@@ -439,13 +528,14 @@
             <div class="section-kicker">
               <span>02 / Inscribe</span><span aria-hidden="true" class="scratch-marks">╱╱╱</span>
             </div>
-            <label for="lyrics">Input Lyrics</label
+            @if(!recordingWorkflow){<label for="lyrics">Input Lyrics</label
             ><textarea
               id="lyrics"
               rows="5"
               maxlength="4096"
               [disabled]="busy"
               [(ngModel)]="draft.lyrics"
+              (ngModelChange)="saveDraft()"
               placeholder="Your words stay your words. Leave blank for instrumental music."
             ></textarea>
             <details>
@@ -484,12 +574,13 @@
               </p>
               }
             </details>
-            <label for="styles">Input Styles</label
+            } <label for="styles">Input Styles</label
             ><textarea
               id="styles"
               rows="2"
               maxlength="400"
               [(ngModel)]="draft.styles"
+              (ngModelChange)="saveDraft()"
               placeholder="Genre, mood, instruments or vocal character"
             ></textarea>
           </div>
@@ -524,7 +615,7 @@
               Add separate recordings in Input Audio. The backing is kept once; it is not added as
               another sample.
             </p>
-            }@else{
+            }@else if(!recordingWorkflow){
             <button type="button" (click)="openDialog('reference-picker')">
               Prior Song Reference
             </button>
@@ -536,6 +627,7 @@
             ><input
               id="song-title"
               [(ngModel)]="draft.title"
+              (ngModelChange)="saveDraft()"
               [placeholder]="backingWorkflow ? 'Backing title + arrangement' : 'Create a title for me'"
             /><label for="generation-count">Number of Generations</label
             ><input
@@ -545,6 +637,7 @@
               max="32"
               step="1"
               [(ngModel)]="draft.count"
+              (ngModelChange)="saveDraft()"
               [attr.aria-invalid]="generationCountError ? true : null"
               aria-describedby="generation-count-error"
             />
@@ -553,23 +646,33 @@
             <details>
               <summary>More Options</summary>
               <div class="stack options">
-                @for (control of generationFields; track control.key) {<troglodaw-field
+                @for (control of activeGenerationFields; track control.key) {<troglodaw-field
                   [field]="control"
                   [value]="draft.options[control.key]"
                   [options]="control.key==='gender' ? [{label:'Default',value:''},{label:'Male',value:'Male'},{label:'Female',value:'Female'}] : []"
                   (valueChange)="draft.options[control.key]=$event;saveDraft()"
                 />}
                 <p class="muted">
-                  Auto length uses the local song planner, up to five minutes. Vocal character is a
-                  preference for newly generated voices. Variety changes styles, never lyrics.
+                  @if(recordingWorkflow){ The complete recording determines length and guides
+                  musical structure. Styles and the model can change how its performance sounds. }
+                  @else { Auto length uses the local song planner, up to five minutes. Vocal
+                  character is a preference for newly generated voices. Variety changes styles,
+                  never lyrics. }
                 </p>
               </div>
             </details>
-            } @if (draft.arrangement && !backingWorkflow) {
+            } @if (draft.arrangement && !backingWorkflow && !recordingWorkflow) {
             <p>Saved sample transformations and placements selected.</p>
             <button type="button" (click)="draft.arrangement=undefined;saveDraft()">
               Use a fresh arrangement</button
-            >}
+            >} @if(recordingWorkflow && !draft.styles.trim()){
+            <p class="muted">Describe a style for this recording before generating.</p>
+            } @if(recordingWorkflow && library.models.ready && !recordingConditioningSupported){
+            <p class="muted">
+              This model does not support direct recording conditioning. Choose a compatible model
+              in Settings.
+            </p>
+            }
             <button
               type="button"
               class="primary generate-button"
@@ -607,7 +710,12 @@
             <p>Arranged over {{result.backing_name}}</p>
             }@else{
             <p>Styles: {{result.effective_styles}}</p>
-            } @if(result.generation_mode?.effective_mode==='conditioned'){
+            } @if(result.workflow==='recording-style'){
+            <p class="muted">
+              Your complete recording and styles guided this generated mix. The source was not
+              sampled or mixed in again.
+            </p>
+            } @else if(result.generation_mode?.effective_mode==='conditioned'){
             <p class="muted">
               Generated around your arranged audio · {{result.generation_mode.audio_adherence}}%
               Audio adherence

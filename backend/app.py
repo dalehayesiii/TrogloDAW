@@ -115,10 +115,21 @@ class MusicService:
                 sources = self.songs.collect_sources(values)
                 params = generation_parameters(values, sources, 0)
                 profile.update(
+                    workflow=values.get("workflow", "model"),
+                    planning="source_structure"
+                    if generation_mode(values, self.models, bool(sources))["effective_mode"]
+                    == "conditioned"
+                    else "musical_metadata"
+                    if "musical_metadata"
+                    in self.models.manifest["models"][self.models.selected].get("planning", [])
+                    and self.models.planner_ready()
+                    else "unplanned",
                     duration=None
                     if params["requested"]["duration"] == "auto"
                     else params["duration"],
-                    duration_mode="auto"
+                    duration_mode="source"
+                    if values.get("workflow") == "recording-style"
+                    else "auto"
                     if params["requested"]["duration"] == "auto"
                     else "explicit",
                     steps=params["steps"],
@@ -771,7 +782,12 @@ def create_app(
                 else "Generated musical parts",
                 rec.get("musical_file"),
             ),
-            ("Transformed sample arrangement", rec.get("conditioning_file")),
+            (
+                "Intact recording"
+                if rec.get("workflow") == "recording-style"
+                else "Transformed sample arrangement",
+                rec.get("conditioning_file"),
+            ),
             ("Imported original WAV", rec.get("original_file")),
         ]
         references.extend(

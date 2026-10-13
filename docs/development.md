@@ -31,7 +31,7 @@ Install uv 0.13.0 and Node 24.15 or newer. Python 3.12 matches the Windows runti
 uv sync --locked
 npm ci --ignore-scripts
 uv run --locked ruff check .
-uv run --locked ruff format --check backend/app.py backend/models.py backend/storage.py backend/songs.py backend/arrangement.py backend/guide_enhance.py backend/inference_runner.py backend/timing.py backend/folders.py backend/updates.py backend/credentials.py backend/instance.py backend/library_actions.py scripts backend/tests
+uv run --locked ruff format --check backend/app.py backend/models.py backend/storage.py backend/songs.py backend/planning.py backend/arrangement.py backend/guide_enhance.py backend/inference_runner.py backend/timing.py backend/folders.py backend/updates.py backend/credentials.py backend/instance.py backend/library_actions.py scripts backend/tests
 uv run --locked ty check
 uv run --locked pytest
 npm run format:check

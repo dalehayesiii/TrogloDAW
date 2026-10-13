@@ -17,7 +17,7 @@ def test_model_role_identities_follow_configured_models_without_installing(core)
         assert described["planner"]["models"] == [
             {"role": "Lyric writing", "id": "Qwen3-0.6B-lyrics", "name": "Qwen3 0.6B"},
             {
-                "role": "Automatic song length",
+                "role": "Automatic song length / musical blueprint",
                 "id": "acestep-5Hz-lm-1.7B",
                 "name": "ACE-Step 5Hz LM 1.7B",
             },

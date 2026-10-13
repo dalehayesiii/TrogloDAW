@@ -130,6 +130,14 @@ on top of a mix containing the original vocals.
 
 ## Audio-conditioned generation validation
 
+**Recording + style** additionally uses the validated Base `cover-nofsq` latent
+source path without sample processing or a blank-lyrics instrumental override.
+Text-driven/postmix generation can automatically use a tempo/key/meter blueprint
+from the existing optional music planner. Competing semantic-code blueprints were
+rejected after native lyric-fidelity comparisons. Source-conditioned workflows
+retain their source structure; no new weights or planner controls are required.
+See [three-workflow validation and resources](three-generation-workflows.md).
+
 The Base model supports a complete source arrangement through `task_type=cover`,
 `src_audio` and `audio_cover_strength`, as documented in the
 [official inference API](https://github.com/ace-step/ACE-Step-1.5/blob/main/docs/en/INFERENCE.md).

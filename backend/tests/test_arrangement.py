@@ -119,7 +119,7 @@ def test_original_recipe_retains_postmix_replay_semantics(core, songs):
 
 def test_modes_fallback_and_input_validation(songs):
     service, _ = songs
-    assert generation_mode({}, service.models, True)["requested_mode"] == "postmix"
+    assert generation_mode({}, service.models, True)["requested_mode"] == "conditioned"
     fallback = generation_mode({"audio_mode": "conditioned"}, service.models, True)
     assert fallback["requested_mode"] == "conditioned" and fallback["effective_mode"] == "postmix"
     assert fallback["fallback_reason"] and fallback["effective_audio_adherence"] is None

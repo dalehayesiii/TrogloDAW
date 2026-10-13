@@ -48,6 +48,12 @@ Choose **Arrange recordings over an existing song** to keep a Library backing an
 add a new sample arrangement without loading a music model. Imported WAVs can be
 backings or prior songs. Model lyrics/styles stay in your draft when switching workflows.
 
+Choose **Recording + style** for one complete upload/microphone recording with style
+instructions and no lyrics, sample cuts or prior-song inputs. Each generation workflow
+keeps its own draft. Compatible text-driven generation uses automatic musical metadata
+planning when the optional tools are installed; source flows retain their own structure.
+See [three-workflow validation and limits](docs/three-generation-workflows.md).
+
 Long jobs show their active stage, completed work, elapsed time and separate
 queue/current-song/whole-request time ranges. Estimates update from real work
 events and recent comparable local runs; new workloads show **Estimating…**.

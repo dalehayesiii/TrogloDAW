@@ -112,7 +112,36 @@ def hardware(torch, device):
     }
 
 
+def trim_recording_padding(first, parameters, conditioned):
+    if not conditioned or parameters.get("workflow") != "recording-style":
+        return 0
+    # The pinned decoder pads short sources to 5.12 seconds. Remove only its
+    # generated tail so the result retains the complete original timeline.
+    sf = import_module("soundfile")
+    audio, sample_rate = sf.read(first["path"], dtype="float32", always_2d=True)
+    expected = round(parameters["duration"] * sample_rate)
+    if len(audio) < expected:
+        raise RuntimeError("The model did not render the complete recording timeline")
+    trimmed = len(audio) - expected
+    if trimmed:
+        sf.write(first["path"], audio[:expected], sample_rate, subtype="FLOAT")
+    return trimmed
+
+
 def generate(request):
+    parameters = request["parameters"]
+    blueprint_codes = request.get("blueprint_codes")
+    if blueprint_codes:
+        if request.get("conditioning_audio") or parameters.get("effective_mode") == "conditioned":
+            raise ValueError("A text blueprint cannot replace an active source recording")
+        raise ValueError("Semantic-code blueprints are not qualified for this runtime")
+    blueprint = request.get("blueprint_metadata")
+    if blueprint:
+        if request.get("conditioning_audio") or parameters.get("effective_mode") == "conditioned":
+            raise ValueError("A text blueprint cannot replace an active source recording")
+        from planning import validated_blueprint
+
+        blueprint = validated_blueprint({"metadata": blueprint}, parameters)["constraints"]
     if import_module("psutil").virtual_memory().available < 12 * 1024**3:
         raise RuntimeError(
             "This offload configuration needs 12 GiB of available system RAM. Close memory-heavy apps and retry."
@@ -131,7 +160,6 @@ def generate(request):
         raise RuntimeError(
             "This model needs at least 5.5 GiB free CUDA memory for the validated offload configuration. Close GPU-heavy apps and retry."
         )
-    parameters = request["parameters"]
     context = {
         **hardware(torch, "cuda"),
         "offload": "cpu+dit",
@@ -169,14 +197,22 @@ def generate(request):
         checkpoint=request["model"],
     )
     params = GenerationParams(
-        task_type="cover" if conditioned else "text2music",
+        task_type="cover-nofsq"
+        if conditioned and parameters.get("workflow") == "recording-style"
+        else "cover"
+        if conditioned
+        else "text2music",
         src_audio=request.get("conditioning_audio") if conditioned else None,
+        audio_codes="",
+        bpm=blueprint["bpm"] if blueprint else None,
+        keyscale=blueprint["keyscale"] if blueprint else "",
+        timesignature=blueprint["timesignature"] if blueprint else "",
         audio_cover_strength=parameters.get("effective_audio_adherence", 1.0)
         if conditioned
         else 1.0,
         caption=parameters["caption"],
         lyrics=parameters["lyrics"],
-        instrumental=not bool(parameters["lyrics"].strip()),
+        instrumental=parameters.get("instrumental", not bool(parameters["lyrics"].strip())),
         duration=parameters["duration"],
         seed=parameters["seed"],
         inference_steps=parameters["steps"],
@@ -242,6 +278,7 @@ def generate(request):
     if not result.success or not result.audios:
         raise RuntimeError(result.error or "Music inference produced no audio")
     first = result.audios[0]
+    trimmed_padding = trim_recording_padding(first, parameters, conditioned)
     emit(
         "complete",
         1,
@@ -253,7 +290,12 @@ def generate(request):
             "peak_vram": torch.cuda.max_memory_allocated(),
             "device": "cuda",
             "offload": "cpu+dit",
-            "conditioning": "cover" if conditioned else "text2music",
+            "trimmed_padding_samples": trimmed_padding,
+            "conditioning": params.task_type
+            if conditioned
+            else "musical_metadata"
+            if blueprint
+            else "text2music",
             "audio_cover_strength": params.audio_cover_strength if conditioned else None,
         },
     )
@@ -366,7 +408,7 @@ def write_lyrics(request):
         hook.remove()
 
 
-def plan_song(request):
+def plan_song(request, *, blueprint=False):
     """Use ACE's public local planner before loading any music-generation weights."""
     torch = import_module("torch")
     torch.set_num_threads(8)
@@ -385,7 +427,9 @@ def plan_song(request):
         "planner": request["planner"],
         "runtime_mode": "fresh_process",
         "memory_policy": policy,
-        "planning_mode": "metadata-only-last-logit-v1",
+        "planning_mode": "musical-metadata-last-logit-v1"
+        if blueprint
+        else "metadata-only-last-logit-v1",
     }
     emit(
         "loading_planner",
@@ -407,8 +451,8 @@ def plan_song(request):
     handler.disable_tqdm = True
     # This process only plans text/metadata; DiT is loaded after it exits.
     handler.constrained_processor.set_max_duration(300)
-    stage = "planning_song"
-    message = "Planning song length locally"
+    stage = "planning_blueprint" if blueprint else "planning_song"
+    message = "Planning musical structure locally" if blueprint else "Planning song length locally"
     passes = 0
 
     def decoded(_module, _inputs, _output):
@@ -428,6 +472,36 @@ def plan_song(request):
     started = time.monotonic()
     try:
         parameters = request["parameters"]
+        if blueprint:
+            from planning import explicit_music_metadata
+
+            result = handler.generate_with_stop_condition(
+                caption=parameters["caption"],
+                lyrics=parameters["lyrics"],
+                infer_type="dit",
+                target_duration=parameters["duration"],
+                user_metadata=explicit_music_metadata(parameters),
+                temperature=0.85,
+                cfg_scale=1.0,
+                use_cot_metas=True,
+                use_cot_caption=False,
+                use_cot_language=False,
+            )
+            if not result.get("success"):
+                raise RuntimeError(result.get("error") or "Musical blueprint generation failed")
+            emit(
+                "complete",
+                1,
+                result={
+                    "planner": request["planner"],
+                    "runtime_revision": request.get("runtime_revision"),
+                    "metadata": result.get("metadata", {}),
+                    "decode_steps": passes,
+                    "seconds": time.monotonic() - started,
+                    "peak_vram": torch.cuda.max_memory_allocated(),
+                },
+            )
+            return
         prompt = handler.build_formatted_prompt_for_format(
             parameters["caption"], parameters["lyrics"]
         )
@@ -684,6 +758,8 @@ def main():
             write_lyrics(request)
         elif request["action"] == "plan_song":
             plan_song(request)
+        elif request["action"] == "plan_blueprint":
+            plan_song(request, blueprint=True)
         elif request["action"] == "separate":
             separate(request)
         elif request["action"] == "probe":

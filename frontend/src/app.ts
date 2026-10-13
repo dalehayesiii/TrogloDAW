@@ -28,8 +28,9 @@ interface Clip {
   settings: Record<string, number>;
   saved_file?: string;
 }
+type GenerationWorkflow = 'model' | 'arrange-over-song' | 'recording-style';
 interface Draft {
-  workflow: 'model' | 'arrange-over-song';
+  workflow: GenerationWorkflow;
   backing_song_id: string;
   clips: Clip[];
   lyrics: string;
@@ -74,7 +75,7 @@ const defaults = (): Draft => ({
   styles: '',
   title: '',
   count: 2,
-  audio_mode: 'postmix',
+  audio_mode: 'conditioned',
   audio_adherence: 75,
   guide_enhancement: 'light',
   guide_enhancement_strength: 50,
@@ -136,12 +137,21 @@ export class AppComponent {
   tabs = ['Generation', 'Library', 'Vocal FX'];
   tab = 0;
   draft = defaults();
+  private workflowDrafts: Partial<Record<GenerationWorkflow, Draft>> = {};
   songImportFile?: File;
   songImportTitle = '';
   songImportFolder = '';
   songImporting = false;
   get backingWorkflow() {
     return this.draft.workflow === 'arrange-over-song';
+  }
+  get recordingWorkflow() {
+    return this.draft.workflow === 'recording-style';
+  }
+  get activeGenerationFields() {
+    return this.recordingWorkflow
+      ? this.generationFields.filter((control) => ['weirdness', 'influence'].includes(control.key))
+      : this.generationFields;
   }
   get selectedBacking() {
     return this.songs.find((song) => song.id === this.draft.backing_song_id);
@@ -155,7 +165,11 @@ export class AppComponent {
           !this.draft.clips.length ||
           this.draft.clips.some((clip) => clip.id === this.draft.backing_song_id)
         : !this.library.models.ready ||
-          (this.automaticDuration && !this.library.models.planner?.ready))
+          (this.recordingWorkflow
+            ? !this.recordingConditioningSupported ||
+              this.draft.clips.length !== 1 ||
+              !this.draft.styles.trim()
+            : this.automaticDuration && !this.library.models.planner?.ready))
     );
   }
   audioImports = 0;
@@ -163,6 +177,13 @@ export class AppComponent {
     const model = this.library.models;
     return model.choices.some(
       (choice: any) => choice.id === model.selected && choice.conditioning?.includes('cover'),
+    );
+  }
+  get recordingConditioningSupported() {
+    const model = this.library.models;
+    return model.choices.some(
+      (choice: any) =>
+        choice.id === model.selected && choice.recording_conditioning === 'cover-nofsq',
     );
   }
   library: any = {
@@ -257,6 +278,8 @@ export class AppComponent {
   recording = false;
   requestingMic = false;
   inputHelp = false;
+  postmixHelp = false;
+  adherenceHelp = false;
   private micSession = 0;
   take?: File;
   takeUrl = '';
@@ -289,6 +312,9 @@ export class AppComponent {
       if (this.appearance === 'system') this.applyAppearance();
     });
     try {
+      const savedFlows = JSON.parse(localStorage.getItem('troglodaw-workflow-drafts') || '{}');
+      if (savedFlows && typeof savedFlows === 'object' && !Array.isArray(savedFlows))
+        this.workflowDrafts = savedFlows;
       this.draft = {
         ...defaults(),
         ...JSON.parse(localStorage.getItem('troglodaw-generation-draft') || '{}'),
@@ -401,9 +427,58 @@ export class AppComponent {
     this.cdr.markForCheck();
   }
   saveDraft() {
-    queueMicrotask(() =>
-      localStorage.setItem('troglodaw-generation-draft', JSON.stringify(this.draft)),
-    );
+    queueMicrotask(() => {
+      this.workflowDrafts[this.draft.workflow] = structuredClone(this.draft);
+      localStorage.setItem('troglodaw-generation-draft', JSON.stringify(this.draft));
+      localStorage.setItem('troglodaw-workflow-drafts', JSON.stringify(this.workflowDrafts));
+    });
+  }
+  switchGenerationWorkflow(next: GenerationWorkflow) {
+    if (next === this.draft.workflow) return;
+    this.workflowDrafts[this.draft.workflow] = structuredClone(this.draft);
+    const existing = this.workflowDrafts[next];
+    this.draft = existing
+      ? structuredClone(existing)
+      : {
+          ...structuredClone(this.draft),
+          workflow: next,
+          ...(next === 'recording-style'
+            ? {
+                clips: [],
+                lyrics: '',
+                lyric_idea: '',
+                backing_song_id: '',
+                arrangement: undefined,
+                audio_mode: 'conditioned',
+                audio_adherence: 100,
+              }
+            : {}),
+        };
+    this.inputHelp = this.postmixHelp = this.adherenceHelp = false;
+    this.saveDraft();
+    void this.hydrateClips();
+  }
+  generationRequest() {
+    const request: any = structuredClone(this.draft);
+    if (this.recordingWorkflow) {
+      for (const key of [
+        'lyrics',
+        'lyric_idea',
+        'lyric_language',
+        'backing_song_id',
+        'arrangement',
+        'guide_enhancement',
+        'guide_enhancement_strength',
+      ])
+        delete request[key];
+      request.audio_mode = 'conditioned';
+      request.clips = request.clips.map((clip: Clip) => ({ ...clip, settings: {} }));
+      request.options = {
+        weirdness: request.options.weirdness,
+        influence: request.options.influence,
+      };
+    }
+    return request;
   }
   active(job: Job) {
     return ['queued', 'running'].includes(job.status);
@@ -697,7 +772,14 @@ export class AppComponent {
     this.audioImports++;
     this.beginWorkflow('audio-input');
     try {
-      for (const file of files) await this.acceptFile(file, 'upload');
+      if (this.recordingWorkflow && files.length !== 1)
+        throw new Error('Choose exactly one recording for Recording + style.');
+      for (const file of files)
+        await this.acceptFile(
+          file,
+          'upload',
+          this.recordingWorkflow && this.draft.clips.length ? 0 : -1,
+        );
     } catch (error) {
       this.fail(error, 'audio-input');
     } finally {
@@ -757,6 +839,8 @@ export class AppComponent {
     this.cdr.markForCheck();
   }
   async addAudio(item: Item) {
+    // Library cross-tab actions enter sampled generation; direct recordings have no Library picker.
+    if (this.recordingWorkflow) this.switchGenerationWorkflow('model');
     this.beginWorkflow('audio-input');
     try {
       if (this.backingWorkflow && item.id === this.draft.backing_song_id)
@@ -793,7 +877,7 @@ export class AppComponent {
       return;
     }
     try {
-      await this.submit('song_generate', this.draft);
+      await this.submit('song_generate', this.generationRequest());
     } catch (error) {
       this.fail(error);
     }
@@ -834,6 +918,7 @@ export class AppComponent {
     }
   }
   get automaticDuration() {
+    if (this.recordingWorkflow) return false;
     const value = this.draft.options['duration'];
     return value == null || value === '' || String(value).toLowerCase() === 'auto';
   }
@@ -911,9 +996,16 @@ export class AppComponent {
     }
   }
   applyReference() {
+    const workflow = this.reference?.available.workflow;
+    if (
+      this.referenceFields['workflow'] &&
+      ['model', 'arrange-over-song', 'recording-style'].includes(workflow)
+    )
+      this.switchGenerationWorkflow(workflow);
     if (this.reference)
       for (const key of this.referenceKeys)
         if (this.referenceFields[key]) {
+          if (key === 'workflow') continue;
           const value = structuredClone(this.reference.available[key]);
           if (key === 'clips')
             this.draft.clips = value.map((clip: any) => ({

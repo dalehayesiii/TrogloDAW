@@ -93,6 +93,7 @@ def test_new_postmix_recipe_replays_matched_gains_without_inference(core, songs)
             "clips": [{"id": clip["id"]}],
             "lyrics": "words",
             "styles": "folk",
+            "audio_mode": "postmix",
             "count": 1,
             "options": {"duration": 10},
         },

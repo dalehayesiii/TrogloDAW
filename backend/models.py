@@ -454,7 +454,10 @@ class Models:
                         ),
                     },
                     {
-                        "role": "Automatic song length",
+                        "role": "Automatic song length / musical blueprint"
+                        if "musical_metadata"
+                        in self.manifest["models"][self.selected].get("planning", [])
+                        else "Automatic song length",
                         "id": planner_id,
                         "name": {"acestep-5Hz-lm-1.7B": "ACE-Step 5Hz LM 1.7B"}.get(
                             planner_id, planner_id
@@ -478,6 +481,8 @@ class Models:
                     else "Compatible Base-family alternative; not separately benchmarked",
                     "role": "Local music generation",
                     "conditioning": value.get("conditioning", []),
+                    "recording_conditioning": value.get("recording_conditioning"),
+                    "planning": value.get("planning", []),
                 }
                 for key, value in self.manifest["models"].items()
             ],

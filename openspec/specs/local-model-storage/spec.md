@@ -138,11 +138,11 @@ Setup SHALL disclose and explicitly install pinned local planner assets into sel
 - **THEN** explicit-duration music generation remains available and planning actions explain the additional setup requirement
 
 ### Requirement: Visible model role identities
-Initial setup and Settings SHALL identify the models configured for lyric writing and automatic song length alongside their independent installation/readiness state. These identities SHALL follow the configured music model's associated planner/writer. Fixed vocal-separation and voice-grouping models SHALL be inspectable through progressive disclosure. Identifying a model SHALL not imply that it is installed or introduce a new provider selector.
+Initial setup and Settings SHALL identify the models configured for lyric writing, automatic song length and compatible musical blueprint planning alongside independent installation/readiness state. These identities SHALL follow the configured music model's associated planner/writer. Fixed vocal-separation and voice-grouping models SHALL be inspectable through progressive disclosure. Identifying a model SHALL not imply installation or introduce a new provider selector.
 
 #### Scenario: Song writing tools absent
 - **WHEN** song writing tools are not installed
-- **THEN** Settings shows the configured lyric/length model names and explains the existing setup requirement
+- **THEN** Settings shows the configured lyric/length/blueprint model names and explains the existing setup requirement
 
 #### Scenario: Configured model association changes
 - **WHEN** the configured music model uses a different planner/writer association
