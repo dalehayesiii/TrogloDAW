@@ -143,7 +143,13 @@ def test_shape_change_and_invalid_safety_measurement_fall_back(monkeypatch):
 
 def generate(service, core, clip, **draft):
     return service.generate(
-        {"clips": [{"id": clip["id"]}], "styles": "folk", "options": {"duration": 10}, **draft},
+        {
+            "clips": [{"id": clip["id"]}],
+            "styles": "folk",
+            "options": {"duration": 10},
+            "audio_mode": "conditioned",
+            **draft,
+        },
         lambda *_a, **_k: None,
         lambda: False,
     )["outcomes"][0]
@@ -166,7 +172,12 @@ def test_conditioned_generation_receives_enhanced_guide_and_keeps_raw(
 
     service.invoke = invoke
     output = service.generate(
-        {"clips": [{"id": clip["id"]}], "styles": "folk", "options": {"duration": 10}},
+        {
+            "clips": [{"id": clip["id"]}],
+            "styles": "folk",
+            "options": {"duration": 10},
+            "audio_mode": "conditioned",
+        },
         lambda message, *_a, **_k: messages.append(message),
         lambda: False,
     )["outcomes"][0]
@@ -212,6 +223,7 @@ def test_off_postmix_and_saved_arrangement_reuse(core, songs):
             "options": {"duration": 10},
             "guide_enhancement": "ai_clean",
             "guide_enhancement_strength": 80,
+            "audio_mode": "conditioned",
         }
     )
     messages = []

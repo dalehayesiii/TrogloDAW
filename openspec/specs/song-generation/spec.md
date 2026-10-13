@@ -101,14 +101,14 @@ Recipes SHALL preserve source, sample, arrangement and model assets sufficient f
 - **THEN** the chosen mode/adherence and available arrangement can be reused without overwriting unselected ingredients
 
 ### Requirement: Arrangement-conditioned generation
-With input clips and a compatible model, generation SHALL default to conditioning on the complete transformed arrangement WAV alongside unchanged lyrics and effective styles. The resulting whole mix SHALL be saved without double-overlaying samples. Recipes SHALL disclose requested/effective mode and model capability. Without clips generation SHALL use text/style inference.
+When the user explicitly disables Mix samples after generation with input clips and a compatible model, generation SHALL condition on the complete transformed arrangement WAV alongside unchanged lyrics and effective styles. The resulting whole mix SHALL be saved without double-overlaying samples. Recipes SHALL disclose requested/effective mode and model capability. Without clips generation SHALL use text/style inference.
 
 #### Scenario: Full-song audio conditioning
-- **WHEN** a compatible model generates from several clips
+- **WHEN** a compatible model generates from several clips with conditioning explicitly selected
 - **THEN** it receives one full-duration arrangement containing every selected source before inference, and the final mix preserves the model output rather than adding those samples again
 
 ### Requirement: Optional post-generation sample mix
-Input Audio SHALL offer Mix samples after generation. Selected mode SHALL persist in drafts/recipes and remain reusable. This mode SHALL generate without audio conditioning and mix the improved arrangement afterward. Unsupported conditioning SHALL use this fallback with a visible explanation and retained requested/effective mode; it SHALL not claim active audio adherence.
+Input Audio SHALL offer Mix samples after generation, enabled for fresh drafts and API requests without a mode. Explicit saved choices SHALL persist in drafts/recipes and remain reusable. Postmix SHALL generate without audio conditioning and mix the improved arrangement afterward. Unsupported conditioning SHALL use this fallback with a visible explanation and retained requested/effective mode; it SHALL not claim active audio adherence.
 
 #### Scenario: Explicit postmix choice
 - **WHEN** the user enables Mix samples after generation
@@ -117,6 +117,10 @@ Input Audio SHALL offer Mix samples after generation. Selected mode SHALL persis
 #### Scenario: Unsupported model
 - **WHEN** conditioning is requested with a model lacking that capability
 - **THEN** the app explains postmix fallback and preserves the request and effective behavior in the recipe
+
+#### Scenario: Fresh and persisted mode
+- **WHEN** a fresh draft or mode-less request is created
+- **THEN** postmix is selected by default, while restoring a draft with an explicit conditioned mode preserves that choice
 
 ### Requirement: Independent audio adherence
 Audio adherence SHALL appear only with selected clips and apply only in conditioned mode on a supported model. It SHALL have a validated mapping distinct from Style Influence and sample gain. Zero SHALL disable source conditioning; higher values SHALL increase its effective influence without guaranteeing exact waveform, voice identity or words.
@@ -190,6 +194,27 @@ Explicit duration SHALL support 10–300 seconds. Missing, blank or auto duratio
 #### Scenario: Five-minute explicit song
 - **WHEN** duration is 300 seconds
 - **THEN** generation attempts the complete requested length with existing memory safeguards and reports failure rather than silently truncating
+
+### Requirement: Default sample loudness matching
+New postmix songs SHALL match each transformed sample to estimated generated-vocal loudness, using generated-song loudness for instrumental requests or effectively silent vocal stems. Recipes SHALL retain the reference, measurements and effective placement gains for replay without new inference. Conditioned songs and existing rendered recipes SHALL retain their semantics. Final mastering MAY affect perceived balance; separation is an estimate, not guaranteed singer identification.
+
+#### Scenario: Quiet input with generated singing
+- **WHEN** new postmix generation uses quiet source gestures and a usable generated vocal stem
+- **THEN** each gesture receives measured loudness correction plus its manual offset, and saved replay reproduces the result without separation
+
+### Requirement: Local vocal loudness reference
+Vocal separation SHALL be local, sequential and use installed verified assets without speaker analysis. Nonempty lyrics SHALL trigger vocal-reference measurement. Stems below -60 LUFS or more than 30 LU below the generated song SHALL fall back to song loudness; instrumental requests SHALL use the song directly.
+
+#### Scenario: Instrumental or silent vocal reference
+- **WHEN** lyrics are empty or measured vocal separation is effectively silent
+- **THEN** sample loudness targets the generated song, and an instrumental request needs no separation
+
+### Requirement: Bounded sample balance and manual offsets
+Short samples SHALL be measured without silence dilution. Automatic correction SHALL be bounded to plus/minus 30 dB. Manual clip volume SHALL remain a relative offset, defaulting to zero for fresh clips and new prior-song preset v2. Explicit saved offsets SHALL remain unchanged.
+
+#### Scenario: Explicit clip volume and short gestures
+- **WHEN** the user chooses a negative volume offset for a gesture shorter than 400 milliseconds
+- **THEN** loudness measurement preserves its active energy and mixing applies that quieter offset after bounded automatic correction
 
 ### Requirement: Guide enhancement before audio conditioning
 Audio-conditioned generation SHALL offer Off, Light and AI clean guide enhancement with a 0–100 strength, defaulting to Light at strength 50 when no choice is saved. Enhancement SHALL run after the full-duration guide is final, including saved-arrangement reuse, and before the model receives it. Postmix and text-only generation SHALL NOT be enhanced.

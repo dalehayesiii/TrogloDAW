@@ -497,8 +497,6 @@ def separate(request):
 
     torch = import_module("torch")
     torchaudio = import_module("torchaudio")
-    EncoderClassifier = import_module("speechbrain.inference.speaker").EncoderClassifier
-    LocalStrategy = import_module("speechbrain.utils.fetching").LocalStrategy
 
     torch.set_num_threads(min(8, os.cpu_count() or 1))
     root = Path(request["root"])
@@ -509,7 +507,7 @@ def separate(request):
         stage_device=device,
         timing_profile={
             **hardware(torch, device),
-            "model": "hdemucs-high+ecapa",
+            "model": "hdemucs-high" if request.get("reference_only") else "hdemucs-high+ecapa",
             "offload": "none",
             "precision": "fp32",
             "quantization": "none",
@@ -567,6 +565,11 @@ def separate(request):
     sf.write(output / "vocals.wav", vocals.T.numpy(), sr, subtype="FLOAT")
     # Retain the exact residual; bypass reconstruction is sample-aligned by construction.
     sf.write(output / "accompaniment.wav", audio - vocals.T.numpy(), sr, subtype="FLOAT")
+    if request.get("reference_only"):
+        emit("complete", 1, result={"samples": length, "sample_rate": sr})
+        return
+    EncoderClassifier = import_module("speechbrain.inference.speaker").EncoderClassifier
+    LocalStrategy = import_module("speechbrain.utils.fetching").LocalStrategy
     emit("loading_voices", stage_device="cpu")
     speaker = root / "speaker"
     # Load verified local hparams directly: from_hparams also tries an absent custom.py.
