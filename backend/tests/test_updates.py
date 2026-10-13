@@ -179,19 +179,22 @@ def test_release_failures_are_quiet_bounded_and_redacted(update_manager, failure
     assert "synthetic_token" not in json.dumps(state)
 
 
-def test_private_access_can_fall_back_to_the_other_authorized_account(update_manager):
+def test_private_access_can_fall_back_to_another_credential_source(update_manager):
     manager, fixture = update_manager
-    manager.token_source = lambda: [("preferred", "purpledragondude7"), ("fallback", "s116821")]
+    manager.token_source = lambda: [
+        ("synthetic_saved_token", "Windows Credential Manager"),
+        ("synthetic_cli_token", "GitHub CLI: active account"),
+    ]
     original = fixture.open
 
     def open_request(request, timeout):
-        if request.get_header("Authorization") == "Bearer preferred":
+        if request.get_header("Authorization") == "Bearer synthetic_saved_token":
             raise http_error(404)
         return original(request, timeout)
 
     fixture.open = open_request
-    assert complete(manager, "check")["access"] == "s116821"
-    assert "fallback" not in json.dumps(manager.snapshot())
+    assert complete(manager, "check")["access"] == "GitHub CLI: active account"
+    assert "synthetic_cli_token" not in json.dumps(manager.snapshot())
 
 
 def test_redirect_removes_cross_host_credentials_and_rejects_other_hosts():

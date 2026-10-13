@@ -24,9 +24,9 @@ Interface example captured from the real app against synthetic release/installer
 
 ## Private release access
 
-This repository currently has private releases. The app can reuse an existing GitHub CLI login (purpledragondude7 first, then s116821), an explicit `TROGLODAW_GITHUB_TOKEN`, or a token you save through **Private release access**. GitHub CLI is optional. A fine-grained token needs read access to repository **Contents**. Save tokens only through the password field; they are stored in Windows Credential Manager for this installation, never in JSON preferences or song recipes. Uninstall removes this installation's saved access even when models are retained. Credentials are stripped from redirects to other approved download hosts.
+Public releases can be accessed without credentials. If private release access is needed, the app tries a token saved through **Private release access**, an explicit `TROGLODAW_GITHUB_TOKEN`, then the active GitHub CLI login, before public access. GitHub CLI is optional. The app does not prefer named accounts, enumerate other logins or switch accounts; select the intended active login in GitHub CLI or supply release access explicitly. A fine-grained token needs read access to repository **Contents**. Save tokens only through the password field; they are stored in Windows Credential Manager for this installation, never in JSON preferences or song recipes. Uninstall removes this installation's saved access even when models are retained. Credentials are stripped from redirects to other approved download hosts.
 
-After the preferred accounts, the CLI's active account is also tried. Windows
+The CLI's active account is tried once, without changing its selection. Windows
 checks look in standard GitHub CLI and WinGet installation locations if the
 desktop process inherited a PATH from before the CLI was installed. Source builds
 show their development status and use Git/rebuild or manual browser downloads;
