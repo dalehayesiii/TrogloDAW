@@ -398,8 +398,13 @@
                     min="-30"
                     max="12"
                     [(ngModel)]="clip.settings['gain']"
-                    placeholder="-6"
+                    placeholder="0"
                   />
+                  <p class="muted">
+                    In sample mixing, 0 dB matches the generated vocal loudness, or the song for
+                    instrumental music. Use negative values for quieter samples and positive values
+                    for louder samples.
+                  </p>
                 </div>
               </details>
               @if(clip.source_type==='prior-song' && !clip.preset){<button
@@ -859,13 +864,14 @@
               prepared.'}}
             </p>
             <p class="notice">{{fx.warning}}</p>
-            <label for="voice-group">Voice group</label
+            <label for="voice-group">Apply effects to</label
             ><select id="voice-group" [(ngModel)]="fxGroup">
+              <option value="all">All vocals</option>
               @for(group of fx.groups;track group.id){
               <option [value]="group.id">{{group.name}}</option>
               }</select
             ><troglodaw-audio
-              label="Solo selected voice group"
+              [label]="fxGroup==='all' ? 'Solo all vocals' : 'Solo selected voice group'"
               [media]="currentGroup?.audio || null"
             />
           </div>
@@ -897,12 +903,14 @@
             </div>
             <h3>Effects for {{currentGroup?.name}}</h3>
             <p class="muted">
-              Only the selected group changes. Stretch and trim keep fixed timeline slots; tails end
-              at their slot boundary.
+              {{fxGroup==='all' ? 'Each changed control applies to every voice group, including
+              uncertain vocals.' : 'Only this voice group changes.'}} Stretch and trim keep fixed
+              timeline slots; tails end at their slot boundary.
             </p>
             @for(control of fxFields.slice(0,3);track control.key){<troglodaw-field
               [field]="control"
               [value]="fxValue(control)"
+              [mixed]="fxMixed(control)"
               (valueChange)="setFx(control.key,$event)"
             />}
             <details>
@@ -911,6 +919,7 @@
                 @for(control of fxFields.slice(3);track control.key){<troglodaw-field
                   [field]="control"
                   [value]="fxValue(control)"
+                  [mixed]="fxMixed(control)"
                   (valueChange)="setFx(control.key,$event)"
                 />}
               </div>
@@ -1327,8 +1336,8 @@
       } @case('preset'){
       <p>
         {{presetClip?.label}} is a finished song. Recommended defaults select up to eight short
-        one-second samples, +2 semitones, 1.1× stretch and −12 dB gain for this clip. Your lyrics,
-        styles and other draft fields stay as they are.
+        one-second samples, +2 semitones, 1.1× stretch and matched loudness for this clip. Your
+        lyrics, styles and other draft fields stay as they are.
       </p>
       <button type="button" class="primary" (click)="choosePreset('apply')">
         Apply recommended prior-song defaults</button

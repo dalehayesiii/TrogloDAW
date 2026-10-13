@@ -41,6 +41,8 @@ def test_real_arrangement_request_and_no_double_overlay(core, songs, mode, tmp_p
     requests = []
 
     def invoke(action, values, progress, canceled):
+        if action != "generate":
+            return original(action, values, progress, canceled)
         requests.append(copy.deepcopy(values))
         if mode == "conditioned":
             audio, sr = sf.read(values["conditioning_audio"], always_2d=True)
@@ -117,7 +119,8 @@ def test_original_recipe_retains_postmix_replay_semantics(core, songs):
 
 def test_modes_fallback_and_input_validation(songs):
     service, _ = songs
-    fallback = generation_mode({}, service.models, True)
+    assert generation_mode({}, service.models, True)["requested_mode"] == "postmix"
+    fallback = generation_mode({"audio_mode": "conditioned"}, service.models, True)
     assert fallback["requested_mode"] == "conditioned" and fallback["effective_mode"] == "postmix"
     assert fallback["fallback_reason"] and fallback["effective_audio_adherence"] is None
     assert generation_mode({}, service.models, False)["effective_mode"] == "text"

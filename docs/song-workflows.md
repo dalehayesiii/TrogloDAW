@@ -66,16 +66,32 @@ clip gain, and individual variants and the combined guide are attenuated if nece
 to retain a 0.8 peak ceiling. This protects against clipping without unlimited quiet
 source/noise amplification. It does not make all recordings equally loud.
 
-By default, the compatible Base model receives this complete arrangement WAV
-**before generation**, alongside lyrics and styles. It produces the whole song;
-the app saves that mix directly rather than overlaying the same samples again.
-Inside Input Audio, expand **Audio arrangement settings** for **Audio adherence**
-(default 75%). It maps to the fraction of diffusion steps using source-audio
-conditioning, rounded down to whole steps out of 32; requested/effective values are
-saved. 0% disables that influence, 100% uses it throughout. It is independent
-of Style Influence, pitch, speed and volume. The model can reinterpret or blur
-samples, change timbre and pronounce words imperfectly; adherence does not promise
-exact sample preservation or singer identity.
+Fresh drafts enable **Mix samples after generation**. The model generates music
+independently, then the transformed samples are mixed into it. Saved explicit mode
+choices remain unchanged. Without input clips, generation uses lyrics/styles directly
+and these Input Audio settings are hidden.
+
+Postmix gestures automatically match estimated generated-vocal loudness. Instrumental
+requests use the generated song instead. With lyrics, the installed local HDemucs
+separator measures a vocal reference without running speaker analysis; this adds
+separation time after generation. Effectively silent stems fall back to song loudness.
+Separation is an estimate and can contain instrumental bleed. Each transformed gesture
+is measured using gated K-weighted loudness; gestures shorter than 400 ms repeat only
+for measurement, preserving playback length. Automatic correction is bounded to
+±30 dB. Very quiet/noisy sources can therefore still miss the target.
+
+**Volume (dB)** is an offset from matched loudness: fresh clips and new prior-song
+presets default to 0, negative values make samples quieter, positive values louder.
+Explicit saved offsets remain unchanged. Recipes retain reference, measurements and
+effective placement gains; replay needs no new separation. Final bus mastering can
+change perceived balance. Existing songs replay their original gains.
+
+Disable **Mix samples after generation** to use the complete arrangement WAV before
+inference on a compatible model. The model produces the whole mix without a second
+sample overlay or postmix loudness matching. **Audio adherence** (default 75%) maps
+to source-conditioned diffusion steps out of 32; 0% disables that influence, 100% uses
+it throughout. It is independent of Style Influence and can reinterpret samples,
+voices or words. Unsupported conditioning falls back to postmix with an explanation.
 
 **Enhance guide** (same settings panel, default **Light** at 50% strength) cleans the
 arrangement just before the model hears it: click repair, gentle de-harshing,
@@ -83,12 +99,6 @@ quieter gaps and a bounded lift of quiet guides. The original arrangement is kep
 beside the enhanced guide and both can be previewed in the result. **AI clean** is
 shown but unavailable in this version. See [guide enhancement](guide-enhancement.md).
 
-Enable **Mix samples after generation** to keep the independent generation approach:
-the same improved arrangement is mixed over the generated music afterward. Audio
-adherence is inactive in that mode. A model without supported conditioning uses
-this postmix fallback with an explanation; requested/effective modes stay in the
-recipe. Without input clips, generation uses lyrics/styles directly and these
-Input Audio settings are hidden.
 
 Original input copies, transformed sample WAVs, complete arrangement audio, model
 output and gain-bearing placements remain separate inspectable assets. Conditioned
@@ -149,7 +159,12 @@ not overwritten. Existing song playback links follow a successful library move.
 
 Vocal FX looks up source-content/model/runtime-version caches and extracts missing
 vocals automatically in a background job. Candidate voices are uncertain, with
-solo previews and timeline correction/grouping. The effects are the existing pitch,
+solo previews and timeline correction/grouping. **Apply effects to** defaults to
+**All vocals**, including uncertain segments and voices that start before the first
+listed candidate. Solo all vocals plays the full vocal stem. Select a candidate to
+edit that group independently; differing values show **Mixed** when returning to All
+vocals. Changing one control applies only that parameter to every target group,
+preserving other group differences. The effects are the existing pitch,
 stretch, gain, low/high-cut EQ, compression, chorus, robot, echo/delay, reverb,
 trim and normalization controls; details are progressively disclosed.
 
@@ -162,3 +177,7 @@ First save creates a distinct `_FX` song with lineage. Later saves explicitly of
 cached unprocessed source stems, avoiding repeated baking of earlier effects.
 Changing source audio or relevant processor versions invalidates cached stems.
 Source/cache/edited assets and recipes remain with the complete portable library.
+
+Every shared audio player shows a playhead over its waveform, including input clips,
+recording previews, Library assets, vocal solos and remixes. It follows playback,
+seek and skip position, stays visible while paused and resets for replacement audio.

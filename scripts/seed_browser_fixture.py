@@ -20,7 +20,13 @@ from storage import atomic_json, digest  # noqa: E402
 voice = core._new_entry(
     "voice", "Synthetic browser recording", core.synth_voice(1), "synthetic-test"
 )
-audio = core.synth_voice(2) * 0.4
+late_vocals = os.environ.get("TROGLODAW_TEST_LATE_VOCALS") == "1"
+if late_vocals:
+    audio = np.repeat(
+        (0.2 * np.sin(2 * np.pi * 220 * np.arange(15 * core.SR) / core.SR))[:, None], 2, axis=1
+    ).astype(np.float32)
+else:
+    audio = core.synth_voice(2) * 0.4
 item = core._new_entry(
     "generated",
     "Synthetic browser song",
@@ -48,12 +54,17 @@ import shutil  # noqa: E402
 
 shutil.copyfile(item["path"], directory / "source.wav")
 source = core.load_item(item["id"])
-vocal = source * 0.25
+vocal = source * (0.9 if late_vocals else 0.25)
 sf.write(directory / "vocals.wav", vocal, core.SR, subtype="FLOAT")
 sf.write(directory / "accompaniment.wav", source - vocal, core.SR, subtype="FLOAT")
 groups, segments = [], []
-for index, (start, end) in enumerate([(0, len(vocal) // 2), (len(vocal) // 2, len(vocal))]):
-    group = f"g{index + 1}"
+ranges = (
+    [(12 * core.SR, len(vocal)), (0, 12 * core.SR)]
+    if late_vocals
+    else [(0, len(vocal) // 2), (len(vocal) // 2, len(vocal))]
+)
+for index, (start, end) in enumerate(ranges):
+    group = f"g{index}" if late_vocals else f"g{index + 1}"
     part = np.zeros_like(vocal)
     part[start:end] = vocal[start:end]
     path = directory / (group + ".wav")

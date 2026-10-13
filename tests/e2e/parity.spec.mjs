@@ -89,7 +89,8 @@ test('applicable audio conditioning controls persist and postmix disables adhere
   const settings = page.locator('.input-stone .audio-arrangement-settings');
   await expect(settings).not.toHaveAttribute('open');
   await settings.getByText('Audio arrangement settings', { exact: true }).click();
-  await expect(page.getByLabel('Mix samples after generation')).not.toBeChecked();
+  await expect(page.getByLabel('Mix samples after generation')).toBeChecked();
+  await page.getByLabel('Mix samples after generation').uncheck();
   await page.getByLabel(/^Audio adherence/).fill('62');
   const enhance = page.getByLabel('Enhance guide', { exact: true });
   await expect(enhance).toHaveValue('light');
@@ -105,6 +106,7 @@ test('applicable audio conditioning controls persist and postmix disables adhere
   await expect(page.getByRole('dialog')).not.toBeVisible();
   await expect(page.getByLabel('Notification', { exact: true })).toHaveCount(0);
   await settings.getByText('Audio arrangement settings', { exact: true }).click();
+  await expect(page.getByLabel('Mix samples after generation')).not.toBeChecked();
   await expect(page.getByLabel(/^Audio adherence/)).toHaveValue('62');
   await expect(page.getByLabel('Enhance guide', { exact: true })).toHaveValue('light');
   await expect(page.getByLabel(/^Enhancement strength/)).toHaveValue('70');
@@ -201,7 +203,7 @@ test('multiple real uploads, folders, prior-song choices and cached FX saves', a
   await page.getByRole('button', { name: 'Reuse selected ingredients' }).click();
   await page.getByRole('tab', { name: 'Library', exact: true }).click();
   await page.getByRole('button', { name: 'Edit Vocal FX', exact: true }).click();
-  await expect(page.getByLabel('Voice group', { exact: true })).toBeVisible();
+  await expect(page.getByLabel('Apply effects to', { exact: true })).toBeVisible();
   await expect(page.getByText('Source stems and analysis reused.', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Save FX version', exact: true }).click();
   await expect(page.getByRole('status').filter({ hasText: 'Saved new FX version' })).toBeVisible();
@@ -448,7 +450,7 @@ test('system appearance, saved override, waveform repaint and accessible themed 
       .click();
     await audit();
     await page.getByRole('button', { name: 'Edit Vocal FX', exact: true }).click();
-    await expect(page.getByLabel('Voice group', { exact: true })).toBeVisible();
+    await expect(page.getByLabel('Apply effects to', { exact: true })).toBeVisible();
     await audit();
   }
   const canvas = page.locator('#panel-2 canvas').first();

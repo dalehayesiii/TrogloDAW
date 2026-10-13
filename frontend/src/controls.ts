@@ -72,19 +72,31 @@ export class IconComponent {
   template: `
     @if (field.kind === 'check') {
       <label class="check-label"
-        ><input type="checkbox" [ngModel]="value" (ngModelChange)="valueChange.emit($event)" />{{
-          field.label
-        }}</label
-      >
+        ><input
+          type="checkbox"
+          [ngModel]="mixed ? false : value"
+          [indeterminate]="mixed"
+          (ngModelChange)="valueChange.emit($event)"
+        />{{ field.label }}
+        @if (mixed) {
+          <span class="mixed-value">Mixed</span>
+        }
+      </label>
     } @else {
       <div class="field-header">
-        <label [for]="field.key">{{ field.label }}</label>
+        <label [for]="field.key"
+          >{{ field.label }}
+          @if (mixed) {
+            <span class="mixed-value">Mixed</span>
+          }
+        </label>
         @if (field.kind === 'slider') {
           <span class="slider-number"
             ><input
               type="number"
               [attr.aria-label]="field.label + ' value'"
-              [ngModel]="value"
+              [ngModel]="mixed ? null : value"
+              [placeholder]="mixed ? 'Mixed' : ''"
               (ngModelChange)="valueChange.emit($event)"
               [step]="field.step"
               [min]="field.min ?? null"
@@ -109,7 +121,7 @@ export class IconComponent {
               [min]="field.min"
               [max]="field.max"
               [step]="field.step"
-              [ngModel]="value"
+              [ngModel]="mixed ? field.initial : value"
               (ngModelChange)="valueChange.emit(+$event)"
               [style.--fill]="fill() + '%'"
             /><span>{{ field.max }}</span>
@@ -158,12 +170,14 @@ export class IconComponent {
 export class FieldComponent {
   @Input({ required: true }) field!: Field;
   @Input() value: Value = '';
+  @Input() mixed = false;
   @Input() options: Option[] = [];
   @Output() valueChange = new EventEmitter<Value>();
   hasEmptyOption() {
     return this.options.some((option) => option.value === '');
   }
   fill() {
+    if (this.mixed) return 50;
     return (
       ((Number(this.value) - (this.field.min || 0)) /
         ((this.field.max || 1) - (this.field.min || 0))) *
@@ -269,23 +283,33 @@ export class DownloadComponent {
     <audio
       #player
       [src]="media?.url || ''"
-      (timeupdate)="time = player.currentTime"
+      (timeupdate)="syncTime(player)"
+      (seeking)="syncTime(player)"
+      (seeked)="syncTime(player)"
       (play)="playing = true"
       (pause)="playing = false"
+      (ended)="playing = false; syncTime(player)"
       (volumechange)="muted = player.muted"
       (ratechange)="rate = player.playbackRate"
       (error)="playbackFailed()"
-      (loadedmetadata)="duration = player.duration"
+      (loadedmetadata)="duration = player.duration; syncTime(player)"
     ></audio>
     @if (media) {
-      <canvas
-        #wave
-        width="1000"
-        height="64"
-        role="img"
-        [attr.aria-label]="label + ' waveform'"
-        (click)="seek($event, player)"
-      ></canvas>
+      <div class="audio-waveform">
+        <canvas
+          #wave
+          width="1000"
+          height="64"
+          role="img"
+          [attr.aria-label]="label + ' waveform'"
+          (click)="seek($event, player)"
+        ></canvas>
+        <span
+          class="audio-playhead"
+          [style.--position]="playheadPosition + '%'"
+          aria-hidden="true"
+        ></span>
+      </div>
       <div class="audio-timeline">
         <span>{{ clock(time) }}</span
         ><span>{{ clock(duration, true) }}</span>
@@ -359,6 +383,14 @@ export class AudioComponent implements OnChanges, AfterViewInit, OnDestroy {
   feedback = '';
   samples?: Float32Array;
   private resize?: ResizeObserver;
+  get playheadPosition() {
+    return Number.isFinite(this.duration) && this.duration > 0 && Number.isFinite(this.time)
+      ? Math.max(0, Math.min(100, (this.time / this.duration) * 100))
+      : 0;
+  }
+  syncTime(player: HTMLAudioElement) {
+    this.time = Number.isFinite(player.currentTime) ? player.currentTime : 0;
+  }
   async ngOnChanges(changes: SimpleChanges) {
     if (!changes['media'] || changes['media'].previousValue?.url === this.media?.url) return;
     this.playing = false;
@@ -442,11 +474,14 @@ export class AudioComponent implements OnChanges, AfterViewInit, OnDestroy {
   seek(event: MouseEvent, player: HTMLAudioElement) {
     const box = (event.target as HTMLElement).getBoundingClientRect();
     if (Number.isFinite(player.duration))
-      player.currentTime = ((event.clientX - box.left) / box.width) * player.duration;
+      player.currentTime =
+        Math.max(0, Math.min(1, (event.clientX - box.left) / box.width)) * player.duration;
+    this.syncTime(player);
   }
   skip(player: HTMLAudioElement, seconds: number) {
     if (Number.isFinite(player.duration))
       player.currentTime = Math.min(player.duration, Math.max(0, player.currentTime + seconds));
+    this.syncTime(player);
   }
   playbackFailed() {
     if (!this.media) return;

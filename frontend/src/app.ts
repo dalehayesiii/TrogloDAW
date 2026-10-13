@@ -70,7 +70,7 @@ const defaults = (): Draft => ({
   styles: '',
   title: '',
   count: 2,
-  audio_mode: 'conditioned',
+  audio_mode: 'postmix',
   audio_adherence: 75,
   guide_enhancement: 'light',
   guide_enhancement_strength: 50,
@@ -111,7 +111,7 @@ export const fxFields: Field[] = [
   field('room_size', 'Room size', 'slider', 0.6, 0, 1, 0.05),
   field('trim', 'Trim silence without shifting timing', 'check', false),
   field('trim_db', 'Trim threshold below peak (dB)', 'slider', 40, 10, 80, 1),
-  field('normalize', 'Normalize this voice group', 'check', false),
+  field('normalize', 'Normalize selected vocals', 'check', false),
 ];
 
 @Component({
@@ -485,7 +485,16 @@ export class AppComponent {
     }
   }
   get currentGroup(): any {
+    if (this.fxGroup === 'all' && this.fx?.groups?.length)
+      return { name: 'All vocals', audio: this.fx.vocal_audio };
     return this.fx?.groups?.find((group: any) => group.id === this.fxGroup);
+  }
+  get fxTargets(): any[] {
+    return this.fxGroup === 'all'
+      ? this.fx?.groups || []
+      : this.currentGroup
+        ? [this.currentGroup]
+        : [];
   }
   get referenceKeys(): string[] {
     return Object.keys(this.reference?.available || {});
@@ -558,9 +567,12 @@ export class AppComponent {
         if (existing) group.settings = existing.settings;
       }
       this.fx = result;
-      this.fxGroup = result.groups.some((group: any) => group.id === this.fxGroup)
-        ? this.fxGroup
-        : result.groups[0]?.id || '';
+      this.fxGroup =
+        this.fxGroup === 'all' || result.groups.some((group: any) => group.id === this.fxGroup)
+          ? this.fxGroup
+          : result.groups.length
+            ? 'all'
+            : '';
       this.fxName = result.song.name + (result.song.recipe?.op === 'vocal-fx-song' ? '' : '_FX');
     }
     if (job.action === 'vocal_render' && job.song_id === this.fxSongId) {
@@ -750,7 +762,7 @@ export class AppComponent {
           samples: 8,
           pitch: 2,
           stretch: 1.1,
-          gain: -12,
+          gain: 0,
         };
     }
     this.closeDialog();
@@ -919,10 +931,14 @@ export class AppComponent {
     return JSON.stringify(value, null, 2);
   }
   fxValue(field: Field): Value {
-    return this.currentGroup?.settings[field.key] ?? field.initial;
+    return this.fxTargets[0]?.settings[field.key] ?? field.initial;
+  }
+  fxMixed(field: Field) {
+    const first = this.fxValue(field);
+    return this.fxTargets.some((group) => (group.settings[field.key] ?? field.initial) !== first);
   }
   setFx(key: string, value: Value) {
-    if (this.currentGroup) this.currentGroup.settings[key] = value;
+    for (const group of this.fxTargets) group.settings[key] = value;
   }
   addVoiceGroup(index: number) {
     if (!this.fx) return;

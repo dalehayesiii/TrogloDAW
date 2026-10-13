@@ -31,14 +31,14 @@ from models import CREATE_FLAGS, ROOT, Canceled, cache_environment, runtime_sign
 from storage import atomic_json, digest, safe_file, writable_root
 
 PRESET = {
-    "version": "prior-song-v1",
+    "version": "prior-song-v2",
     "sample_seconds": 1.0,
     "samples": 8,
     "pitch": 2.0,
     "stretch": 1.1,
-    "gain": -12.0,
+    "gain": 0.0,
 }
-CLIP_DEFAULTS = {"sample_seconds": 2.0, "samples": 8, "pitch": 0.0, "stretch": 1.0, "gain": -6.0}
+CLIP_DEFAULTS = {"sample_seconds": 2.0, "samples": 8, "pitch": 0.0, "stretch": 1.0, "gain": 0.0}
 OPTIONS = {"gender": "", "duration": "auto", "weirdness": 50, "influence": 50, "variety": 0}
 
 
@@ -46,8 +46,20 @@ def song_item(item):
     return item.get("is_song", False) or item["type"] in {"generated", "mix"}
 
 
+def sample_loudness(core, audio):
+    """Measure short gestures without diluting them with padded silence."""
+    if not np.isfinite(audio).all():
+        raise ValueError("Cannot match loudness of audio containing non-finite samples")
+    if not len(audio) or np.max(np.abs(audio)) < 1e-7:
+        return -70.0
+    minimum = round(0.4 * core.SR)
+    if len(audio) < minimum:
+        audio = np.tile(audio, (math.ceil(minimum / len(audio)), 1))[:minimum]
+    return core.lufs(audio)
+
+
 def generation_mode(draft, models, has_samples):
-    requested = draft.get("audio_mode", "conditioned")
+    requested = draft.get("audio_mode", "postmix")
     if requested not in {"conditioned", "postmix"}:
         raise ValueError("Choose audio-conditioned generation or post-generation sample mixing")
     adherence = draft.get("audio_adherence", 75)
@@ -518,6 +530,71 @@ class Songs:
             }
         return layer, assets, placements, analyses
 
+    def match_samples(
+        self, generated, directory, samples, placements, sources, draft, progress, canceled
+    ):
+        """Persist effective placement gains; replay never runs separation again."""
+        reference = generated
+        reference_kind = "song"
+        reference_file = None
+        song_level = sample_loudness(self.core, generated)
+        if str(draft.get("lyrics", "")).strip():
+            progress("Measuring generated vocal loudness", 0, stage="matching_samples")
+            output = directory / "loudness-reference"
+            self.invoke(
+                "separate",
+                {
+                    "audio": str(directory / "musical-parts.wav"),
+                    "output": str(output),
+                    "reference_only": True,
+                },
+                progress,
+                canceled,
+            )
+            vocal_file = output / "vocals.wav"
+            vocal = self.core.load(vocal_file)
+            if vocal.shape != generated.shape or not np.isfinite(vocal).all():
+                raise ValueError("Vocal loudness reference does not match the generated song")
+            vocal_level = sample_loudness(self.core, vocal)
+            # Ignore effectively silent stems and very faint instrumental bleed.
+            if vocal_level > -60 and vocal_level >= song_level - 30:
+                reference, reference_kind = vocal, "vocals"
+                reference_file = self.relative(vocal_file)
+        target = sample_loudness(self.core, reference)
+        layer = np.zeros_like(generated)
+        settings = {source["id"]: source["settings"] for source in sources}
+        measured = {}
+        for sample in samples:
+            if canceled():
+                raise Canceled("Sample loudness matching canceled")
+            audio = self.core.load(self.asset(sample["file"]))
+            level = sample_loudness(self.core, audio)
+            offset = float(settings[sample["source_id"]]["gain"])
+            adjustment = (
+                min(30.0, max(-30.0, target - level)) if target > -69 and level > -69 else 0.0
+            )
+            measured[sample["id"]] = (audio, 10 ** ((adjustment + offset) / 20))
+            sample["loudness_match"] = {
+                "measured_lufs": level,
+                "adjustment_db": adjustment,
+                "volume_offset_db": offset,
+                "limited": abs(target - level) > 30,
+            }
+        for placement in placements:
+            audio, gain = measured[placement["sample_id"]]
+            placement["pre_match_gain"] = placement.get("gain", 1)
+            placement["gain"] = gain
+            start, length = placement["offset_samples"], placement["length_samples"]
+            layer[start : start + length] += audio[:length] * gain
+        progress("Sample loudness matched", 1, stage="matching_samples")
+        return layer, {
+            "version": 1,
+            "reference": reference_kind,
+            "reference_file": reference_file,
+            "target_lufs": target,
+            "max_adjustment_db": 30,
+        }
+
     def enhance_guide(self, layer, enhancement_settings, progress):
         """Prepare the conditioning guide; the unchanged layer is never modified."""
         tier, strength = enhancement_settings["tier"], enhancement_settings["strength"]
@@ -765,6 +842,19 @@ class Songs:
                     generated = np.pad(generated, ((0, expected - len(generated)), (0, 0)))
                 musical_file = directory / "musical-parts.wav"
                 sf.write(musical_file, generated, self.core.SR, subtype="FLOAT")
+                loudness_match = None
+                if samples and mode["effective_mode"] == "postmix":
+                    layer, loudness_match = self.match_samples(
+                        generated,
+                        directory,
+                        samples,
+                        placements,
+                        current_sources,
+                        draft,
+                        item_progress,
+                        canceled,
+                    )
+                    sf.write(arrangement_file, layer, self.core.SR, subtype="FLOAT")
                 item_progress(
                     "Mixing and mastering", 0, stage="rendering", units_complete=0, units_total=1
                 )
@@ -807,6 +897,7 @@ class Songs:
                     "sources": current_sources,
                     "samples": samples,
                     "placements": placements,
+                    "sample_loudness_match": loudness_match,
                     "analysis": analyses,
                     "musical_file": self.relative(musical_file),
                     "original_model_file": self.relative(generated_path),
@@ -1200,6 +1291,7 @@ class Songs:
             ],
             "segments": segments,
             "warning": metadata["warning"],
+            "vocal_audio": self.media(self.asset(metadata["vocals_file"])),
             "audio": self.media(item["path"]),
         }
 
