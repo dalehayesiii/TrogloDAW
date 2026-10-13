@@ -244,9 +244,49 @@ was retained and its cause is not claimed resolved.
 
 These results support a potential benefit for some requests, especially the tested
 salsa captions, but do not establish reliable improvement across genres. The profile
-remains inactive pending the user's decision on whether an experimental guarded
-toggle with these costs/limits is acceptable. It is not marked complete or released.
+remains inactive. The user requested a **draft, work-in-progress PR** on 13 October
+2026 so the prototype and evidence can be reviewed while improvements continue.
+That request does not activate the candidate, qualify its mixed results or authorize
+merging this draft. It is not marked complete or released.
 No per-genre keyword workaround or hidden multiple-render reranking was introduced.
+
+### Why the additional download, and what can be reused?
+
+The 14.20 GiB is the pinned writer's original on-disk weight/config/tokenizer set,
+not its GPU requirement. This prototype quantizes those weights to NF4 when loading;
+it does not download a prequantized checkpoint. The candidate actually ran on the
+local RTX 3070: the production-worker trial took 50.91 seconds including 48.03 seconds
+loading, with approximately 5.43 GiB peak Torch allocation. That measurement excludes
+driver/desktop allocations and does not guarantee the same performance on every run.
+The writer exits before music generation starts.
+
+Existing Torch/Transformers packages are reused. Reusing the installed Qwen 0.6B
+lyric writer or ACE 1.7B planning model for this task was tested first; their observed
+limitations are recorded above. These results reject the tested protocols, rather
+than proving smaller models can never work. The ACE audio generator is a different
+kind of model and is not an interchangeable general-purpose text writer.
+
+The 7B download is a research choice, not an essential product requirement. Before
+qualification, evaluate better reuse protocols, smaller writers and a verified
+prequantized checkpoint that could reduce disk/download size. No smaller replacement
+or prequantized distribution has yet passed the same preservation, native-runtime
+and matched-audio checks. The draft leaves the profile inactive and does not add
+these experimental downloads to a released installation.
+
+### Draft UI evidence
+
+These are actual compiled Angular components using a synthetic local-service fixture,
+with the same city-pop request before and after the prototype. The toggle is the
+only additional editor control; generated production directions are not displayed.
+This UI evidence does not imply that the candidate is qualified or released.
+
+Before:
+
+![Generation styles before the enrichment prototype](assets/enrichment-before-dark.png)
+
+After:
+
+![Generation styles with the draft enrichment toggle](assets/enrichment-after-dark.png)
 
 Primary implementation references:
 [Qwen2.5 model card](https://huggingface.co/Qwen/Qwen2.5-7B-Instruct),
