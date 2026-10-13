@@ -1,7 +1,7 @@
 ## MODIFIED Requirements
 
 ### Requirement: Visible scoped Library selection
-Library SHALL initially hide selection checkboxes and batch tools until Select songs is activated. Selection mode SHALL provide independent song checkboxes, a selected count, Select page, Clear selection and Done selecting. Playback preview SHALL remain independent. Selection SHALL include only the current page. Search/folder/page/page-size changes and Done selecting SHALL clear selection; refresh SHALL drop absent or hidden IDs. Tab navigation SHALL preserve selection while its scope remains unchanged.
+Library SHALL hide checkboxes and batch tools until Select songs is activated. Selection mode SHALL provide song checkboxes, selected count, Select page, Clear selection and Done selecting. Playback preview SHALL remain independent. Selection SHALL include only the current page. Search/folder/page/page-size changes and Done selecting SHALL clear selection; refresh SHALL drop absent or hidden IDs. Tab navigation SHALL preserve selection while its scope remains unchanged.
 
 #### Scenario: Select search results
 - **WHEN** the user searches, activates Select songs and selects the page
