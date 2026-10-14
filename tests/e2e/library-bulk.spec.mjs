@@ -285,6 +285,8 @@ test('pagination scopes selection, preserves preview and resets filters and page
     for (const width of [1440, 390]) {
       await page.setViewportSize({ width, height: 1000 });
       await page.getByRole('button', { name: 'Done selecting', exact: true }).click();
+      // Wait for the exit to render before selectMode checks the current button.
+      await expect(page.getByRole('button', { name: 'Select songs', exact: true })).toBeVisible();
       expect(
         await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
       ).toBeTruthy();
