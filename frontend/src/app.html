@@ -261,10 +261,12 @@
                   quieter intervals. The backing is kept once; no generation model is used. Audio
                   heuristics can miss musical or vocal gaps. }@else{ Recordings and finished Library
                   songs are analyzed independently. Each is automatically sampled into a shared
-                  arrangement; no defaults confirmation is needed. Each original clip is
-                  automatically analyzed for phrase, motif and accent cuts. Short clips may also be
-                  used whole. Bounded variations and musical gaps form one full-song audio guide
-                  before generation; selection and arrangement use local audio heuristics. }
+                  arrangement; no defaults confirmation is needed. Each original clip is analyzed
+                  for complete vocal phrases between pauses and shorter instrumental cuts. Short
+                  clips may also be used whole. Bounded variations and musical gaps form one
+                  full-song audio guide before generation. Optional local speech detection improves
+                  vocal boundaries; without it, complete acoustic phrases are kept. Singing, noise
+                  and overlapping voices can hide pauses, so uncertain phrases stay longer. }
                 </p>
                 }
               </div>
@@ -273,9 +275,10 @@
               @if(recordingWorkflow){ Upload or record one take. Uploading or keeping a new take
               replaces this workflow's accepted recording; discarded retakes keep the previous one.
               Supported source length is 1–300 seconds. } @else { Add original recordings. We derive
-              varied smaller cuts, sometimes use a short clip whole, and transform and arrange
-              samples with spaced motifs and rests. Audio is {{backingWorkflow ? 'required in
-              addition to the backing song.' : 'optional when you provide lyrics or styles.'}} }
+              complete vocal phrases between pauses, use shorter instrumental cuts, and transform
+              and arrange samples with spaced motifs and rests. Audio is {{backingWorkflow ?
+              'required in addition to the backing song.' : 'optional when you provide lyrics or
+              styles.'}} }
             </p>
             <label for="audio-files"
               >{{recordingWorkflow ? 'Choose one recording' : 'Add audio files'}}</label
@@ -1251,8 +1254,10 @@
               }
             </dl>
             <p class="muted">
-              These fixed models are included in music model setup. Existing cached voice analysis
-              can be reused.
+              These fixed models are included in music model setup. Existing installations can add
+              the small optional phrase detector with Install / verify selected model. Without it,
+              sampling keeps complete acoustic phrases. Existing cached voice analysis can be
+              reused.
             </p>
           </details>
         </div>

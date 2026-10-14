@@ -67,13 +67,23 @@ unsupported-format and empty-audio errors preserve existing inputs. Automated te
 use real MediaRecorder with a synthetic WebAudio stream; a physical microphone
 check is optional after delivery.
 
-Every selected input contributes to a full-song sample arrangement. A relative
-energy analysis joins brief articulation gaps, retains audible phrase spans and
-selects contrasting phrase, motif and accent cuts. A loud transient does not set
-the threshold for the entire recording. Eligible 0.5–8-second inputs sometimes
+Every selected input contributes to a full-song sample arrangement. Vocal cuts
+retain complete detected phrases and end between words/phrases at pauses; fixed
+two-second windows and phrase thirds no longer cut through protected vocals.
+Optional local CPU speech detection finds vocal pauses over a musical bed. Without
+it, relative energy analysis keeps complete acoustic phrases, joining brief
+articulation gaps. A loud transient does not set the threshold for the recording.
+Instrumental regions retain shorter best-effort motif/accent cuts.
+Eligible 0.5–8-second inputs sometimes
 contribute their complete clip as one sample when the song has enough space.
 The `samples` budget caps distinct cut families (default eight, API maximum sixteen);
-short inputs and short song durations can need fewer. Each cut has at most three
+short inputs and short song durations can need fewer. A vocal phrase can exceed
+the nominal sample-length preference. If no complete phrase fits, choose a longer
+song, fewer clips or a shorter source with pauses rather than cutting a word to fit.
+Singing, noise and overlapping voices can hide pauses; uncertain material stays
+longer. The detector does not transcribe or guarantee linguistic boundaries in
+every recording. See [phrase sampling and validation](phrase-sampling.md).
+Each cut has at most three
 saved statement/response/fill variants, including bounded pitch, speed, filtering,
 echo and gain differences. Statements retain phrase pitch/speed adjustments;
 responses and fills evolve them. Finished Library songs receive automatic source-aware

@@ -345,6 +345,37 @@ def test_custom_replacement_of_a_known_unowned_model_is_preserved(core, tmp_path
     assert (new / "weights.bin").read_bytes() == b"custom replacement"
 
 
+@pytest.mark.parametrize("modified", [False, True])
+def test_optional_phrase_asset_move_and_ownership(core, tmp_path, modified):
+    manager = Storage(core)
+    old = tmp_path / "phrase models"
+    asset = old / "checkpoints/source-analysis/detector.jit"
+    asset.parent.mkdir(parents=True)
+    content = b"invented pinned detector"
+    asset.write_bytes(content)
+    manager.preferences["model_dir"] = str(old)
+    manager.model_manifest = {
+        "source_analysis": {
+            "assets": [
+                {
+                    "path": "checkpoints/source-analysis/detector.jit",
+                    "sha256": storage_module.digest(asset),
+                }
+            ]
+        }
+    }
+    if modified:
+        asset.write_bytes(b"external detector replacement")
+    new = tmp_path / "moved phrase models"
+    state = manager.change("model", str(new), "move", lambda *a, **k: None)
+    moved = new / asset.relative_to(old)
+    assert moved.read_bytes() == (b"external detector replacement" if modified else content)
+    assert asset.exists() == modified
+    assert state["retained_files"] == int(modified)
+    remove_owned_models(manager.config_path)
+    assert moved.exists() == modified
+
+
 def test_unreadable_coowner_metadata_preserves_original_models_after_verified_move(core, tmp_path):
     manager = Storage(core)
     old = tmp_path / "models"

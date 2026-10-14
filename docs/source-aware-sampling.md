@@ -26,8 +26,11 @@ as a Library song is a separate import workflow.
 | Multiple priors + multiple recordings | Independent accents/responses, weighted budgets and shared bounded layout. |
 
 These are upper bounds; actual budgets shrink for available audible material, song
-duration and the user's sample cap. Finished mixes use measured spectral-flux
-onsets and smaller tempo-relative cuts. Tempo is trusted only above the analyzer's
+duration and the user's sample cap. Qualified instrumental regions in finished mixes use measured spectral-flux
+onsets and smaller tempo-relative cuts. Protected vocals retain complete phrases,
+even when longer than the nominal preference; uncertain continuous mixes need safe
+pauses instead of arbitrary interior cuts. See [phrase sampling](phrase-sampling.md).
+Tempo is trusted only above the analyzer's
 2.0 confidence threshold; otherwise the recipe identifies a fallback grid.
 Confident prior-song tempo takes precedence over recording estimates.
 
@@ -39,7 +42,7 @@ Full songs are never indiscriminately overlaid as complete input recordings.
 
 The arrangement retains original sources, derived cuts, transformed variants,
 gain-bearing placements and versioned routing (`source-roles-v1`, planner
-`phrase-motifs-v3`). Every selected source contributes. Both source conditioning
+`phrase-motifs-v4`, plus boundary evidence). Every selected source contributes. Both source conditioning
 and postmix consume that same arrangement through their existing distinct paths.
 Saved songs replay stored audio/placements; old preset choices are accepted as
 historical metadata and are not demanded or reapplied to new requests.

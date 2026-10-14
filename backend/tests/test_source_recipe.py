@@ -3,13 +3,22 @@ import shutil
 
 import numpy as np
 
-from test_source_routing import mixed_audio
+from test_source_routing import mixed_audio, instrumental_evidence
 
 
 def test_mixed_collection_saves_effective_roles_without_changing_draft_and_replays(
     core, songs, tmp_path, monkeypatch
 ):
     service, _ = songs
+    # Qualify the invented continuous harmony fixture as instrumental. Unknown
+    # continuous mixes cannot authorize arbitrary cuts through possible words.
+    monkeypatch.setattr(
+        service,
+        "source_phrases",
+        lambda path, audio, *args: instrumental_evidence(audio, core.SR)
+        if len(audio) > 8 * core.SR
+        else {"status": "fallback"},
+    )
     prior = core._new_entry(
         "generated", "synthetic completed mix", mixed_audio(core.SR, 12), "fixture"
     )

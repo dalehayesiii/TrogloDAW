@@ -22,7 +22,10 @@ def test_content_selection_avoids_silence_and_covers_different_material():
     )
     assert 3 <= len(regions) <= 8
     assert all(r["rms"] > 0.08 and r["audible_fraction"] > 0.4 for r in regions)
-    assert {int(r["start"] / sr) for r in regions} >= {1, 4, 7}
+    assert all(
+        any(r["start"] <= begin * sr and r["end"] >= (begin + 1) * sr for r in regions)
+        for begin in (1, 4, 7)
+    )
     assert budget["active_seconds"] == 3
     assert max(r["centroid_hz"] for r in regions) - min(r["centroid_hz"] for r in regions) > 1000
     short, _ = select_regions(audio[sr : sr * 2], sr, CLIP_DEFAULTS, {})

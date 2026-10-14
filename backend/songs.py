@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import copy
 import json
+import hashlib
 import math
 import queue
 import random
@@ -35,6 +36,7 @@ from arrangement import (
 )
 from models import CREATE_FLAGS, ROOT, Canceled, cache_environment, runtime_signature
 from storage import atomic_json, digest, safe_file, writable_root
+from phrase_analysis import ANALYSIS_VERSION, validate_evidence
 
 CLIP_DEFAULTS = {"sample_seconds": 2.0, "samples": 8, "pitch": 0.0, "stretch": 1.0, "gain": 0.0}
 OPTIONS = {"gender": "", "duration": "auto", "weirdness": 50, "influence": 50, "variety": 0}
@@ -254,6 +256,8 @@ class Songs:
         request_file = root / "cache" / (uuid.uuid4().hex + ".json")
         env = cache_environment(root, self.models.storage.preferences["installation_id"])
         env["HF_HUB_OFFLINE"] = env["TRANSFORMERS_OFFLINE"] = "1"
+        if action == "analyze_phrases":
+            env["CUDA_VISIBLE_DEVICES"] = ""
         atomic_json(request_file, request)
         result = None
         messages = []
@@ -312,6 +316,103 @@ class Songs:
                 root, [p for p in owner_cache.rglob("*") if p.is_file() and p not in before]
             )
         return result
+
+    def source_phrases(self, input_file, audio, progress, canceled):
+        """Content-keyed, portable CPU evidence; missing optional assets are benign."""
+        available = getattr(self.models, "source_analysis_ready", lambda: None)()
+        fallback = {
+            "status": "fallback",
+            "version": ANALYSIS_VERSION,
+            "reason": "Optional phrase detector is not installed; preserving acoustic phrases",
+        }
+        if not available:
+            progress(
+                "Preserving complete acoustic phrases",
+                0,
+                stage="phrase_fallback",
+                timing_profile={"phrase_analysis": "acoustic", "phrase_version": ANALYSIS_VERSION},
+            )
+            return fallback
+        identity = {
+            # WAV FLOAT headers can contain a new PEAK timestamp on every save.
+            # Cache the accepted analysis waveform, not incidental file metadata.
+            "source_sha256": hashlib.sha256(
+                memoryview(np.ascontiguousarray(audio)).cast("B")
+            ).hexdigest(),
+            "source_samples": len(audio),
+            "source_channels": audio.shape[1],
+            "sample_rate": self.core.SR,
+            "model_sha256": available["sha256"],
+            "model": available["id"],
+            "revision": available.get("revision"),
+            "version": ANALYSIS_VERSION,
+            "runtime": runtime_signature(),
+        }
+        key = hashlib.sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()[:32]
+        cache_file = self.core.LIB / "assets" / "source-analysis" / (key + ".json")
+        if canceled():
+            raise Canceled("Phrase analysis canceled")
+        try:
+            if cache_file.is_file():
+                saved = json.loads(cache_file.read_text(encoding="utf-8"))
+                if saved.get("identity") == identity:
+                    evidence = validate_evidence(saved["evidence"], len(audio), self.core.SR)
+                    progress(
+                        "Reusing complete phrase boundaries",
+                        1,
+                        stage="checking_phrase_cache",
+                        timing_profile={
+                            "phrase_analysis": "cached",
+                            "phrase_version": ANALYSIS_VERSION,
+                        },
+                    )
+                    return {
+                        **evidence,
+                        "detector": identity,
+                        "cache_file": self.relative(cache_file),
+                        "reused": True,
+                    }
+        except (OSError, ValueError, KeyError, TypeError):
+            pass
+        try:
+            if not input_file.exists():
+                # Cache hits and CPU-only fallback need no extra full-size WAV.
+                sf.write(input_file, audio, self.core.SR, subtype="FLOAT")
+            progress(
+                "Preparing local CPU phrase analysis",
+                0,
+                stage="loading_phrases",
+                stage_device="cpu",
+                timing_profile={
+                    "phrase_analysis": available["id"],
+                    "phrase_version": ANALYSIS_VERSION,
+                },
+            )
+            evidence = self.invoke(
+                "analyze_phrases",
+                {
+                    "audio": str(input_file),
+                    "speech_model": str(safe_file(self.models.storage.models, available["path"])),
+                },
+                progress,
+                canceled,
+            )
+            validate_evidence(evidence, len(audio), self.core.SR)
+            if canceled():
+                raise Canceled("Phrase analysis canceled")
+            atomic_json(cache_file, {"identity": identity, "evidence": evidence})
+            return {
+                **evidence,
+                "detector": identity,
+                "cache_file": self.relative(cache_file),
+                "reused": False,
+            }
+        except Canceled:
+            raise
+        except Exception:
+            message = "Phrase analysis unavailable; preserving complete acoustic phrases"
+            progress(message, 0, stage="phrase_fallback")
+            return {**fallback, "reason": message}
 
     def collect_sources(self, draft):
         sources = []
@@ -436,6 +537,12 @@ class Songs:
             )
             audio, channel_strategy = phase_safe_audio(audio)
             analysis = self.core.analyze_vocal(audio)
+            # Analyze the phase-safe copy while retaining the exact original input asset.
+            speech_input = directory / "inputs" / (f"{source_index}-phrase-analysis.wav")
+            try:
+                analysis["speech"] = self.source_phrases(speech_input, audio, progress, canceled)
+            finally:
+                speech_input.unlink(missing_ok=True)
             regions, budget = select_regions(
                 audio,
                 self.core.SR,

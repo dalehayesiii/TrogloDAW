@@ -7,6 +7,7 @@ import pytest
 
 from arrangement import plan_events, route_sources, sample_transform, select_regions
 from songs import CLIP_DEFAULTS
+from phrase_analysis import probability_spans
 
 
 CASES = [
@@ -42,6 +43,12 @@ def sources(priors, recordings):
     ]
 
 
+def instrumental_evidence(audio, sr=8000):
+    # This fixture is invented harmony/percussion, with qualified no-speech evidence.
+    frames = (len(audio) * 16000 // sr + 511) // 512
+    return probability_spans(np.zeros(frames), len(audio), sr)
+
+
 @pytest.mark.parametrize("priors,recordings,collection", CASES)
 def test_all_collections_have_independent_roles_coverage_and_bounded_returns(
     priors, recordings, collection
@@ -60,7 +67,7 @@ def test_all_collections_have_independent_roles_coverage_and_bounded_returns(
             audio,
             8000,
             source["settings"],
-            {"tempo_raw": 120, "tempo_confidence": 3},
+            {"tempo_raw": 120, "tempo_confidence": 3, "speech": instrumental_evidence(audio)},
             random.Random(42),
             120 / len(routed),
             policy,
@@ -124,7 +131,7 @@ def test_unreliable_tempo_uses_explicit_fallback_and_originals_stay_unchanged():
         audio,
         8000,
         CLIP_DEFAULTS,
-        {"tempo_raw": 180, "tempo_confidence": 0.5},
+        {"tempo_raw": 180, "tempo_confidence": 0.5, "speech": instrumental_evidence(audio)},
         random.Random(9),
         120,
         policy,

@@ -57,18 +57,21 @@ def test_phrase_diversity_survives_articulation_transient_and_level_changes():
         choices.append([(r["start"], r["end"], r["kind"]) for r in regions])
         assert 3 <= len(regions) <= settings["samples"]
         lengths = [(r["end"] - r["start"]) / sr for r in regions]
-        assert max(lengths) >= 1.6 and min(lengths) <= 1.3
-        assert len({r["kind"] for r in regions}) >= 2
-        assert any(r["start"] < sr * 2 and r["end"] >= sr * 1.7 for r in regions)
-        assert any(sr * 2 <= r["start"] < sr * 4.7 for r in regions)
-        assert any(r["start"] >= sr * 5 for r in regions)
+        assert max(lengths) > settings["sample_seconds"]
+        # Short articulation gaps belong to words, not new sample boundaries.
+        for begin, end in ((0.2, 1.8), (2.1, 4.6), (5.0, 6.8)):
+            assert any(r["start"] <= sr * begin and r["end"] >= sr * end for r in regions)
+            assert all(
+                not begin * sr < r[edge] < end * sr for r in regions for edge in ("start", "end")
+            )
+        assert budget["boundary_policy"] == "conservative-acoustic-pauses"
         assert budget["active_seconds"] > 4
     assert choices[0] == choices[1] == choices[2]
     with pytest.raises(ValueError, match="audible"):
         select_regions(np.ones((sr, 2), np.float32) * 0.1, sr, settings, {})
 
 
-def test_whole_short_clip_is_seeded_optional_and_prior_preset_stays_short():
+def test_whole_short_clip_is_seeded_optional_and_prior_preset_preserves_phrases():
     sr = 8000
     audio = articulated_source(sr)
     included = []
@@ -83,7 +86,9 @@ def test_whole_short_clip_is_seeded_optional_and_prior_preset_stays_short():
     assert any(included) and not all(included)
     prior = {**CLIP_DEFAULTS, "version": "prior-song-v1", "sample_seconds": 1}
     regions, _ = select_regions(audio, sr, prior, {}, random.Random(1), 120)
-    assert all(r["kind"] != "whole-clip" and r["end"] - r["start"] <= sr for r in regions)
+    assert all(r["kind"] != "whole-clip" for r in regions)
+    assert max(r["end"] - r["start"] for r in regions) > sr
+    assert all(r["protected_vocals"] for r in regions)
 
 
 @pytest.mark.parametrize("seconds", [10, 120, 300])
@@ -163,7 +168,7 @@ def test_saved_variants_have_headroom_reproducible_guide_and_unchanged_source(co
         assert all(s["length_samples"] > 0 for s in samples)
         np.testing.assert_array_equal(core.load(service.asset(source[0]["file"])), original)
         assert any(
-            p.get("timing_stage_profile", {}).get("planner") == "phrase-motifs-v3" for p in progress
+            p.get("timing_stage_profile", {}).get("planner") == "phrase-motifs-v4" for p in progress
         )
         assert analysis[0]["arrangement"]["rest_seconds"] > 60
         plans.append((layer, events))

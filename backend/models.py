@@ -370,7 +370,9 @@ class Models:
             ]
         }
         planner = self.planner()
-        optional = {a["path"] for a in planner.get("assets", [])} if planner else set()
+        optional = {
+            a["path"] for a in [*(planner or {}).get("assets", []), *self.source_analysis_assets()]
+        }
         present = {entry["path"] for entry in state.get("verified", [])}
         if not expected <= present or not present <= expected | optional:
             return None
@@ -430,11 +432,42 @@ class Models:
             self.manifest["runtime"],
             *self.manifest["models"][model]["assets"],
             *self.manifest.get("auxiliary_assets", []),
+            *self.source_analysis_assets(),
             *(extra["assets"] if planner else []),
         ]
 
+    def source_analysis_assets(self):
+        return self.manifest.get("source_analysis", {}).get("assets", [])
+
+    def source_analysis_ready(self):
+        """Optional detector availability never invalidates music-model readiness."""
+        try:
+            state = self.ready()
+            assets = self.source_analysis_assets()
+            if not state or not assets:
+                return None
+            verified = {entry["path"]: entry for entry in state.get("verified", [])}
+            for asset in assets:
+                entry = verified.get(asset["path"], {})
+                path = safe_file(self.storage.models, asset["path"])
+                if (
+                    entry.get("sha256") != asset["sha256"]
+                    or not path.is_file()
+                    or path.stat().st_size != asset["bytes"]
+                    or (
+                        path.stat().st_mtime_ns != entry.get("mtime")
+                        and digest(path) != asset["sha256"]
+                    )
+                ):
+                    return None
+            return {"id": self.manifest["source_analysis"]["id"], **assets[0]}
+        except (OSError, ValueError, KeyError, TypeError):
+            return None
+
     def describe(self):
         planner = self.planner()
+        speech = self.manifest.get("source_analysis")
+        speech_ready = bool(self.source_analysis_ready())
         planner_id = self.manifest["models"][self.selected].get("planner")
         writer_id = planner.get("writer") if planner else None
         return {
@@ -470,6 +503,21 @@ class Models:
             "voice_models": [
                 {"role": "Vocal separation", "name": "HDemucs High"},
                 {"role": "Voice grouping", "name": "SpeechBrain ECAPA-TDNN"},
+                *(
+                    [
+                        {
+                            "role": "Phrase detection (optional, CPU)",
+                            "name": speech["name"]
+                            + (
+                                " — ready"
+                                if speech_ready
+                                else " — not installed; verify the selected model"
+                            ),
+                        }
+                    ]
+                    if speech
+                    else []
+                ),
             ],
             "choices": [
                 {

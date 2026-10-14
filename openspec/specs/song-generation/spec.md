@@ -134,15 +134,23 @@ Every exposed Weirdness and Style Influence value SHALL use a validated sampler 
 - **THEN** the current validated mapping is applied while the previous song and its recorded parameters remain intact
 
 ### Requirement: Phrase-aware automatic source derivation
-Automatic sampling SHALL derive a bounded mixture of audible phrase, motif and accent cuts from each original input instead of forcing every cut to one short activity-run width. Eligible short clips SHALL sometimes contribute their complete audio as a transformed sample. Decisions SHALL be seed-reproducible and inspectable without requiring manual sample management.
+Automatic sampling SHALL retain complete protected vocal phrases at pause boundaries; uniform windows, phrase thirds and interior motifs SHALL NOT split them. Sample-length preferences SHALL NOT override vocal boundaries: keep longer phrases or explain when none fits. Instrumental cuts remain best effort outside protected spans. Eligible short clips SHALL sometimes contribute complete audio. Decisions SHALL remain bounded, seeded and inspectable.
 
 #### Scenario: Articulated seven-second input
 - **WHEN** a short source contains a sustained phrase with brief articulation gaps
-- **THEN** its derived set retains meaningful phrase material and varied smaller cuts instead of selecting only neighboring sub-second fragments
+- **THEN** articulation gaps are bridged and complete meaningful phrases remain instead of arbitrary neighboring fragments
 
 #### Scenario: Whole short source
 - **WHEN** an eligible short clip is sampled across independent seeds
-- **THEN** some arrangements include its complete source span as one transformed sample, alongside derived cuts where the budget permits
+- **THEN** some arrangements include its complete source span as one transformed sample, alongside complete derived phrases where the budget permits
+
+#### Scenario: Preference shorter than words
+- **WHEN** a detected vocal phrase exceeds the nominal sample-length preference
+- **THEN** selection retains its full span and records the longer effective length rather than cutting inside it
+
+#### Scenario: No complete phrase fits
+- **WHEN** no protected complete phrase can fit the requested shared timeline
+- **THEN** the request explains how to use a longer timeline or shorter source collection instead of silently truncating vocal content
 
 ### Requirement: Evolving source motifs with intentional rests
 The full-song guide SHALL use varied section densities, motif/response transformations, intentional rests and bounded spaced returns. It SHALL NOT fill the song by uniformly cycling a few samples. Exact-waveform and source-family repetitions SHALL be limited, adjacent family repeats avoided when alternatives exist, and every selected source retained. Both conditioning and postmix SHALL use this guide.
@@ -276,7 +284,7 @@ Library songs SHALL receive automatic finished-song sampling without confirmatio
 - **THEN** the filename does not override its source classification
 
 ### Requirement: Collection-aware sampling roles
-Automatic planning SHALL account for single/multiple prior songs, single/multiple recordings and their combinations. Finished mixes SHALL favor bounded hooks/accents with restrained density and added harmonic shifts; recordings SHALL retain useful phrases. Every selected source SHALL contribute, with seed-reproducible cuts/transforms/placements and recorded effective policy/budget.
+Automatic planning SHALL handle all single/multiple prior-song and recording combinations independently. Finished mixes SHALL favor bounded safe hooks/accents, restrained density and octave shifts; protected vocals SHALL retain complete phrases regardless of lineage. Every selected source SHALL contribute seeded, inspectable cuts/transforms/placements and effective budgets. Uncertain long finished mixes SHALL NOT become indiscriminate full-song overlays.
 
 #### Scenario: Eight collection combinations
 - **WHEN** planning uses one prior, one recording, several priors, several recordings, or any single/multiple combination of both
@@ -285,6 +293,10 @@ Automatic planning SHALL account for single/multiple prior songs, single/multipl
 #### Scenario: Mixed accompaniment
 - **WHEN** finished mixes and recordings are arranged together
 - **THEN** finished-mix returns remain restrained, recording phrases retain their role and the guide avoids indiscriminate full-song overlays or uniform cycling
+
+#### Scenario: Prior-song vocals
+- **WHEN** a finished mix contains a detected vocal phrase
+- **THEN** onset-based musical candidates cannot cut through it simply because the source is a prior song
 
 ### Requirement: Confidence-gated rhythmic source analysis
 Finished-song sampling SHALL use measured audible/onset context and trust tempo only when analysis meets its confidence threshold. Uncertain material SHALL use a recorded fallback without claiming reliable beat, key, speaker or semantic understanding. Automatic full-mix pitch variations SHALL preserve pitch classes through octave variation; explicit user offsets SHALL remain recorded and effective.

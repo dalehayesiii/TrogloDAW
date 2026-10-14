@@ -17,7 +17,7 @@ def phase_safe_audio(audio):
     return audio, "preserved-stereo"
 
 
-PLANNER_VERSION = "phrase-motifs-v3"
+PLANNER_VERSION = "phrase-motifs-v4"
 VARIANTS_PER_REGION = 3
 SOURCE_POLICY_VERSION = "source-roles-v1"
 
@@ -111,7 +111,9 @@ def _activity(audio, sr):
         raise ValueError("Input clip has no audible changing signal")
     floor = float(np.percentile(energy, 10))
     threshold = max(1e-8, min(reference * 0.3, max(reference * 0.08, floor * 2)))
-    active = energy >= threshold
+    # A lower hold threshold keeps weak consonants/tails attached to louder speech.
+    hold = max(1e-8, min(reference * 0.12, max(reference * 0.025, floor * 1.2)))
+    active = energy >= hold
     # Bridge articulation gaps rather than reducing every cut to one energy run.
     indices = np.flatnonzero(active)
     if not len(indices):
@@ -120,11 +122,27 @@ def _activity(audio, sr):
     phrases = []
     for run in runs:
         begin, end = int(run[0] * hop), min(len(audio), int((run[-1] + 1) * hop))
-        if phrases and begin - phrases[-1][1] <= sr * 0.22:
+        if phrases and begin - phrases[-1][1] <= sr * 0.28:
             phrases[-1][1] = end
         else:
             phrases.append([begin, end])
     return mono, energy, active, threshold, hop, phrases, reference
+
+
+def _pause_context(phrases, length, sr):
+    """Place acoustic boundaries within pauses, keeping context around consonants."""
+    result = []
+    for index, (begin, end) in enumerate(phrases):
+        left = max(0, begin - round(0.12 * sr))
+        if index:
+            left = max(left, (phrases[index - 1][1] + begin) // 2)
+        right = (
+            min(end + round(0.12 * sr), (end + phrases[index + 1][0]) // 2)
+            if index + 1 < len(phrases)
+            else min(length, end + round(0.12 * sr))
+        )
+        result.append({"start": left, "end": right})
+    return result
 
 
 def select_regions(audio, sr, settings, analysis, rng=None, guide_seconds=None, policy=None):
@@ -146,15 +164,38 @@ def select_regions(audio, sr, settings, analysis, rng=None, guide_seconds=None, 
     budget = min(cap, max(1, math.ceil(math.sqrt(active_seconds) * 2)))
     if guide_seconds:
         budget = min(budget, max(1, int(guide_seconds / max(0.4, preferred * 0.8))))
-    # Preset length remains a short-cut policy; other inputs can retain phrases.
+    # Legacy preferences can guide instrumental cuts but never override vocal boundaries.
     preset = bool(settings.get("version")) or prior
     phrase_limit = preferred if preset else preferred * 2
-    phrases = detected
+    from phrase_analysis import validate_evidence
+
+    speech = analysis.get("speech", {})
+    if not isinstance(speech, dict):
+        speech = {}
+    try:
+        validate_evidence(speech, len(audio), sr)
+        known = True
+    except (ValueError, TypeError):
+        known = False
+    protected = speech["spans"] if known and speech["status"] == "speech" else []
+    instrumental = known and speech["status"] in {"speech", "instrumental"}
+    if not instrumental:
+        protected = _pause_context(detected, len(audio), sr)
+    boundary_policy = (
+        "speech-pauses"
+        if known and speech["status"] == "speech"
+        else "instrumental-best-effort"
+        if instrumental
+        else "conservative-acoustic-pauses"
+    )
     candidates: list[dict] = []
     seen = set()
 
     def add(begin, end, kind, anchored=False):
         begin, end = max(0, int(begin)), min(len(audio), int(end))
+        overlaps = [span for span in protected if begin < span["end"] and end > span["start"]]
+        if any(begin > span["start"] or end < span["end"] for span in overlaps):
+            return
         if end - begin < min(len(audio), round(0.16 * sr)) or (begin, end) in seen:
             return
         part = mono[begin:end]
@@ -180,11 +221,19 @@ def select_regions(audio, sr, settings, analysis, rng=None, guide_seconds=None, 
                 "audible_fraction": audible,
                 "kind": kind,
                 "onset_anchored": anchored,
+                "protected_vocals": bool(overlaps),
+                "boundary_policy": boundary_policy,
             }
         )
         seen.add((begin, end))
 
-    for begin, end in phrases:
+    for span in protected:
+        begin, end = span["start"], span["end"]
+        if prior and not instrumental and len(audio) / sr > 8 and (end - begin) / len(audio) > 0.95:
+            # Unknown continuous finished mixes need qualified boundaries, not a blind layer.
+            continue
+        add(begin, end, "phrase")
+    for begin, end in detected if instrumental else []:
         span = end - begin
         if span / sr <= phrase_limit:
             add(begin, end, "phrase" if span / sr >= 0.9 else "accent")
@@ -203,19 +252,24 @@ def select_regions(audio, sr, settings, analysis, rng=None, guide_seconds=None, 
             width = min(end - start, max(0.24, preferred * fraction) * sr)
             add(start, start + width, "accent" if fraction < 0.7 else "motif")
     # Additional active-region motifs cover material missed by a coarse phrase pass.
-    for start in np.flatnonzero(active)[:: max(1, round(0.35 * sr / hop))][:192]:
+    for start in (
+        np.flatnonzero(active)[:: max(1, round(0.35 * sr / hop))][:192] if instrumental else []
+    ):
         begin = int(start * hop)
         add(begin, begin + preferred * sr, "motif")
-    anchors = rhythmic_anchors(mono, sr) if prior else []
+    anchors = rhythmic_anchors(mono, sr) if prior and instrumental else []
     for anchor in anchors:
         begin = max(0, anchor - round(0.025 * sr))
         add(begin, begin + preferred * sr, "phrase", True)
         add(begin, begin + min(preferred * 0.45, beat_seconds or 0.5) * sr, "accent", True)
-    if not candidates:
+    if not candidates and instrumental:
         for begin, end in detected:
             add(begin, min(end, begin + preferred * sr), "accent")
     if not candidates:
-        raise ValueError("Input clip has no usable audible region")
+        raise ValueError(
+            "No complete safe phrase was found in this source. Use a shorter recording with pauses, "
+            "or install/verify the selected model for optional phrase detection"
+        )
     selected: list[dict] = []
     duration = len(audio) / sr
     whole_eligible = (
@@ -291,7 +345,10 @@ def select_regions(audio, sr, settings, analysis, rng=None, guide_seconds=None, 
                     fitting = [candidate]
                     break
         if not fitting:
-            raise ValueError("Input material needs a longer song duration or fewer selected clips")
+            raise ValueError(
+                "A complete vocal phrase needs a longer song duration or fewer selected clips; "
+                "it will not be cut inside a word to fit"
+            )
         selected = fitting
     return sorted(selected, key=lambda c: (c["start"], c["end"])), {
         "method": PLANNER_VERSION,
@@ -301,6 +358,14 @@ def select_regions(audio, sr, settings, analysis, rng=None, guide_seconds=None, 
         "candidate_count": len(candidates),
         "threshold_relative": threshold / reference,
         "whole_clip_included": any(c["kind"] == "whole-clip" for c in selected),
+        "boundary_policy": boundary_policy,
+        "protected_phrases": protected,
+        "speech_status": speech["status"] if known else "fallback",
+        "speech_fallback": speech.get("reason", "No valid trained phrase evidence")
+        if not known
+        else None,
+        "requested_sample_seconds": float(settings["sample_seconds"]),
+        "longest_selected_seconds": max((c["end"] - c["start"]) / sr for c in selected),
         **(
             {
                 "routing": policy,

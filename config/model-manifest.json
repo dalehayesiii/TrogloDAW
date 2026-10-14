@@ -343,6 +343,21 @@
       "sha256": "a004b2790d73ffeaa535db458a1a79b539dfdbafbccc31f275d07e632ebd7816"
     }
   ],
+  "source_analysis": {
+    "id": "silero-vad-6.2.3",
+    "name": "Silero VAD 6.2.3",
+    "assets": [
+      {
+        "path": "checkpoints/source-analysis/silero_vad.jit",
+        "url": "https://raw.githubusercontent.com/snakers4/silero-vad/5cd7945676eb32225748052e2e6a0580e4686a08/src/silero_vad/data/silero_vad.jit",
+        "bytes": 2272526,
+        "sha256": "e1122837f4154c511485fe0b9c64455f7b929c96fbb8d79fbdb336383ebd3720",
+        "revision": "5cd7945676eb32225748052e2e6a0580e4686a08",
+        "repo": "snakers4/silero-vad",
+        "license": "MIT"
+      }
+    ]
+  },
   "planners": {
     "acestep-5Hz-lm-1.7B": {
       "name": "Local song writing tools (ACE 1.7B + Qwen 0.6B)",

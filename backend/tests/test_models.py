@@ -283,6 +283,36 @@ def test_fresh_install_reuses_retained_assets_and_reports_real_installation_chec
     assert events[-1]["installation_steps_total"] == 8
     assert events[-1]["setup_phase"] == "installation"
     assert any(event.get("stage") == "verifying" and event.get("units_total") for event in events)
+    # Upgrades keep the music model ready without the newly optional detector.
+    phrase_asset = {
+        **asset(b"synthetic phrase detector"),
+        "path": "checkpoints/source-analysis/detector.jit",
+    }
+    manager.manifest["source_analysis"] = {
+        "id": "fixture-vad",
+        "name": "Synthetic VAD",
+        "assets": [phrase_asset],
+    }
+    assert manager.ready() and manager.source_analysis_ready() is None
+    assert "not installed" in manager.describe()["voice_models"][-1]["name"]
+    phrase_path = storage.models / phrase_asset["path"]
+    requests = []
+
+    def phrase_download(request, **kwargs):
+        requests.append(request.full_url)
+        assert request.full_url == phrase_asset["url"]
+        return Response(b"synthetic phrase detector")
+
+    monkeypatch.setattr(models.urllib.request, "urlopen", phrase_download)
+    manager.install("fixture", lambda *a, **k: None, lambda: False)
+    assert requests == [phrase_asset["url"]]
+    monkeypatch.setattr(models.urllib.request, "urlopen", no_network)
+    manager.install("fixture", lambda *a, **k: None, lambda: False)
+    assert manager.source_analysis_ready()["id"] == "fixture-vad"
+    assert "ready" in manager.describe()["voice_models"][-1]["name"]
+    phrase_path.write_bytes(b"changed!! phrase detector")
+    assert manager.source_analysis_ready() is None and manager.ready()
+    phrase_path.write_bytes(b"synthetic phrase detector")
     planner_asset = {**asset(b"synthetic song planner"), "path": "checkpoints/planner/weights.bin"}
     manager.manifest["models"]["fixture"]["planner"] = "fixture-planner"
     manager.manifest["planners"] = {
@@ -312,3 +342,4 @@ def test_fresh_install_reuses_retained_assets_and_reports_real_installation_chec
     assert reused.ready() is None
     assert reused.install("fixture", lambda *args, **kwargs: None, lambda: False)["ready"]
     assert not reused.describe()["planner"]["ready"]
+    assert reused.source_analysis_ready()
