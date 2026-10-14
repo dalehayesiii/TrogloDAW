@@ -45,7 +45,7 @@ rm -rf "$SP/bin"; find "$SP/numpy" "$SP/scipy" -type d -name tests -prune -exec 
 cp "$SP"/numpy.libs/msvcp140-*.dll "$S/python/msvcp140.dll"
 
 mkdir -p "$S/app/backend"
-cp "$REPO/backend"/{troglocore.py,cli.py,app.py,storage.py,models.py,songs.py,planning.py,arrangement.py,inference_runner.py,timing.py,folders.py,updates.py,credentials.py,instance.py,library_actions.py,guide_enhance.py} "$S/app/backend/"
+cp "$REPO/backend"/{troglocore.py,cli.py,app.py,storage.py,models.py,songs.py,planning.py,arrangement.py,inference_runner.py,timing.py,folders.py,updates.py,credentials.py,instance.py,library_actions.py,guide_enhance.py,prompt_enrichment.py} "$S/app/backend/"
 mkdir -p "$S/app/scripts/windows"
 cp "$REPO/scripts/windows/app_update.ps1" "$S/app/scripts/windows/"
 mkdir -p "$S/app/config"

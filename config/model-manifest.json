@@ -144,7 +144,8 @@
       "conditioning": ["cover"],
       "recording_conditioning": "cover-nofsq",
       "planning": ["musical_metadata"],
-      "planner": "acestep-5Hz-lm-1.7B"
+      "planner": "acestep-5Hz-lm-1.7B",
+      "enrichment_profile": "qwen25-production-v1"
     },
     "acestep-v15-sft": {
       "name": "ACE-Step 1.5 SFT",
@@ -486,6 +487,129 @@
       ],
       "writer": "Qwen3-0.6B-lyrics",
       "writer_revision": "c1899de289a04d12100db370d81485cdf75e47ca"
+    }
+  },
+  "enrichment_profiles": {
+    "qwen25-production-v1": {
+      "id": "qwen25-production-v1",
+      "qualified": false,
+      "music_runtime_revision": "ca1e85fe9430179831e6bc6be790c332190a3866",
+      "music_asset_identity": "66c8f8fbf55455a53ea270b67a083a096005aa229bcf79e839698ec84ff6d82e",
+      "writer": "Qwen2.5-7B-Instruct",
+      "writer_revision": "a09a35458c702b33eeacc393d103063234e8bc28",
+      "writer_path": "checkpoints/Qwen2.5-7B-enrichment",
+      "prompt_version": "production-details-v1",
+      "codec": "bnb-nf4-double-v1",
+      "max_characters": 120,
+      "max_new_tokens": 160,
+      "min_available_ram_gib": 13,
+      "min_free_vram_gib": 6,
+      "assets": [
+        {
+          "path": "checkpoints/Qwen2.5-7B-enrichment/LICENSE",
+          "url": "https://huggingface.co/Qwen/Qwen2.5-7B-Instruct/resolve/a09a35458c702b33eeacc393d103063234e8bc28/LICENSE?download=true",
+          "bytes": 11343,
+          "sha256": "832dd9e00a68dd83b3c3fb9f5588dad7dcf337a0db50f7d9483f310cd292e92e",
+          "revision": "a09a35458c702b33eeacc393d103063234e8bc28",
+          "repo": "Qwen/Qwen2.5-7B-Instruct"
+        },
+        {
+          "path": "checkpoints/Qwen2.5-7B-enrichment/README.md",
+          "url": "https://huggingface.co/Qwen/Qwen2.5-7B-Instruct/resolve/a09a35458c702b33eeacc393d103063234e8bc28/README.md?download=true",
+          "bytes": 6240,
+          "sha256": "f366f33bbf6bcadbb7d87f0a21a7b65584a56b8d58b0743c77c88bee625b93a6",
+          "revision": "a09a35458c702b33eeacc393d103063234e8bc28",
+          "repo": "Qwen/Qwen2.5-7B-Instruct"
+        },
+        {
+          "path": "checkpoints/Qwen2.5-7B-enrichment/config.json",
+          "url": "https://huggingface.co/Qwen/Qwen2.5-7B-Instruct/resolve/a09a35458c702b33eeacc393d103063234e8bc28/config.json?download=true",
+          "bytes": 663,
+          "sha256": "7463bb0ea78315365e6c6b74de4e73bbcc8359dfb0c5a737584e077d42c0b03c",
+          "revision": "a09a35458c702b33eeacc393d103063234e8bc28",
+          "repo": "Qwen/Qwen2.5-7B-Instruct"
+        },
+        {
+          "path": "checkpoints/Qwen2.5-7B-enrichment/generation_config.json",
+          "url": "https://huggingface.co/Qwen/Qwen2.5-7B-Instruct/resolve/a09a35458c702b33eeacc393d103063234e8bc28/generation_config.json?download=true",
+          "bytes": 243,
+          "sha256": "3a8f9087e486054c8a4a08dae2e5a3ba62e23da212b5b8c08bc42cb983c3459f",
+          "revision": "a09a35458c702b33eeacc393d103063234e8bc28",
+          "repo": "Qwen/Qwen2.5-7B-Instruct"
+        },
+        {
+          "path": "checkpoints/Qwen2.5-7B-enrichment/merges.txt",
+          "url": "https://huggingface.co/Qwen/Qwen2.5-7B-Instruct/resolve/a09a35458c702b33eeacc393d103063234e8bc28/merges.txt?download=true",
+          "bytes": 1671839,
+          "sha256": "599bab54075088774b1733fde865d5bd747cbcc7a547c5bc12610e874e26f5e3",
+          "revision": "a09a35458c702b33eeacc393d103063234e8bc28",
+          "repo": "Qwen/Qwen2.5-7B-Instruct"
+        },
+        {
+          "path": "checkpoints/Qwen2.5-7B-enrichment/model-00001-of-00004.safetensors",
+          "url": "https://huggingface.co/Qwen/Qwen2.5-7B-Instruct/resolve/a09a35458c702b33eeacc393d103063234e8bc28/model-00001-of-00004.safetensors?download=true",
+          "bytes": 3945441440,
+          "sha256": "a1333e6293854747c481288ea83b348226af178dd565c49b6f9495ba1966aba7",
+          "revision": "a09a35458c702b33eeacc393d103063234e8bc28",
+          "repo": "Qwen/Qwen2.5-7B-Instruct"
+        },
+        {
+          "path": "checkpoints/Qwen2.5-7B-enrichment/model-00002-of-00004.safetensors",
+          "url": "https://huggingface.co/Qwen/Qwen2.5-7B-Instruct/resolve/a09a35458c702b33eeacc393d103063234e8bc28/model-00002-of-00004.safetensors?download=true",
+          "bytes": 3864726352,
+          "sha256": "f5d25a2772cb825164a2a2c0fb6d51a87e282abf21e4dd75bc5cfb3cd0ea6185",
+          "revision": "a09a35458c702b33eeacc393d103063234e8bc28",
+          "repo": "Qwen/Qwen2.5-7B-Instruct"
+        },
+        {
+          "path": "checkpoints/Qwen2.5-7B-enrichment/model-00003-of-00004.safetensors",
+          "url": "https://huggingface.co/Qwen/Qwen2.5-7B-Instruct/resolve/a09a35458c702b33eeacc393d103063234e8bc28/model-00003-of-00004.safetensors?download=true",
+          "bytes": 3864726424,
+          "sha256": "8efdec4c1bc12317ae1a38dc42b595ce777738a64deea3fcb8a0a91381bcdfd5",
+          "revision": "a09a35458c702b33eeacc393d103063234e8bc28",
+          "repo": "Qwen/Qwen2.5-7B-Instruct"
+        },
+        {
+          "path": "checkpoints/Qwen2.5-7B-enrichment/model-00004-of-00004.safetensors",
+          "url": "https://huggingface.co/Qwen/Qwen2.5-7B-Instruct/resolve/a09a35458c702b33eeacc393d103063234e8bc28/model-00004-of-00004.safetensors?download=true",
+          "bytes": 3556377672,
+          "sha256": "1a72d403cdf0c1ec3cb7f289f17b394a01e64394c2e9b3c0f94dbce3faf879bd",
+          "revision": "a09a35458c702b33eeacc393d103063234e8bc28",
+          "repo": "Qwen/Qwen2.5-7B-Instruct"
+        },
+        {
+          "path": "checkpoints/Qwen2.5-7B-enrichment/model.safetensors.index.json",
+          "url": "https://huggingface.co/Qwen/Qwen2.5-7B-Instruct/resolve/a09a35458c702b33eeacc393d103063234e8bc28/model.safetensors.index.json?download=true",
+          "bytes": 27752,
+          "sha256": "624bf7c47cd12468fdc16e38a47cf4f19e0415b859a223ba3c027eed2f0e1028",
+          "revision": "a09a35458c702b33eeacc393d103063234e8bc28",
+          "repo": "Qwen/Qwen2.5-7B-Instruct"
+        },
+        {
+          "path": "checkpoints/Qwen2.5-7B-enrichment/tokenizer.json",
+          "url": "https://huggingface.co/Qwen/Qwen2.5-7B-Instruct/resolve/a09a35458c702b33eeacc393d103063234e8bc28/tokenizer.json?download=true",
+          "bytes": 7031645,
+          "sha256": "c0382117ea329cdf097041132f6d735924b697924d6f6fc3945713e96ce87539",
+          "revision": "a09a35458c702b33eeacc393d103063234e8bc28",
+          "repo": "Qwen/Qwen2.5-7B-Instruct"
+        },
+        {
+          "path": "checkpoints/Qwen2.5-7B-enrichment/tokenizer_config.json",
+          "url": "https://huggingface.co/Qwen/Qwen2.5-7B-Instruct/resolve/a09a35458c702b33eeacc393d103063234e8bc28/tokenizer_config.json?download=true",
+          "bytes": 7305,
+          "sha256": "5b5d4f65d0acd3b2d56a35b56d374a36cbc1c8fa5cf3b3febbbfabf22f359583",
+          "revision": "a09a35458c702b33eeacc393d103063234e8bc28",
+          "repo": "Qwen/Qwen2.5-7B-Instruct"
+        },
+        {
+          "path": "checkpoints/Qwen2.5-7B-enrichment/vocab.json",
+          "url": "https://huggingface.co/Qwen/Qwen2.5-7B-Instruct/resolve/a09a35458c702b33eeacc393d103063234e8bc28/vocab.json?download=true",
+          "bytes": 2776833,
+          "sha256": "ca10d7e9fb3ed18575dd1e277a2579c16d108e32f27439684afa0e10b1440910",
+          "revision": "a09a35458c702b33eeacc393d103063234e8bc28",
+          "repo": "Qwen/Qwen2.5-7B-Instruct"
+        }
+      ]
     }
   }
 }

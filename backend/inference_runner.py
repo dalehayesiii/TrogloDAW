@@ -775,9 +775,152 @@ def separate(request):
     )
 
 
+def enrich_prompt(request):
+    import prompt_enrichment
+
+    profile = request["enrichment_profile"]
+    caption = request["caption"]
+    if (
+        profile.get("prompt_version") != prompt_enrichment.PROMPT_VERSION
+        or profile.get("codec") != prompt_enrichment.CODEC
+    ):
+        raise ValueError("Unsupported prompt enrichment profile")
+    psutil = import_module("psutil")
+    torch = import_module("torch")
+    free, _total, _policy = gpu_memory(torch)
+    if (
+        psutil.virtual_memory().available < profile["min_available_ram_gib"] * 1024**3
+        or not torch.cuda.is_available()
+        or free < profile["min_free_vram_gib"] * 1024**3
+    ):
+        emit(
+            "complete",
+            1,
+            result=prompt_enrichment.provenance(
+                caption, profile=profile, reason="insufficient-memory"
+            ),
+        )
+        return
+    emit(
+        "loading_enrichment",
+        message="Preparing local prompt enrichment",
+        stage_device="cuda",
+        timing_profile={
+            **hardware(torch, "cuda"),
+            "quantization": profile["codec"],
+            "enrichment_profile": profile["id"],
+        },
+    )
+    transformers = import_module("transformers")
+    tokenizer = transformers.AutoTokenizer.from_pretrained(
+        request["writer_path"], local_files_only=True, trust_remote_code=False
+    )
+    started = time.monotonic()
+    model = transformers.AutoModelForCausalLM.from_pretrained(
+        request["writer_path"],
+        local_files_only=True,
+        trust_remote_code=False,
+        dtype=torch.bfloat16,
+        device_map={"": 0},
+        quantization_config=transformers.BitsAndBytesConfig(
+            load_in_4bit=True,
+            bnb_4bit_quant_type="nf4",
+            bnb_4bit_use_double_quant=True,
+            bnb_4bit_compute_dtype=torch.bfloat16,
+        ),
+    ).eval()
+    load_seconds = time.monotonic() - started
+
+    class Checkpoint(transformers.StoppingCriteria):
+        def __init__(self, stage, prefix):
+            self.stage, self.prefix, self.last = stage, prefix, 0
+
+        def __call__(self, input_ids, scores, **_kwargs):
+            count = input_ids.shape[1] - self.prefix
+            if count - self.last >= 16:
+                self.last = count
+                emit(
+                    self.stage,
+                    message="Refining musical direction",
+                    units_complete=count,
+                    stage_device="cuda",
+                )
+            return False
+
+    def decode(system, value, maximum, stage, sample=False):
+        text = tokenizer.apply_chat_template(
+            [
+                {"role": "system", "content": system},
+                {"role": "user", "content": value},
+            ],
+            tokenize=False,
+            add_generation_prompt=True,
+        )
+        inputs = tokenizer(text, return_tensors="pt").to(model.get_input_embeddings().weight.device)
+        emit(stage, message="Refining musical direction", stage_device="cuda")
+        options = {"temperature": 0.6, "top_p": 0.8, "top_k": 20} if sample else {}
+        with torch.inference_mode():
+            output = model.generate(
+                **inputs,
+                max_new_tokens=maximum,
+                do_sample=sample,
+                stopping_criteria=transformers.StoppingCriteriaList(
+                    [Checkpoint(stage, inputs.input_ids.shape[1])]
+                ),
+                **options,
+            )
+        return tokenizer.decode(
+            output[0][inputs.input_ids.shape[1] :], skip_special_tokens=True
+        ).strip()
+
+    torch.manual_seed(request["seed"])
+    direction = {
+        "original": caption,
+        "instrumental": request.get("instrumental", False),
+        "source_authoritative": request.get("source_authoritative", False),
+    }
+    proposed = decode(
+        prompt_enrichment.WRITER_PROMPT,
+        json.dumps(direction, ensure_ascii=False),
+        profile["max_new_tokens"],
+        "enriching_prompt",
+        True,
+    )
+    additions, reason = prompt_enrichment.parse_additions(proposed, profile["max_characters"])
+    verdict = None
+    if additions:
+        verdict = prompt_enrichment.checked_verdict(
+            decode(
+                prompt_enrichment.CHECK_PROMPT,
+                json.dumps({**direction, "additions": additions}, ensure_ascii=False),
+                160,
+                "checking_prompt",
+            )
+        )
+        if not prompt_enrichment.accepted(verdict):
+            additions, reason = "", "rejected-proposal"
+    emit(
+        "complete",
+        1,
+        result=prompt_enrichment.provenance(
+            caption,
+            profile=profile,
+            reason=reason,
+            additions=additions,
+            seed=request["seed"],
+            verdict=verdict,
+            load_seconds=load_seconds,
+            seconds=time.monotonic() - started,
+            peak_vram=torch.cuda.max_memory_allocated(),
+        ),
+    )
+
+
 def main():
     request = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
     sys.path.insert(0, request["packages"])
+    if request.get("enrichment_packages"):
+        sys.path.insert(0, request["enrichment_packages"])
     if request.get("code"):
         sys.path.insert(0, request["code"])
     os.environ["HF_HUB_OFFLINE"] = "1"
@@ -785,6 +928,14 @@ def main():
     try:
         if request["action"] == "generate":
             generate(request)
+        elif request["action"] == "enrich_prompt":
+            enrich_prompt(request)
+        elif request["action"] == "probe_enrichment":
+            import_module("torch")
+            library = import_module("bitsandbytes")
+            emit(
+                "complete", 1, result={"codec": "bnb-nf4-double-v1", "version": library.__version__}
+            )
         elif request["action"] == "write_lyrics":
             write_lyrics(request)
         elif request["action"] == "plan_song":
