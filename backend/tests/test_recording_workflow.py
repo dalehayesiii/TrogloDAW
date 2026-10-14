@@ -38,6 +38,27 @@ def draft(item):
     }
 
 
+@pytest.mark.parametrize("seconds", [63 + 18 / 44100, 63 + 30 / 44100])
+def test_direct_batch_uses_exact_source_duration_despite_catalog_rounding(core, songs, seconds):
+    service, calls = songs
+    item = recording(core, seconds=seconds)
+    source = core.load_item(item["id"])
+    exact_duration = len(source) / core.SR
+    assert item["duration"] != exact_duration
+    request = {**draft(item), "count": 2}
+    result = service.generate(request, lambda *_args, **_kwargs: None, lambda: False)
+    assert calls == ["generate", "generate"]
+    assert len(result["outcomes"]) == 2
+    for output in result["outcomes"]:
+        song = output["song"]
+        recipe = song["recipe"]
+        assert recipe["parameters"]["duration"] == exact_duration
+        assert recipe["sources"][0]["duration"] == exact_duration
+        assert len(core.load_item(song["id"])) == len(source)
+        np.testing.assert_array_equal(core.load(service.asset(recipe["conditioning_file"])), source)
+    np.testing.assert_array_equal(core.load_item(item["id"]), source)
+
+
 def test_intact_source_bypasses_sampling_enhancement_and_second_overlay(
     core, songs, monkeypatch, tmp_path
 ):

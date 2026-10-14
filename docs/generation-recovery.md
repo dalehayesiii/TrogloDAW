@@ -1,5 +1,33 @@
 # Recovering noisy generation
 
+## Recording + style reports an incomplete timeline
+
+If both outputs fail with **The model did not render the complete recording
+timeline**, update to a release containing the recording-frame repair and retry
+the retained draft. No source conversion, model redownload or Library migration
+is needed. This can affect an upload shown as 1:03: the displayed length hides
+fractions of a second.
+
+The pinned decoder operates on 40 ms frames. Earlier direct generation could
+drop the final partial frame and then reject that shorter output; the catalog
+also rounded source duration to milliseconds. Direct generation now uses exact
+decoded source samples and appends less than 40 ms of silence inside the encoder
+to retain the complete ending. Only excess generated tail is removed afterward.
+Original recordings, complete saved songs and historical replay remain unchanged.
+Genuinely incomplete output still fails; the repair does not conceal it with
+silence or promise exact words/voice fidelity.
+
+The repair was checked with the pinned VAE configuration and actual installed
+diffusers encoder/decoder shape operations at nine durations from 1 to 300 seconds.
+For 63.003 seconds at 48 kHz, the old path loses 144 samples; the aligned path
+retains the complete ending and yields 1,776 extra generated-frame samples to trim.
+Waveform regressions verify unchanged source samples, exact final lengths and
+continued rejection of genuinely short output. A fresh full music inference
+attempt stopped at the 12 GiB available-RAM guard before loading; these checks do
+not claim a new full native 63-second performance or listening benchmark.
+
+## Older high-Weirdness sampler failure
+
 Older versions selected the checkpoint's SDE sampler when **Weirdness exceeded
 50**. The pinned checkpoint's SDE branch renoises using linear time while the
 slider also changes the timestep schedule. This combination can produce poor or
