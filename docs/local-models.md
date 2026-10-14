@@ -30,10 +30,18 @@ setup creates a temporary hashed export and installs Windows CUDA wheels into th
 chosen folder. Node is not an installed runtime dependency.
 
 The Base default needs approximately 6.35 GB of music assets plus 0.42 GB of
-separation/speaker assets; allow another 12 GB for inference wheels and caches.
+separation/speaker assets plus 2.17 MiB for optional CPU phrase detection; allow another 12 GB for inference wheels and caches.
 Settings also offers the architecture-compatible SFT checkpoint. SFT is not
 separately benchmarked. Turbo is excluded because it overrides classifier-free
 guidance and would make Style Influence ineffective.
+
+Existing ready models remain ready without the new phrase detector. To add it,
+use **Install / verify selected model**; unchanged weights are verified and reused.
+**Voice processing models** shows whether Silero VAD 6.2.3 is ready. It runs on CPU
+and improves vocal sampling in the sampled-song and backing workflows. Missing or
+failed detection falls back to complete acoustic phrases, with no implicit download.
+Recording + style uses the intact recording and bypasses phrase detection. See
+[phrase sampling](phrase-sampling.md) for limitations and source/license provenance.
 
 When the current location contains models or library data, selecting another folder
 prompts **Move existing data**, **Use folder without moving**, or **Cancel folder

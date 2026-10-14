@@ -232,6 +232,7 @@ class Storage:
             assets = [
                 self.model_manifest.get("runtime", {}),
                 *self.model_manifest.get("auxiliary_assets", []),
+                *self.model_manifest.get("source_analysis", {}).get("assets", []),
             ]
             for model in [
                 *self.model_manifest.get("models", {}).values(),
@@ -255,6 +256,7 @@ class Storage:
         assets = [
             self.model_manifest.get("runtime", {}),
             *self.model_manifest.get("auxiliary_assets", []),
+            *self.model_manifest.get("source_analysis", {}).get("assets", []),
         ]
         for model in [
             *self.model_manifest.get("models", {}).values(),
@@ -341,6 +343,7 @@ class Storage:
             assets = [
                 self.model_manifest.get("runtime", {}),
                 *self.model_manifest.get("auxiliary_assets", []),
+                *self.model_manifest.get("source_analysis", {}).get("assets", []),
             ]
             for model in [
                 *self.model_manifest.get("models", {}).values(),

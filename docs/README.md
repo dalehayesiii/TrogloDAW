@@ -15,6 +15,7 @@ measurements and before/after captures inside them remain records of those tests
 | [Lyrics, length and musical planning](song-planning.md) | Editable local lyrics, automatic length and internal metadata planning |
 | [Guide enhancement](guide-enhancement.md) | Off/Light treatment of sampled conditioning guides |
 | [Source-aware sampling](source-aware-sampling.md) | Recording/prior-song roles and bounded automatic arrangements |
+| [Phrase sampling](phrase-sampling.md) | Complete vocal phrases, optional CPU detection, recovery and measured limits |
 | [Style controls and limits](style-adherence.md) | Supported guidance, authoritative text and planner limitations |
 | [Library bulk actions](library-bulk-actions.md) | Selection, pagination, folders, deletion and partial failures |
 | [Progress and time remaining](progress.md) | Work-based progress, cancellation and local estimate history |

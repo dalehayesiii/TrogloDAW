@@ -775,6 +775,50 @@ def separate(request):
     )
 
 
+def analyze_phrases(request):
+    """Run the explicitly installed detector on CPU, without music-model loading."""
+    from phrase_analysis import ANALYSIS_RATE, WINDOW_SAMPLES, probability_spans
+
+    torch = import_module("torch")
+    np = import_module("numpy")
+    sf = import_module("soundfile")
+    signal = import_module("scipy.signal")
+    torch.set_num_threads(1)
+    emit("loading_phrases", stage_device="cpu", message="Loading local CPU phrase detector")
+    detector = torch.jit.load(request["speech_model"], map_location="cpu").eval()
+    source, sr = sf.read(request["audio"], dtype="float32", always_2d=True)
+    # Parent already chooses phase-safe analysis channels. This never changes saved audio.
+    mono = source.mean(axis=1)
+    mono = mono - np.median(mono)
+    reference = float(np.percentile(np.abs(mono), 95))
+    if reference <= 1e-8:
+        audible = np.abs(mono[np.abs(mono) > 1e-8])
+        reference = float(np.percentile(audible, 95)) if len(audible) else 0
+    gain = 0.2 / reference if reference > 1e-8 else 1.0
+    mono = np.clip(mono * gain, -1, 1).astype(np.float32)
+    divisor = import_module("math").gcd(sr, ANALYSIS_RATE)
+    audio = signal.resample_poly(mono, ANALYSIS_RATE // divisor, sr // divisor).astype(np.float32)
+    detector.reset_states()
+    total = (len(audio) + WINDOW_SAMPLES - 1) // WINDOW_SAMPLES
+    scores = []
+    with torch.inference_mode():
+        for index in range(total):
+            start = index * WINDOW_SAMPLES
+            window = audio[start : start + WINDOW_SAMPLES]
+            window = np.pad(window, (0, WINDOW_SAMPLES - len(window)))
+            scores.append(float(detector(torch.from_numpy(window), ANALYSIS_RATE)))
+            if index % 32 == 0 or index + 1 == total:
+                emit(
+                    "analyzing_phrases",
+                    units_complete=index + 1,
+                    units_total=total,
+                    stage_device="cpu",
+                    message="Identifying complete vocal phrases",
+                )
+    evidence = probability_spans(scores, len(source), sr)
+    emit("complete", 1, result={**evidence, "analysis_gain": gain, "device": "cpu"})
+
+
 def main():
     request = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
     sys.path.insert(0, request["packages"])
@@ -793,6 +837,8 @@ def main():
             plan_song(request, blueprint=True)
         elif request["action"] == "separate":
             separate(request)
+        elif request["action"] == "analyze_phrases":
+            analyze_phrases(request)
         elif request["action"] == "probe":
             for module in (
                 "acestep.handler",

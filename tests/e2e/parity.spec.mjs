@@ -76,6 +76,30 @@ test('three workflows, progressive controls, drafts and accessible input help', 
   expect(errors).toEqual([]);
 });
 
+test('phrase sampling guidance and optional CPU model status preserve workflow drafts', async ({
+  page,
+}) => {
+  await open(page);
+  await page.getByLabel('Input Lyrics', { exact: true }).fill('Keep this draft');
+  await page.getByRole('button', { name: 'Audio input guidance' }).click();
+  await expect(page.getByRole('tooltip')).toContainText('complete vocal phrases between pauses');
+  await expect(page.getByRole('tooltip')).toContainText('uncertain phrases stay longer');
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await page.getByText('Voice processing models', { exact: true }).click();
+  await expect(page.getByText('Phrase detection (optional, CPU)', { exact: true })).toBeVisible();
+  await expect(
+    page.getByText('Silero VAD 6.2.3 — not installed; verify the selected model', { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: 'Install / verify selected model', exact: true }),
+  ).toBeVisible();
+  await page.getByRole('button', { name: 'Done', exact: true }).click();
+  await expect(page.getByLabel('Input Lyrics', { exact: true })).toHaveValue('Keep this draft');
+  await page.getByLabel('Generation workflow').selectOption('recording-style');
+  await page.getByRole('button', { name: 'Audio input guidance' }).click();
+  await expect(page.getByRole('tooltip')).toContainText('not sliced');
+});
+
 test('applicable audio conditioning controls persist and postmix disables adherence', async ({
   page,
 }) => {

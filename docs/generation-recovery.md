@@ -1,5 +1,22 @@
 # Recovering noisy generation
 
+## Sampled inputs cut words or phrases too short
+
+Update to a release containing phrase-safe sampling, then generate a fresh
+arrangement from the retained sources. Explicitly reused saved arrangements keep
+their historical cuts: remove the reused arrangement when requesting new sampling.
+New vocal samples keep whole detected phrases, even above the old two-second
+preference. **Install / verify selected model** adds the optional small CPU phrase
+detector to an existing ready installation without redownloading unchanged weights.
+It helps locate vocal pauses over music; without it, complete acoustic phrases are kept.
+
+If the sampler reports **No complete safe phrase** or needs a longer duration,
+try a longer song, fewer selected clips, or a shorter source with clearer pauses.
+Unknown continuous finished mixes are not overlaid whole just to avoid an error.
+Noise, singing and overlap can hide boundaries; detection is conservative and
+cannot guarantee word recognition for every input. Existing songs and portable
+recipes remain unchanged. See [phrase sampling](phrase-sampling.md).
+
 ## Recording + style reports an incomplete timeline
 
 If both outputs fail with **The model did not render the complete recording

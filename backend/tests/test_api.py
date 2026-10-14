@@ -25,6 +25,10 @@ def test_model_role_identities_follow_configured_models_without_installing(core)
         assert described["voice_models"] == [
             {"role": "Vocal separation", "name": "HDemucs High"},
             {"role": "Voice grouping", "name": "SpeechBrain ECAPA-TDNN"},
+            {
+                "role": "Phrase detection (optional, CPU)",
+                "name": "Silero VAD 6.2.3 — not installed; verify the selected model",
+            },
         ]
         manager = app.state.service.models
         manager.manifest["models"]["fixture-music"] = {
