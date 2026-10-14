@@ -791,6 +791,9 @@ def analyze_phrases(request):
     mono = source.mean(axis=1)
     mono = mono - np.median(mono)
     reference = float(np.percentile(np.abs(mono), 95))
+    if reference <= 1e-8:
+        audible = np.abs(mono[np.abs(mono) > 1e-8])
+        reference = float(np.percentile(audible, 95)) if len(audible) else 0
     gain = 0.2 / reference if reference > 1e-8 else 1.0
     mono = np.clip(mono * gain, -1, 1).astype(np.float32)
     divisor = import_module("math").gcd(sr, ANALYSIS_RATE)

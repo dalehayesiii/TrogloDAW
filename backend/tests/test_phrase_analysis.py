@@ -5,6 +5,7 @@ import json
 import random
 import shutil
 from types import SimpleNamespace
+from contextlib import nullcontext
 
 import numpy as np
 import pytest
@@ -16,6 +17,59 @@ from phrase_analysis import probability_spans, validate_evidence
 from songs import CLIP_DEFAULTS
 from test_arrangement_quality import articulated_source
 from test_source_routing import CASES
+
+
+def test_cpu_runner_detects_a_sparse_quiet_utterance_without_changing_source(
+    core, tmp_path, monkeypatch
+):
+    import inference_runner
+    from importlib import import_module
+
+    class Detector:
+        def eval(self):
+            return self
+
+        def reset_states(self):
+            pass
+
+        def __call__(self, window, sr):
+            assert sr == 16000 and len(window) == 512
+            return 0.9 if np.sqrt(np.mean(window**2)) > 0.05 else 0.0
+
+    torch = SimpleNamespace(
+        set_num_threads=lambda threads: None,
+        jit=SimpleNamespace(
+            load=lambda path, map_location: Detector() if map_location == "cpu" else None
+        ),
+        from_numpy=lambda window: window,
+        inference_mode=nullcontext,
+    )
+    monkeypatch.setattr(
+        inference_runner,
+        "import_module",
+        lambda name: torch if name == "torch" else import_module(name),
+    )
+    events = []
+    monkeypatch.setattr(
+        inference_runner,
+        "emit",
+        lambda stage, fraction=0, **values: events.append({"stage": stage, **values}),
+    )
+    audio = np.zeros((63 * core.SR, 2), np.float32)
+    start = 10 * core.SR
+    word = core.synth_voice(0.7) * 0.003
+    audio[start : start + len(word)] = word
+    path = tmp_path / "invented quiet utterance.wav"
+    sf.write(path, audio, core.SR, subtype="FLOAT")
+    before = path.read_bytes()
+    inference_runner.analyze_phrases({"audio": str(path), "speech_model": "synthetic detector"})
+    result = events[-1]["result"]
+    assert result["device"] == "cpu" and result["status"] == "speech"
+    assert result["spans"][0]["start"] <= start
+    assert result["spans"][0]["end"] >= start + len(word)
+    frames = [event for event in events if event["stage"] == "analyzing_phrases"]
+    assert frames[-1]["units_complete"] == frames[-1]["units_total"]
+    assert path.read_bytes() == before
 
 
 def evidence(samples, sr, intervals=()):

@@ -65,6 +65,15 @@ quality, all languages or model song quality. Tests additionally cover brief wor
 long uninterrupted spans, invalid cache evidence, model changes, cancellation,
 all eight source collections, original assets and relocated historical replay.
 
+A further native probe placed one quiet synthesized utterance at 10 seconds in
+an otherwise silent 63-second recording. Using the whole-file percentile alone
+left analysis gain at 1 and delayed the protected start to 10.256 seconds.
+Normalizing the audible portion of the analysis copy instead kept the start at
+9.968 seconds and identified the internal clause pause, yielding protected spans
+9.968–11.792 and 11.792–13.456. The detector remained on CPU and the saved source
+bytes were identical before and after. This bounds a sparse-input onset regression;
+it does not establish universal word alignment.
+
 Primary source: [pinned Silero VAD revision](https://github.com/snakers4/silero-vad/tree/5cd7945676eb32225748052e2e6a0580e4686a08),
 [MIT license](https://github.com/snakers4/silero-vad/blob/5cd7945676eb32225748052e2e6a0580e4686a08/LICENSE).
 Asset SHA-256: `e1122837f4154c511485fe0b9c64455f7b929c96fbb8d79fbdb336383ebd3720`.
