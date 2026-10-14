@@ -359,6 +359,12 @@ class Songs:
             ):
                 raise ValueError("Clip transformation is outside supported limits")
             item_recipe = item.get("recipe")
+            duration = item["duration"]
+            if draft.get("workflow") == "recording-style":
+                # Catalog durations are rounded for display; the complete accepted
+                # waveform, including its last partial millisecond, sets this timeline.
+                info = sf.info(self.asset(saved) if saved else item["path"])
+                duration = info.frames / info.samplerate
             sources.append(
                 {
                     "id": item["id"],
@@ -367,7 +373,7 @@ class Songs:
                     "lineage": item_recipe.get("source_song_id")
                     if isinstance(item_recipe, dict)
                     else None,
-                    "duration": item["duration"],
+                    "duration": duration,
                     "preset": clip.get("preset"),
                     "preset_version": settings.get("version"),
                     "settings": settings,

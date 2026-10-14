@@ -24,6 +24,12 @@ generated tail. It never cuts the input recording or adds it again after inferen
 Blank lyrics do not request an instrumental. Source/voice/style fidelity remains
 model-dependent; this is not a voice-cloning or exact-word guarantee.
 
+Direct length uses the accepted waveform's exact sample count. To preserve a
+partial final decoder frame, the adapter adds less than 40 ms of silence inside
+the encoder and removes only the excess generated tail. This avoids false
+incomplete-timeline failures on fractional-second uploads without rewriting the
+recording or padding genuinely short model output. See [retry guidance](generation-recovery.md#recording--style-reports-an-incomplete-timeline).
+
 ## Internal planning
 
 Base advertises a validated `musical_metadata` planning input. With the existing

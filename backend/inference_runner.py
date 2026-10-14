@@ -112,14 +112,37 @@ def hardware(torch, device):
     }
 
 
-def trim_recording_padding(first, parameters, conditioned):
+def align_recording_encoder(handler, torch):
+    """Keep the last source samples in the pinned VAE's final complete frame."""
+    config = handler.vae.config
+    if config.sampling_rate != 48000 or tuple(config.downsampling_ratios) != (2, 4, 4, 6, 10):
+        raise RuntimeError("This decoder cannot preserve the complete recording timeline")
+    original_encode = handler.tiled_encode
+    alignment = {"frame_samples": 1920, "sample_rate": 48000, "padding_samples": 0}
+
+    def encode(audio, *args, **kwargs):
+        padding = (-audio.shape[-1]) % alignment["frame_samples"]
+        if padding:
+            audio = torch.nn.functional.pad(audio, (0, padding))
+            alignment["padding_samples"] = max(alignment["padding_samples"], padding)
+        return original_encode(audio, *args, **kwargs)
+
+    handler.tiled_encode = encode
+    return alignment
+
+
+def trim_recording_padding(first, parameters, conditioned, source_audio=None):
     if not conditioned or parameters.get("workflow") != "recording-style":
         return 0
     # The pinned decoder pads short sources to 5.12 seconds. Remove only its
     # generated tail so the result retains the complete original timeline.
     sf = import_module("soundfile")
     audio, sample_rate = sf.read(first["path"], dtype="float32", always_2d=True)
-    expected = round(parameters["duration"] * sample_rate)
+    if source_audio:
+        source = sf.info(source_audio)
+        expected = round(source.frames * sample_rate / source.samplerate)
+    else:
+        expected = round(parameters["duration"] * sample_rate)
     if len(audio) < expected:
         raise RuntimeError("The model did not render the complete recording timeline")
     trimmed = len(audio) - expected
@@ -188,6 +211,11 @@ def generate(request):
         raise RuntimeError(status)
     conditioned = parameters.get("effective_mode") == "conditioned"
     adapt_generation(handler.model, conditioned=conditioned)
+    recording_alignment = (
+        align_recording_encoder(handler, torch)
+        if conditioned and parameters.get("workflow") == "recording-style"
+        else None
+    )
     emit(
         "encoding",
         device="cuda",
@@ -278,7 +306,9 @@ def generate(request):
     if not result.success or not result.audios:
         raise RuntimeError(result.error or "Music inference produced no audio")
     first = result.audios[0]
-    trimmed_padding = trim_recording_padding(first, parameters, conditioned)
+    trimmed_padding = trim_recording_padding(
+        first, parameters, conditioned, request.get("conditioning_audio")
+    )
     emit(
         "complete",
         1,
@@ -291,6 +321,7 @@ def generate(request):
             "device": "cuda",
             "offload": "cpu+dit",
             "trimmed_padding_samples": trimmed_padding,
+            **({"recording_alignment": recording_alignment} if recording_alignment else {}),
             "conditioning": params.task_type
             if conditioned
             else "musical_metadata"

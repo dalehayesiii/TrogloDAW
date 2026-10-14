@@ -107,3 +107,62 @@ def test_direct_result_removes_decoder_padding_without_cutting_source_timeline(t
     assert (
         inference_runner.trim_recording_padding(first, {**params, "workflow": "model"}, True) == 0
     )
+
+
+@pytest.mark.parametrize("samples", [48000, 336000, 3024000, 3024144, 3025872, 3028800, 14400000])
+def test_direct_encoder_preserves_last_samples_before_frame_quantization(samples):
+    # Mimic the pinned VAE's floor encode / exact-frame decode, including the
+    # nonaligned ~63-second upload which integer-second checks missed.
+    audio = np.linspace(-0.4, 0.4, samples, dtype=np.float32)[None, :]
+    snapshot = audio.copy()
+    received = []
+
+    def encoder(value, *, offload_latent_to_cpu):
+        assert offload_latent_to_cpu is True
+        received.append(value)
+        return value[..., : value.shape[-1] // 1920 * 1920]
+
+    handler = SimpleNamespace(
+        vae=SimpleNamespace(
+            config=SimpleNamespace(sampling_rate=48000, downsampling_ratios=[2, 4, 4, 6, 10])
+        ),
+        tiled_encode=encoder,
+    )
+    torch = SimpleNamespace(
+        nn=SimpleNamespace(
+            functional=SimpleNamespace(pad=lambda value, widths: np.pad(value, ((0, 0), widths)))
+        )
+    )
+    alignment = inference_runner.align_recording_encoder(handler, torch)
+    decoded = handler.tiled_encode(audio, offload_latent_to_cpu=True)
+    assert len(decoded[0]) >= samples
+    assert len(decoded[0]) - samples < 1920
+    np.testing.assert_array_equal(decoded[..., :samples], snapshot)
+    np.testing.assert_array_equal(audio, snapshot)
+    assert not np.any(decoded[..., samples:])
+    assert alignment["padding_samples"] == len(decoded[0]) - samples
+
+
+def test_direct_alignment_rejects_unvalidated_decoder():
+    handler = SimpleNamespace(
+        vae=SimpleNamespace(
+            config=SimpleNamespace(sampling_rate=44100, downsampling_ratios=[2, 4, 4, 6, 10])
+        )
+    )
+    with pytest.raises(RuntimeError, match="decoder cannot preserve"):
+        inference_runner.align_recording_encoder(handler, None)
+
+
+def test_direct_trim_uses_exact_source_frames_not_rounded_duration(tmp_path):
+    source, result = tmp_path / "source.wav", tmp_path / "result.wav"
+    sf.write(source, np.ones((630034, 2), dtype=np.float32) * 0.2, 10000, subtype="FLOAT")
+    generated = np.ones((630040, 2), dtype=np.float32) * 0.3
+    sf.write(result, generated, 10000, subtype="FLOAT")
+    params = {"workflow": "recording-style", "duration": 63.003}
+    assert inference_runner.trim_recording_padding({"path": result}, params, True, source) == 6
+    audio, _ = sf.read(result, always_2d=True, dtype="float32")
+    np.testing.assert_array_equal(audio, generated[:630034])
+    assert sf.info(source).frames == 630034
+    sf.write(result, generated[:630033], 10000, subtype="FLOAT")
+    with pytest.raises(RuntimeError, match="complete recording timeline"):
+        inference_runner.trim_recording_padding({"path": result}, params, True, source)
