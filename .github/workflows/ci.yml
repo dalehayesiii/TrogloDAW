@@ -102,7 +102,7 @@ jobs:
       - uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
-      - uses: astral-sh/setup-uv@v10.3.0
+      - uses: astral-sh/setup-uv@v10.3.3
         with:
           version: '0.13.0'
           enable-cache: true
@@ -161,7 +161,7 @@ jobs:
       - run: npm ci --ignore-scripts --workspaces=false
       - run: npm test
       - run: npm run specs:check
-      - uses: astral-sh/setup-uv@v10.3.0
+      - uses: astral-sh/setup-uv@v10.3.3
         with:
           version: '0.13.0'
           enable-cache: true
@@ -191,7 +191,7 @@ jobs:
       - uses: actions/setup-python@v7.0.0
         with:
           python-version: '3.12'
-      - uses: astral-sh/setup-uv@v10.3.0
+      - uses: astral-sh/setup-uv@v10.3.3
         with:
           version: '0.13.0'
           enable-cache: true
